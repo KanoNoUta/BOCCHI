@@ -1,4 +1,4 @@
-using Dalamud.Game.Text;
+﻿using Dalamud.Game.Text;
 using Dalamud.Game.Text.SeStringHandling;
 using Ocelot.Modules;
 using Ocelot.Windows;
@@ -34,7 +34,7 @@ public class ExpModule(Plugin plugin, Config config) : Module(plugin, config)
         tracker.OnChatMessage(type, timestamp, sender, message, isHandled);
     }
 
-    public override void OnTerritoryChanged(ushort id)
+    public override void OnTerritoryChanged(uint id)
     {
         tracker.OnTerritoryChange(id);
     }

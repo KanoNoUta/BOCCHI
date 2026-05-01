@@ -1,4 +1,4 @@
-using Ocelot.Modules;
+﻿using Ocelot.Modules;
 using Ocelot.Windows;
 
 namespace BOCCHI.Modules.Currency;
@@ -30,7 +30,7 @@ public class CurrencyModule(Plugin plugin, Config config) : Module(plugin, confi
         Tracker.Tick(context.Framework);
     }
 
-    public override void OnTerritoryChanged(ushort _)
+    public override void OnTerritoryChanged(uint _)
     {
         Tracker.Reset();
     }

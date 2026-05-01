@@ -1,8 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Numerics;
-using BOCCHI.ActionHelpers;
+﻿using BOCCHI.ActionHelpers;
 using BOCCHI.Data;
 using BOCCHI.Enums;
 using BOCCHI.ItemHelpers;
@@ -15,6 +11,10 @@ using FFXIVClientStructs.FFXIV.Client.Game.Control;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using Ocelot.Chain;
 using Ocelot.Chain.ChainEx;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Numerics;
 using ObjectKind = Dalamud.Game.ClientState.Objects.Enums.ObjectKind;
 
 namespace BOCCHI.Modules.Carrots;
@@ -64,7 +64,7 @@ public class CarrotHunt(CarrotsModule module) : Hunter(module)
 
                 var gameObject = (GameObject*)(void*)chest.Address;
                 TargetSystem.Instance()->InteractWithObject(gameObject);
-                return Svc.ClientState.LocalPlayer?.IsCasting == true;
+                return Svc.Objects.LocalPlayer?.IsCasting == true;
             })
             .WaitToCast();
     }

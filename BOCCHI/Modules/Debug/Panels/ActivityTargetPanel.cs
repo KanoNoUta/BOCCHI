@@ -1,17 +1,17 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using BOCCHI.Enums;
+﻿using BOCCHI.Enums;
 using BOCCHI.Modules.Automator;
+using Dalamud.Bindings.ImGui;
 using Dalamud.Game.ClientState.Objects.Enums;
 using Dalamud.Game.ClientState.Objects.Types;
 using ECommons.DalamudServices;
 using ECommons.GameHelpers;
 using ECommons.Throttlers;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
-using Dalamud.Bindings.ImGui;
 using Lumina.Excel.Sheets;
 using Ocelot.Ui;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace BOCCHI.Modules.Debug.Panels;
 
@@ -82,7 +82,7 @@ public class ActivityTargetPanel : Panel
 
             var isRelatedToCurrentEvent = battleChara->EventId.EntryId == Player.BattleChara->EventId.EntryId;
 
-            return obj.SubKind == (byte)BattleNpcSubKind.Enemy && isRelatedToCurrentEvent;
+            return obj.SubKind == (byte)BattleNpcSubKind.Combatant && isRelatedToCurrentEvent;
         }
         catch (Exception ex)
         {

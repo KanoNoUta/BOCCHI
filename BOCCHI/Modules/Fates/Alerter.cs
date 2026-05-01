@@ -1,8 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using BOCCHI.Enums;
+﻿using BOCCHI.Enums;
 using ECommons.DalamudServices;
 using FFXIVClientStructs.FFXIV.Client.UI;
+using System;
+using System.Collections.Generic;
 
 namespace BOCCHI.Modules.Fates;
 
@@ -31,7 +31,7 @@ public class Alerter : IDisposable
         this.module.tracker.OnFateDespawned += OnFateDespawned;
     }
 
-    private void OnFateSpawned(Fate fate)
+    private unsafe void OnFateSpawned(Fate fate)
     {
         if (module.Config.LogSpawn)
         {
@@ -46,7 +46,7 @@ public class Alerter : IDisposable
         UIGlobals.PlaySoundEffect(66);
     }
 
-    private void OnFateDespawned(Fate fate)
+    private unsafe void OnFateDespawned(Fate fate)
     {
         if (module.Config.LogSpawn)
         {

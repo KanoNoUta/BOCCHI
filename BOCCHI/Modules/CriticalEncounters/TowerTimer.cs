@@ -1,9 +1,8 @@
-﻿using System;
-using BOCCHI.Data;
+﻿using BOCCHI.Data;
 using BOCCHI.Modules.Fates;
-using Dalamud.Game.ClientState.Fates;
 using ECommons.DalamudServices;
 using FFXIVClientStructs.FFXIV.Client.Game.InstanceContent;
+using System;
 
 namespace BOCCHI.Modules.CriticalEncounters;
 
@@ -98,7 +97,7 @@ public class TowerTimer : IDisposable
         LastForkedTowerRegister = DateTime.Now;
     }
 
-    private void OnTerritoryChanged(ushort _)
+    private void OnTerritoryChanged(uint _)
     {
         if (!ZoneData.IsInOccultCrescent())
         {

@@ -1,9 +1,10 @@
-using System.Numerics;
-using BOCCHI.Data;
-using Dalamud.Interface;
+﻿using BOCCHI.Data;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface;
+using Dalamud.Interface.Windowing;
 using Ocelot;
 using Ocelot.Windows;
+using System.Numerics;
 
 namespace BOCCHI.Modules.Automator;
 

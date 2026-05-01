@@ -5,6 +5,8 @@ VisualStudioVersion = 18.3.11312.210
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BOCCHI", "BOCCHI\BOCCHI.csproj", "{7C356170-0EE5-CD33-2F4A-517B12A7336F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ocelot", "..\Ocelot-1.1.2\Ocelot\Ocelot.csproj", "{626F1C84-65FD-1C36-0DE9-758679AF1E81}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -15,6 +17,10 @@ Global
 		{7C356170-0EE5-CD33-2F4A-517B12A7336F}.Debug|x64.Build.0 = Debug|x64
 		{7C356170-0EE5-CD33-2F4A-517B12A7336F}.Release|x64.ActiveCfg = Release|x64
 		{7C356170-0EE5-CD33-2F4A-517B12A7336F}.Release|x64.Build.0 = Release|x64
+		{626F1C84-65FD-1C36-0DE9-758679AF1E81}.Debug|x64.ActiveCfg = Debug|x64
+		{626F1C84-65FD-1C36-0DE9-758679AF1E81}.Debug|x64.Build.0 = Debug|x64
+		{626F1C84-65FD-1C36-0DE9-758679AF1E81}.Release|x64.ActiveCfg = Release|x64
+		{626F1C84-65FD-1C36-0DE9-758679AF1E81}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

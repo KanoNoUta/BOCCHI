@@ -1,9 +1,9 @@
+﻿using BOCCHI.Modules.Debug.Panels;
+using Dalamud.Bindings.ImGui;
+using ECommons;
+using Ocelot.Modules;
 using System.Collections.Generic;
 using System.Numerics;
-using BOCCHI.Modules.Debug.Panels;
-using ECommons;
-using Dalamud.Bindings.ImGui;
-using Ocelot.Modules;
 
 namespace BOCCHI.Modules.Debug;
 
@@ -81,7 +81,7 @@ public class DebugModule(Plugin plugin, Config config) : Module(plugin, config)
         panels.Each(p => p.Update(this));
     }
 
-    public override void OnTerritoryChanged(ushort id)
+    public override void OnTerritoryChanged(uint id)
     {
         panels.Each(p => p.OnTerritoryChanged(id, this));
     }

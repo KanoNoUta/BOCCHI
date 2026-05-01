@@ -1,10 +1,11 @@
-﻿using System.Linq;
-using System.Numerics;
-using BOCCHI.Modules;
-using Dalamud.Interface.Utility.Raii;
+﻿using BOCCHI.Modules;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface.Utility.Raii;
+using Dalamud.Interface.Windowing;
 using Ocelot.Modules;
 using Ocelot.Windows;
+using System.Linq;
+using System.Numerics;
 
 namespace BOCCHI.Windows;
 

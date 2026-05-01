@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using ECommons.DalamudServices;
 using Dalamud.Bindings.ImGui;
 using Lumina.Excel.Sheets;
@@ -21,7 +21,7 @@ public class StatusPanel : Panel
         OcelotUi.Title("Statuses:");
         OcelotUi.Indent(() =>
         {
-            foreach (var s in Svc.ClientState.LocalPlayer!.StatusList)
+            foreach (var s in Svc.Objects.LocalPlayer!.StatusList)
             {
                 ImGui.TextUnformatted($"{data.Where(r => r.RowId == s.StatusId).First().Name} ({s.StatusId})");
             }

@@ -1,8 +1,8 @@
-using System.Collections.Generic;
-using BOCCHI.Data;
+﻿using BOCCHI.Data;
 using FFXIVClientStructs.FFXIV.Client.Game.InstanceContent;
 using Ocelot.Modules;
 using Ocelot.Windows;
+using System.Collections.Generic;
 
 namespace BOCCHI.Modules.CriticalEncounters;
 
@@ -58,7 +58,7 @@ public class CriticalEncountersModule : Module
         return true;
     }
 
-    public override void OnTerritoryChanged(ushort id)
+    public override void OnTerritoryChanged(uint id)
     {
         CriticalEncounters.Clear();
     }

@@ -1,6 +1,6 @@
-using System.Collections.Generic;
-using BOCCHI.Modules.StateManager;
+﻿using BOCCHI.Modules.StateManager;
 using Ocelot.Modules;
+using System.Collections.Generic;
 
 namespace BOCCHI.Modules.WindowManager;
 
@@ -44,7 +44,7 @@ public class WindowManagerModule(Plugin _plugin, Config _config) : Module(_plugi
         GetModule<StateManagerModule>().OnEnterIdle += ExitCombat;
     }
 
-    public override void OnTerritoryChanged(ushort id)
+    public override void OnTerritoryChanged(uint id)
     {
         if (occultCrescentTerritoryIds.Contains(id))
         {

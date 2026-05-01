@@ -1,12 +1,12 @@
+﻿using BOCCHI.Enums;
+using Dalamud.Game.ClientState.Objects.Enums;
+using Dalamud.Game.ClientState.Objects.Types;
+using ECommons.DalamudServices;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
-using BOCCHI.Enums;
-using Dalamud.Game.ClientState.Objects.Enums;
-using Dalamud.Game.ClientState.Objects.Types;
-using ECommons.DalamudServices;
 
 namespace BOCCHI.Data;
 
@@ -33,13 +33,13 @@ public static class ZoneData
 
     public static bool IsInOccultCrescent()
     {
-        return Svc.ClientState.LocalPlayer != null && IsInSouthHorn();
+        return Svc.Objects.LocalPlayer != null && IsInSouthHorn();
     }
 
     // Tower functions
     private static bool IsInForkedTowerBlood()
     {
-        var player = Svc.ClientState.LocalPlayer;
+        var player = Svc.Objects.LocalPlayer;
         if (player == null)
         {
             return false;
@@ -82,7 +82,7 @@ public static class ZoneData
 
     public static IList<IGameObject> GetNearbyAethernetShards(float range = 4.3f)
     {
-        var playerPos = Svc.ClientState.LocalPlayer?.Position ?? Vector3.Zero;
+        var playerPos = Svc.Objects.LocalPlayer?.Position ?? Vector3.Zero;
 
         return Svc.Objects
             .Where(o => o.ObjectKind == ObjectKind.EventObj)
@@ -98,7 +98,7 @@ public static class ZoneData
 
     public static IList<IGameObject> GetNearbyKnowledgeCrystal(float range = 4.5f)
     {
-        var playerPos = Svc.ClientState.LocalPlayer?.Position ?? Vector3.Zero;
+        var playerPos = Svc.Objects.LocalPlayer?.Position ?? Vector3.Zero;
 
         return Svc.Objects
             .Where(o => o.ObjectKind == ObjectKind.EventObj)

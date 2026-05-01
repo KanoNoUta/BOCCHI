@@ -3,6 +3,7 @@ using BOCCHI.Modules.Automator;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Colors;
+using Dalamud.Interface.Windowing;
 using Ocelot;
 using Ocelot.Windows;
 using System.Numerics;

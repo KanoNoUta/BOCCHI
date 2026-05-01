@@ -1,8 +1,8 @@
-using System;
-using System.Text.RegularExpressions;
-using Dalamud.Game.Text;
+﻿using Dalamud.Game.Text;
 using Dalamud.Game.Text.SeStringHandling;
 using ECommons.DalamudServices;
+using System;
+using System.Text.RegularExpressions;
 using ClientLanguage = Dalamud.Game.ClientLanguage;
 
 namespace BOCCHI.Modules.Exp;
@@ -21,7 +21,7 @@ public class ExpTracker
         pattern = getExpMessagePattern(Svc.ClientState.ClientLanguage);
     }
 
-    public void OnTerritoryChange(ushort _)
+    public void OnTerritoryChange(uint _)
     {
         Reset();
     }

@@ -1,14 +1,14 @@
+﻿using BOCCHI.Data;
+using BOCCHI.Modules.Teleporter;
+using Dalamud.Bindings.ImGui;
+using ECommons.DalamudServices;
+using Lumina.Data.Files;
+using Lumina.Excel.Sheets;
+using Ocelot.Ui;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
-using BOCCHI.Data;
-using BOCCHI.Modules.Teleporter;
-using ECommons.DalamudServices;
-using Dalamud.Bindings.ImGui;
-using Lumina.Data.Files;
-using Lumina.Excel.Sheets;
-using Ocelot.Ui;
 
 namespace BOCCHI.Modules.Debug.Panels;
 
@@ -21,7 +21,7 @@ public class FatesPanel : Panel
         ProcessLgbData(Svc.ClientState.TerritoryType);
     }
 
-    public void ProcessLgbData(ushort id)
+    public void ProcessLgbData(uint id)
     {
         if (id == 0)
         {
@@ -95,7 +95,7 @@ public class FatesPanel : Panel
         });
     }
 
-    public override void OnTerritoryChanged(ushort id, DebugModule module)
+    public override void OnTerritoryChanged(uint id, DebugModule module)
     {
         ProcessLgbData(id);
     }

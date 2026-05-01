@@ -1,4 +1,4 @@
-namespace BOCCHI.Modules.Debug.Panels;
+﻿namespace BOCCHI.Modules.Debug.Panels;
 
 public abstract class Panel
 {
@@ -12,7 +12,7 @@ public abstract class Panel
     {
     }
 
-    public virtual void OnTerritoryChanged(ushort id, DebugModule module)
+    public virtual void OnTerritoryChanged(uint id, DebugModule module)
     {
     }
 }

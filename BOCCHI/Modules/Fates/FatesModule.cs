@@ -1,6 +1,6 @@
-using System.Collections.Generic;
-using Ocelot.Modules;
+﻿using Ocelot.Modules;
 using Ocelot.Windows;
+using System.Collections.Generic;
 
 namespace BOCCHI.Modules.Fates;
 
@@ -50,7 +50,7 @@ public class FatesModule : Module
         return true;
     }
 
-    public override void OnTerritoryChanged(ushort id)
+    public override void OnTerritoryChanged(uint id)
     {
         fates.Clear();
     }

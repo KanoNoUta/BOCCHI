@@ -43,7 +43,7 @@ public class Alerter : IDisposable
         this.module.Tracker.OnInactiveState += OnCriticalEncounterDepawned;
     }
 
-    private void OnCriticalEncounterSpawned(DynamicEvent ev)
+    private unsafe void OnCriticalEncounterSpawned(DynamicEvent ev)
     {
         if (module.Config.LogSpawn)
         {
@@ -58,7 +58,7 @@ public class Alerter : IDisposable
         UIGlobals.PlaySoundEffect(66);
     }
 
-    private void OnCriticalEncounterDepawned(DynamicEvent ev)
+    private unsafe void OnCriticalEncounterDepawned(DynamicEvent ev)
     {
         if (module.Config.LogSpawn)
         {

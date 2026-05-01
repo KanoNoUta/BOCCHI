@@ -1,4 +1,4 @@
-using BOCCHI.Data;
+﻿using BOCCHI.Data;
 using Dalamud.Game.ClientState.Conditions;
 using ECommons.DalamudServices;
 using Ocelot.Windows;
@@ -24,7 +24,7 @@ public class Radar
             return;
         }
 
-        if (Svc.ClientState.LocalPlayer == null || Svc.Condition[ConditionFlag.InCombat])
+        if (Svc.Objects.LocalPlayer == null || Svc.Condition[ConditionFlag.InCombat])
         {
             return;
         }
