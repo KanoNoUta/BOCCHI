@@ -16,9 +16,26 @@
       },
       "ECommons": {
         "type": "Direct",
-        "requested": "[3.2.0.9, )",
-        "resolved": "3.2.0.9",
-        "contentHash": "JWD/HU+CUBFRCRTJzdyL+Ld6BedndYXk10bZHNbaGleO6WZQWxUUwAAKtJNZgvyrzQ53fqEvnuHml3mNYORl5w=="
+        "requested": "[1.1.5, 1.2.0)",
+        "resolved": "1.1.5",
+        "contentHash": "EEm/v3MKAqW2gmniWJ5+YNJ3fMkv0HcsZdoIecyqq1TlnJqoFu/FVy6xOiXlz0FLzUEpL6CZmsVJWkLhVz4Xxw==",
+        "dependencies": {
+          "Ecommons": "3.2.0.13",
+          "Pictomancy": "1.0.3"
+        }
+      },
+      "Pictomancy": {
+        "type": "Direct",
+        "requested": "[1.0.3, )",
+        "resolved": "1.0.3",
+        "contentHash": "S/fLDASI7BcGjGNelma9O6Fd5ljBX6ZX5mm8OrnUuVorBnTFTe+A/zHX/V59+ZQhdezAa2b95NhGWtdVN+lZcQ==",
+        "dependencies": {
+          "KamiToolKit": "1.1.2",
+          "SharpDX.D3DCompiler": "4.2.0",
+          "SharpDX.Direct2D1": "4.2.0",
+          "SharpDX.Direct3D11": "4.2.0",
+          "SharpDX.Mathematics": "4.2.0"
+        }
       },
       "TextCopy": {
         "type": "Direct",
@@ -28,6 +45,11 @@
         "dependencies": {
           "Microsoft.Extensions.DependencyInjection.Abstractions": "7.0.0"
         }
+      },
+      "KamiToolKit": {
+        "type": "Transitive",
+        "resolved": "3.2.0.13",
+        "contentHash": "7S85hhmzMoARE3q+Elf+dQaasVu/k0NNld7uffzmQqKCqdWjGWv+kxD28JL0zU17aK6k57IfSklNqbq3XLYVuw=="
       },
       "KamiToolKit": {
         "type": "Transitive",
@@ -53,18 +75,6 @@
         "contentHash": "WcSp3+vP+yHNgS8EV5J7pZ9IRpeDuARBPN28by8zqff1wJQXm26PVU8L3/fYLBJVU7BtDyqNVWq2KlCVvSSR4A==",
         "dependencies": {
           "Microsoft.NETCore.Platforms": "1.1.0"
-        }
-      },
-      "Pictomancy": {
-        "type": "Transitive",
-        "resolved": "1.0.2",
-        "contentHash": "Dq4Z1GfRNjuMsa3a9Ce3IxGFmFKZxrdfIYIOXkOkFuFvFsZklEfkdiG2ThrU/t94zfNC+oYoSKGZbI4xxlRqpQ==",
-        "dependencies": {
-          "KamiToolKit": "1.1.2",
-          "SharpDX.D3DCompiler": "4.2.0",
-          "SharpDX.Direct2D1": "4.2.0",
-          "SharpDX.Direct3D11": "4.2.0",
-          "SharpDX.Mathematics": "4.2.0"
         }
       },
       "SharpDX": {
@@ -126,13 +136,6 @@
         "type": "Transitive",
         "resolved": "3.1.12",
         "contentHash": "iAg6zifihXEFS/t7fiHhZBGAdCp3FavsF4i2ZIDp0JfeYeDVzvmlbY1CNhhIKimaIzrzSi5M/NBFcWvZT2rB/A=="
-      },
-      "FFXIVOcelot": {
-        "type": "Project",
-        "dependencies": {
-          "Ecommons": "[3.2.0.9, )",
-          "Pictomancy": "[1.0.2, )"
-        }
       }
     }
   }

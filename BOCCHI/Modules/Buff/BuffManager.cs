@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using BOCCHI.Data;
 using BOCCHI.Modules.Buff.Chains;
@@ -69,6 +69,10 @@ public class BuffManager
         }
 
         if (module.Config.ApplyQuickerStep)
+        {
+            buffs.Add((uint)PlayerStatus.QuickerStep);
+        }
+        if (module.Config.UseInquiringMind && !module.Config.ApplyQuickerStep)
         {
             buffs.Add((uint)PlayerStatus.QuickerStep);
         }

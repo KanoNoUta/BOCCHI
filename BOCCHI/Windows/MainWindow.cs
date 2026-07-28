@@ -1,5 +1,7 @@
 ﻿using BOCCHI.Data;
 using BOCCHI.Modules.Automator;
+using Dalamud.Interface;
+using Dalamud.Interface.Windowing;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Colors;

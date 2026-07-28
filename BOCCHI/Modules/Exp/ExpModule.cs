@@ -36,6 +36,6 @@ public class ExpModule(Plugin plugin, Config config) : Module(plugin, config)
 
     public override void OnTerritoryChanged(uint id)
     {
-        tracker.OnTerritoryChange(id);
+        tracker.OnTerritoryChanged(id);
     }
 }

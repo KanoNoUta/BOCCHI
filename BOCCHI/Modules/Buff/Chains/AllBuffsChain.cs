@@ -1,4 +1,4 @@
-using BOCCHI.Data;
+﻿using BOCCHI.Data;
 using ECommons.Automation.NeoTaskManager;
 using Ocelot.Chain;
 
@@ -11,6 +11,7 @@ public class AllBuffsChain(BuffModule module) : ChainFactory
     protected override Chain Create(Chain chain)
     {
         chain
+            .Then(new FreelancerBuffChain(module))
             .Then(new KnightBuffChain(module))
             .Then(new MonkBuffChain(module))
             .Then(new BardBuffChain(module))

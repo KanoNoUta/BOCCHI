@@ -1,4 +1,4 @@
-using Ocelot.Config.Attributes;
+﻿using Ocelot.Config.Attributes;
 using Ocelot.Modules;
 
 namespace BOCCHI.Modules.Buff;
@@ -17,6 +17,8 @@ public class BuffConfig : ModuleConfig
     [Checkbox] [IllegalModeCompatible] public bool ApplyFleetfooted { get; set; } = true;
     
     [Checkbox] [IllegalModeCompatible] public bool ApplyQuickerStep { get; set; } = false;
+
+    [Checkbox] [IllegalModeCompatible] public bool UseInquiringMind { get; set; } = false;
 
     [IntRange(0, 25)]
     [IllegalModeCompatible]

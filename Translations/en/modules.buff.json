@@ -1,4 +1,4 @@
-{
+﻿{
   "modules": {
     "buff": {
       "config": {
@@ -22,6 +22,10 @@
         "reapply_threshold": {
           "label": "Reapply Threshold",
           "tooltip": "The number of minutes remaining on the lowest buff to refresh them all during automatic execution."
+        },
+        "use_inquiring_mind": {
+          "label": "Use Inquiring Mind",
+          "tooltip":  "Use Freelancer's Inquiring Mind instead of the individual buff actions"
         }
       },
       "panel": {

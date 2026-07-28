@@ -149,6 +149,12 @@ public abstract class Hunter
             return;
         }
 
+        if (stepIndex >= Steps.Count)
+        {
+            Teardown();
+            return;
+        }
+
         StepProcessor.Submit(() =>
             Chain.Create("Hunter.Run")
                 .Then(_ =>
@@ -162,19 +168,11 @@ public abstract class Hunter
                 .Wait(1000 / 60)
         );
 
-
-        if (stepIndex < Steps.Count)
+        var obj = GetValidObjects().FirstOrDefault(o => Vector3.Distance(Player.Position, o.Position) <= 5f);
+        if (obj != null)
         {
-            var obj = GetValidObjects().FirstOrDefault(o => Vector3.Distance(Player.Position, o.Position) <= 5f);
-            if (obj != null)
-            {
-                StepProcessor.Submit(GetInteractionChain(obj));
-            }
-
-            return;
+            StepProcessor.Submit(GetInteractionChain(obj));
         }
-
-        Teardown();
     }
 
     public void Draw(Module<Plugin, Config> module)
@@ -219,7 +217,7 @@ public abstract class Hunter
             }
 
 
-            if (running && Steps.Count > 0)
+            if (running && stepIndex < Steps.Count)
             {
                 OcelotUi.LabelledValue(I18N.T("hunter.progress"), $"{stepIndex}/{Steps.Count}");
 

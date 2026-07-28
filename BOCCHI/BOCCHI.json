@@ -7,5 +7,16 @@
   "IconUrl": "https://raw.githubusercontent.com/OhKannaDuh/OccultCrescentHelper/refs/heads/master/assets/icon.png",
   "ApplicableVersion": "any",
   "DalamudApiLevel": 15,
-  "Tags": [ "BOCCHI", "Occult Crescent", "Occult", "Crescent", "Illegal", "Critical Encounter", "Fate", "Faye", "BOCCHER", "OCH" ]
+  "Tags": [
+    "BOCCHI",
+    "Occult Crescent",
+    "Occult",
+    "Crescent",
+    "Illegal",
+    "Critical Encounter",
+    "Fate",
+    "Faye",
+    "BOCCHER",
+    "OCH"
+  ]
 }

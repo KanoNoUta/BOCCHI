@@ -21,7 +21,7 @@ public class ExpTracker
         pattern = getExpMessagePattern(Svc.ClientState.ClientLanguage);
     }
 
-    public void OnTerritoryChange(uint _)
+    public void OnTerritoryChanged(uint _)
     {
         Reset();
     }
