@@ -37,21 +37,19 @@ public class CarrotHuntPanel : Panel
 
     private uint Progress = 0;
 
-    private readonly uint MaxProgress = 0;
+    private uint MaxProgress
+    {
+        get
+        {
+            var carrotCount = CarrotData.Data.Count;
+            var aethernetCount = AethernetData.All().Count();
+            return (uint)(carrotCount * (carrotCount - 1 + 2 * aethernetCount));
+        }
+    }
 
     private ChainQueue ChainQueue
     {
         get => ChainManager.Get("CarrotHuntPanelChain");
-    }
-
-    public CarrotHuntPanel()
-    {
-        var carrotCount = CarrotData.Data.Count;
-        var aethernetCount = Enum.GetNames(typeof(Aethernet)).Length;
-
-        MaxProgress = (uint)(carrotCount * (carrotCount - 1));
-        MaxProgress += (uint)(aethernetCount * carrotCount);
-        MaxProgress += (uint)(carrotCount * aethernetCount);
     }
 
     public override string GetName()

@@ -12,6 +12,7 @@ public class EnemyDataHelper : DataHelper<uint>
         get => new()
         {
             { ZoneData.SOUTHHORN, Path.Join(Svc.PluginInterface.ConfigDirectory.FullName, "southhorn_enemies.json") },
+            { ZoneData.NORTHHORN, Path.Join(Svc.PluginInterface.ConfigDirectory.FullName, "northhorn_enemies.json") },
         };
     }
 

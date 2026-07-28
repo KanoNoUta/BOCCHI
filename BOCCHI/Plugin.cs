@@ -32,10 +32,6 @@ public sealed class Plugin : OcelotPlugin
     public Plugin(IDalamudPluginInterface plugin)
         : base(plugin, Module.DalamudReflector)
     {
-#if !DEBUG
-        if (plugin.IsDev || (!plugin.SourceRepository.Contains("NiGuangOwO/DalamudPlugins") && !plugin.SourceRepository.Contains("Ookura-Risona/DalamudPlugins")))
-            return;
-#endif
         Config = plugin.GetPluginConfig() as Config ?? new Config();
 
         SetupLanguage(plugin);

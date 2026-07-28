@@ -32,6 +32,15 @@ public class TreasureTracker : IDisposable
         Svc.AddonLifecycle.RegisterListener(AddonEvent.PostDraw, "_WideText", OnWideTextPostDraw);
     }
 
+    public void Reset()
+    {
+        Treasures.Clear();
+        CountInitialised = false;
+        BronzeChests = 0;
+        SilverChests = 0;
+        LastParseWideText = DateTime.MinValue;
+    }
+
     public void Tick(Plugin plugin)
     {
         var treasures = Svc.Objects
@@ -113,8 +122,8 @@ public class TreasureTracker : IDisposable
             return;
         }
 
-        SilverChests = int.Parse(match.Groups[1].Value);
-        BronzeChests = int.Parse(match.Groups[2].Value);
+        SilverChests = int.Parse(match.Groups["lnum1"].Value);
+        BronzeChests = int.Parse(match.Groups["lnum2"].Value);
         CountInitialised = true;
     }
 

@@ -26,6 +26,19 @@ public abstract class BasePathfinder(float returnCost = 300f, float teleportCost
             throw new Exception("File not loaded");
         }
 
+        nodes = nodes
+            .Distinct()
+            .Where(node => data.NodeToNodeDistances.ContainsKey(node)
+                           && data.NodeToAethernetDistances.ContainsKey(node))
+            .ToList();
+
+        if (nodes.Count == 0)
+        {
+            Svc.Log.Error("No compatible hunt nodes were found in the current zone data file.");
+            State = PathfinderState.NoCompatibleNodes;
+            return Task.FromResult(new List<PathfinderStep>());
+        }
+
         State = PathfinderState.Pathfinding;
 
         var startNode = GetStartingNode(start, nodes);
@@ -57,9 +70,10 @@ public abstract class BasePathfinder(float returnCost = 300f, float teleportCost
             }
         }
 
-        if (data.NodeToAethernetDistances[fromId].Count > 0)
+        if (data.NodeToAethernetDistances.TryGetValue(fromId, out var fromAethernetDistances)
+            && fromAethernetDistances.Count > 0)
         {
-            var fromShard = data.NodeToAethernetDistances[fromId].OrderBy(x => x.Distance).FirstOrDefault();
+            var fromShard = fromAethernetDistances.OrderBy(x => x.Distance).First();
             foreach (var (aethernet, list) in data.AethernetToNodeDistances)
             {
                 var to = list.FirstOrDefault(x => x.Id == toId);
@@ -94,7 +108,7 @@ public abstract class BasePathfinder(float returnCost = 300f, float teleportCost
             if (cost < bestCost)
             {
                 bestCost = cost;
-                if (aethernet == Aethernet.BaseCamp)
+                if (aethernet == ZoneData.GetBaseCampAethernet())
                 {
                     bestSteps =
                     [
@@ -117,7 +131,7 @@ public abstract class BasePathfinder(float returnCost = 300f, float teleportCost
         return (bestCost, bestSteps);
     }
 
-    protected async void LoadFile(string filename)
+    protected void LoadFile(string filename)
     {
         State = PathfinderState.LoadingFile;
         var options = new JsonSerializerOptions
@@ -129,12 +143,39 @@ public abstract class BasePathfinder(float returnCost = 300f, float teleportCost
         if (!File.Exists(file))
         {
             Svc.Log.Error($"Required file not found: {file}");
+            State = PathfinderState.FileUnavailable;
             return;
         }
 
-        var json = await File.ReadAllTextAsync(file);
-        data = JsonSerializer.Deserialize<NodeDataSchema>(json, options);
-        State = PathfinderState.FileLoaded;
+        try
+        {
+            var json = File.ReadAllText(file);
+            var loaded = JsonSerializer.Deserialize<NodeDataSchema>(json, options);
+            if (loaded.NodeToNodeDistances.Count == 0
+                || loaded.NodeToAethernetDistances.Count == 0
+                || loaded.AethernetToNodeDistances.Count == 0)
+            {
+                Svc.Log.Error($"Zone data file is empty or incomplete: {file}");
+                State = PathfinderState.FileUnavailable;
+                return;
+            }
+
+            var currentAethernets = ZoneData.GetCurrentAethernets().ToHashSet();
+            if (loaded.AethernetToNodeDistances.Keys.Any(aethernet => !currentAethernets.Contains(aethernet)))
+            {
+                Svc.Log.Error($"Zone data file contains aethernet entries from a different territory: {file}");
+                State = PathfinderState.FileUnavailable;
+                return;
+            }
+
+            data = loaded;
+            State = PathfinderState.FileLoaded;
+        }
+        catch (Exception ex)
+        {
+            Svc.Log.Error(ex, $"Failed to load zone data file: {file}");
+            State = PathfinderState.FileUnavailable;
+        }
     }
 
     protected Dictionary<uint, Dictionary<uint, (float Cost, List<PathfinderStep> Steps)>> BuildCostGraph(List<uint> nodes)

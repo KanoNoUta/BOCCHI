@@ -4,6 +4,8 @@ public enum PathfinderState
 {
     None,
     LoadingFile,
+    FileUnavailable,
+    NoCompatibleNodes,
     FileLoaded,
     Pathfinding,
     PathfindingDone,

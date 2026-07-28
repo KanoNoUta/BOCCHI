@@ -456,6 +456,21 @@ public class AutomatorConfig : ModuleConfig
             { 45, ShouldDoCursedConcern },
             { 46, ShouldDoEternalWatch },
             { 47, ShouldDoFlameOfDusk },
+            { 49, true },
+            { 50, true },
+            { 51, true },
+            { 52, true },
+            { 53, true },
+            { 54, true },
+            { 55, true },
+            { 56, true },
+            { 57, true },
+            { 58, true },
+            { 59, true },
+            { 60, true },
+            { 61, true },
+            { 62, true },
+            { 63, true },
         };
     }
 
@@ -476,6 +491,19 @@ public class AutomatorConfig : ModuleConfig
             { 1972, ShouldDoServingDarkness },
             { 1976, ShouldDoPersistentPots },
             { 1977, ShouldDoPleadingPots },
+            { 2072, ShouldDoPersistentPots },
+            { 2073, ShouldDoPleadingPots },
+            { 2074, true },
+            { 2075, true },
+            { 2076, true },
+            { 2077, true },
+            { 2078, true },
+            { 2079, true },
+            { 2080, true },
+            { 2081, true },
+            { 2082, true },
+            { 2083, true },
+            { 2084, true },
         };
     }
 }

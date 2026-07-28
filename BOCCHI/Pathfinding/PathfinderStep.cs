@@ -8,7 +8,7 @@ public class PathfinderStep
 
     public uint NodeId = 0;
 
-    public Aethernet Aethernet = Aethernet.BaseCamp;
+    public Aethernet Aethernet = Aethernet.Unknown;
 
     public static PathfinderStep WalkToDestination(uint id)
     {

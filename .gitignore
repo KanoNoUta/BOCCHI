@@ -3,3 +3,6 @@
 .env
 node_modules/
 plugins
+**/bin/
+**/obj/
+artifacts/

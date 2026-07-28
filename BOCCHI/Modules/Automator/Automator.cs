@@ -44,8 +44,17 @@ public class Automator
             if (states.GetState() == State.InCriticalEncounter)
             {
                 var critical = module.GetModule<CriticalEncountersModule>();
-                var encounter = critical.CriticalEncounters.Values.Last(ev => ev.State != DynamicEventState.Inactive);
-                var data = EventData.CriticalEncounters[encounter.DynamicEventId];
+                var encounter = critical.CriticalEncounters.Values.LastOrDefault(ev => ev.State != DynamicEventState.Inactive);
+                if (encounter.DynamicEventId == 0)
+                {
+                    return;
+                }
+
+                if (!EventData.CriticalEncounters.TryGetValue(encounter.DynamicEventId, out var data))
+                {
+                    return;
+                }
+
                 Activity = new CriticalEncounter(data, lifestream, vnav, module, critical);
 
                 if (Activity != null)
@@ -137,6 +146,11 @@ public class Automator
 
         foreach (var encounter in source.CriticalEncounters.Values)
         {
+            if (encounter.EventType >= 4)
+            {
+                continue;
+            }
+
             if (!module.Config.CriticalEncountersMap.TryGetValue(encounter.DynamicEventId, out var enabled) || !enabled)
             {
                 continue;
@@ -167,7 +181,7 @@ public class Automator
 
         foreach (var fate in source.fates.Values)
         {
-            if (!module.Config.FatesMap[fate.Id])
+            if (!module.Config.FatesMap.TryGetValue(fate.Id, out var enabled) || !enabled)
             {
                 continue;
             }

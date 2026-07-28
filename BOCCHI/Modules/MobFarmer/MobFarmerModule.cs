@@ -1,3 +1,6 @@
+using Ocelot;
+using Ocelot.Chain;
+using Ocelot.IPC;
 using Ocelot.Modules;
 using Ocelot.Windows;
 
@@ -44,6 +47,23 @@ public class MobFarmerModule : Module
     {
         panel.Draw(this);
         return true;
+    }
+
+    public override void OnTerritoryChanged(uint id)
+    {
+        if (!Farmer.Running)
+        {
+            return;
+        }
+
+        if (TryGetIPCSubscriber<VNavmesh>(out var navigation) && navigation != null && navigation.IsReady())
+        {
+            navigation.Stop();
+        }
+
+        Plugin.Chain.Abort();
+        ChainManager.Get("MobFarmer+Farmer").Abort();
+        Farmer.DisableFarmerMode();
     }
 
     public override void Dispose()

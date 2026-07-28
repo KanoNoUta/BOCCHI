@@ -2,6 +2,7 @@
 using Dalamud.Game.Text.SeStringHandling;
 using ECommons.DalamudServices;
 using System;
+using System.Globalization;
 using System.Text.RegularExpressions;
 using ClientLanguage = Dalamud.Game.ClientLanguage;
 
@@ -28,10 +29,11 @@ public class ExpTracker
 
     public void OnChatMessage(XivChatType type, int timestamp, SeString sender, SeString message, bool isHandled)
     {
-        var match = Regex.Match(message.ToString(), pattern);
-        if (match.Success)
+        var match = Regex.Match(message.TextValue, pattern);
+        if (match.Success
+            && int.TryParse(match.Groups[1].Value, NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var amount))
         {
-            exp += int.Parse(match.Groups[1].Value);
+            exp += amount;
         }
     }
 
@@ -59,6 +61,7 @@ public class ExpTracker
             ClientLanguage.French => @"Vous gagnez (\d+) points d'expérience de soutien en .+? fantôme",
             ClientLanguage.German => @"Du erhältst (\d+) Phantomroutine als Phantom",
             ClientLanguage.Japanese => @".+?」に(\d+)ポイントのサポート経験値を得た。",
+            ClientLanguage.ChineseSimplified => @"获得了(\d[\d,]*)(?:\(\+\d+%\))?点辅助经验值。",
             _ => @"You gain (\d+) Phantom .+? experience points\.",
         };
     }

@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Dalamud.CN.NET.Sdk/15.0.0">
     <PropertyGroup>
-        <Version>3.1.2</Version>
+        <Version>3.2.0</Version>
         <Description>A helper for Occult Crescent.</Description>
-        <PackageProjectUrl>https://github.com/OhKannaDuh/OccultCrescentHelper</PackageProjectUrl>
+        <PackageProjectUrl>https://github.com/KanoNoUta/BOCCHI</PackageProjectUrl>
         <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
         <IsPackable>false</IsPackable>
         <NoWarn>$(NoWarn);4014</NoWarn>

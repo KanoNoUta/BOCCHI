@@ -18,8 +18,6 @@ public class WindowManagerModule(Plugin _plugin, Config _config) : Module(_plugi
     }
 
 
-    private readonly List<uint> occultCrescentTerritoryIds = [1252];
-
     private bool mainClosed = false;
 
     private bool configClosed = false;
@@ -46,7 +44,7 @@ public class WindowManagerModule(Plugin _plugin, Config _config) : Module(_plugi
 
     public override void OnTerritoryChanged(uint id)
     {
-        if (occultCrescentTerritoryIds.Contains(id))
+        if (BOCCHI.Data.ZoneData.IsOccultCrescentTerritory(id))
         {
             if (Config.OpenMainOnEnter)
             {

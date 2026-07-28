@@ -112,6 +112,12 @@ public abstract class Hunter
             return;
         }
 
+        if (pathfinder?.State is PathfinderState.FileUnavailable or PathfinderState.NoCompatibleNodes)
+        {
+            Stop();
+            return;
+        }
+
         if (pathfinder != null && pathfinder.State != PathfinderState.PathfindingDone)
         {
             Plugin.Chain.Submit(() =>
@@ -138,7 +144,15 @@ public abstract class Hunter
 
                         JSON = JsonSerializer.Serialize(Steps, options);
                     })
-                    .Then(_ => pathfinder = null);
+                    // Keep failed pathfinders around for one update so the watcher can
+                    // force-stop repeat hunts instead of immediately recreating them.
+                    .Then(_ =>
+                    {
+                        if (pathfinder?.State == PathfinderState.PathfindingDone)
+                        {
+                            pathfinder = null;
+                        }
+                    });
             });
 
             return;
@@ -240,10 +254,25 @@ public abstract class Hunter
         running = false;
         stepIndex = 0;
         Steps.Clear();
-        vnav.Stop();
+        if (m.TryGetIPCSubscriber<VNavmesh>(out var navigation) && navigation != null && navigation.IsReady())
+        {
+            navigation.Stop();
+        }
         Plugin.Chain.Abort();
         StepProcessor.Abort();
         pathfinder = null;
+    }
+
+    public void Stop()
+    {
+        if (!running && pathfinder == null && Steps.Count == 0)
+        {
+            return;
+        }
+
+        stopwatch.Stop();
+        running = false;
+        Teardown();
     }
 
 
@@ -290,7 +319,7 @@ public abstract class Hunter
         // If we are in combat, start running back to the base camp so we can escape combat
         if (inCombat && !vnav.IsRunning())
         {
-            vnav.PathfindAndMoveTo(Aethernet.BaseCamp.GetData().Position, false);
+            vnav.PathfindAndMoveTo(BOCCHI.Data.ZoneData.GetBaseCampAethernet().GetData().Position, false);
             return false;
         }
 

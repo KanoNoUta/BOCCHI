@@ -42,8 +42,7 @@ public class EnemyPanel : Panel
                         ImGui.Text($"Position: {enemy.Position}");
                         ImGui.Text($"Rotation: {enemy.Rotation}");
                         ImGui.Text($"HitboxRadius: {enemy.HitboxRadius}");
-                        ImGui.Text($"YalmDistanceX: {enemy.YalmDistanceX}");
-                        ImGui.Text($"YalmDistanceZ: {enemy.YalmDistanceZ}");
+                        ImGui.Text($"CurrentDistance: {enemy.CurrentDistance}");
                         ImGui.Text($"IsDead: {enemy.IsDead}");
                         ImGui.Text($"IsTargetable: {enemy.IsTargetable}");
                         ImGui.Text($"TargetObjectId: {enemy.TargetObjectId:X}");

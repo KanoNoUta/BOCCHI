@@ -60,7 +60,7 @@ public class CriticalEncountersModule : Module
 
     public override void OnTerritoryChanged(uint id)
     {
-        CriticalEncounters.Clear();
+        Tracker.Reset();
     }
 
     public override void Dispose()

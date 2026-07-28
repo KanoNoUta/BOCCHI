@@ -46,18 +46,21 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
         if (layout == null)
         {
             Svc.Log.Warning("No active layout");
+            return new Pathfinder(Treasure, module.PluginConfig.PathfinderConfig.ReturnCost, module.PluginConfig.PathfinderConfig.TeleportCost);
         }
 
         if (!layout->InstancesByType.TryGetValue(InstanceType.Treasure, out var mapPtr, false))
         {
             Svc.Log.Warning("No active treasure map");
+            return new Pathfinder(Treasure, module.PluginConfig.PathfinderConfig.ReturnCost, module.PluginConfig.PathfinderConfig.TeleportCost);
         }
 
         foreach (ILayoutInstance* instance in mapPtr.Value->Values)
         {
             var transform = instance->GetTransformImpl();
             var position = transform->Translation;
-            if (position.Y <= -10f)
+            var minimumFieldHeight = ZoneData.IsInNorthHorn() ? -500f : -10f;
+            if (position.Y <= minimumFieldHeight)
             {
                 continue;
             }
@@ -106,6 +109,9 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
 
     protected override List<uint> GetValidNodes(int max)
     {
-        return TreasureData.Levels.Where(node => node.Value <= max).Select(node => node.Key).ToList();
+        return Treasure
+            .Where(treasure => TreasureData.Levels.TryGetValue(treasure.Id, out var level) && level <= max)
+            .Select(treasure => treasure.Id)
+            .ToList();
     }
 }

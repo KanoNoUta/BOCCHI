@@ -22,9 +22,15 @@ public class CriticalEncountersPanel : Panel
         OcelotUi.Title("Critical Encounters:");
         OcelotUi.Indent(() =>
         {
-            foreach (var data in EventData.CriticalEncounters.Values)
+            var dataForTerritory = EventData.GetCriticalEncountersForTerritory(
+                ECommons.DalamudServices.Svc.ClientState.TerritoryType).ToList();
+
+            foreach (var data in dataForTerritory)
             {
-                var ev = module.GetModule<CriticalEncountersModule>().CriticalEncounters[data.Id];
+                if (!module.GetModule<CriticalEncountersModule>().CriticalEncounters.TryGetValue(data.Id, out var ev))
+                {
+                    continue;
+                }
 
                 ImGui.TextUnformatted(ev.Name.ToString());
 
@@ -56,7 +62,9 @@ public class CriticalEncountersPanel : Panel
                     ImGui.TextUnformatted($"({ev.Progress}%)");
                 }
 
-                if (module.TryGetModule<TeleporterModule>(out var teleporter) && teleporter!.IsReady())
+                if (ev.EventType < 4
+                    && module.TryGetModule<TeleporterModule>(out var teleporter)
+                    && teleporter!.IsReady())
                 {
                     var start = ev.MapMarker.Position;
 
@@ -65,7 +73,7 @@ public class CriticalEncountersPanel : Panel
 
                 OcelotUi.Indent(() => EventIconRenderer.Drops(data, module.PluginConfig.EventDropConfig));
 
-                if (data.Id != EventData.CriticalEncounters.Keys.Max())
+                if (!data.Equals(dataForTerritory.Last()))
                 {
                     OcelotUi.VSpace();
                 }

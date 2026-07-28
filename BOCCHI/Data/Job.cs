@@ -44,6 +44,14 @@ public class Job
                 JobId.MysticKnight => MysticKnight,
                 JobId.Gladiator => Gladiator,
                 JobId.Dancer => Dancer,
+                JobId.Ninja => Ninja,
+                JobId.WhiteMage => WhiteMage,
+                JobId.BlackMage => BlackMage,
+                JobId.Dragoon => Dragoon,
+                JobId.Summoner => Summoner,
+                JobId.BlueMage => BlueMage,
+                JobId.RedMage => RedMage,
+                JobId.Necromancer => Necromancer,
                 _ => Freelancer,
             };
         }
@@ -99,4 +107,20 @@ public class Job
     public readonly static Job Gladiator = new(JobId.Gladiator, PlayerStatus.PhantomGladiator);
 
     public readonly static Job Dancer = new(JobId.Dancer, PlayerStatus.PhantomDancer);
+
+    public readonly static Job Ninja = new(JobId.Ninja, PlayerStatus.PhantomNinja);
+
+    public readonly static Job WhiteMage = new(JobId.WhiteMage, PlayerStatus.PhantomWhiteMage);
+
+    public readonly static Job BlackMage = new(JobId.BlackMage, PlayerStatus.PhantomBlackMage);
+
+    public readonly static Job Dragoon = new(JobId.Dragoon, PlayerStatus.PhantomDragoon);
+
+    public readonly static Job Summoner = new(JobId.Summoner, PlayerStatus.PhantomSummoner);
+
+    public readonly static Job BlueMage = new(JobId.BlueMage, PlayerStatus.PhantomBlueMage);
+
+    public readonly static Job RedMage = new(JobId.RedMage, PlayerStatus.PhantomRedMage);
+
+    public readonly static Job Necromancer = new(JobId.Necromancer, PlayerStatus.PhantomNecromancer);
 }

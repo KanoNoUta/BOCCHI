@@ -11,11 +11,22 @@ namespace BOCCHI.Enums;
 
 public enum Aethernet : uint
 {
+    Unknown = 0,
+
+    // South Horn
     BaseCamp = 4944,
     TheWanderersHaven = 4936,
     CrystallizedCaverns = 4929,
     Eldergrowth = 4930,
     Stonemarsh = 4942,
+
+    // North Horn (7.55)
+    NorthBaseCamp = 5571,
+    SunkenTempleFront = 5572,
+    FloatingRuins = 5573,
+    RuinedStreetsFront = 5574,
+    WillOWispVillage = 5575,
+    KarnakCitadel = 5576,
 }
 
 public class AethernetData
@@ -33,8 +44,7 @@ public class AethernetData
 
     public static IEnumerable<AethernetData> All()
     {
-        return ((Aethernet[])Enum.GetValues(typeof(Aethernet)))
-            .Select(a => a.GetData());
+        return ZoneData.GetCurrentAethernets().Select(a => a.GetData());
     }
 
     public static IOrderedEnumerable<AethernetData> AllByDistance()
@@ -109,7 +119,7 @@ public static class AethernetExtensions
                     Aethernet = Aethernet.Eldergrowth,
                     BaseId = 2014667,
                     Position = new Vector3(306.94f, 105.18f, 305.65f),
-                    Destination = new Vector3(-302.3f, 103f, 306f),
+                    Destination = new Vector3(306.94f, 103f, 306f),
                 };
             case Aethernet.Stonemarsh:
                 return new AethernetData
@@ -119,8 +129,56 @@ public static class AethernetExtensions
                     Position = new Vector3(-384.12f, 99.20f, 281.42f),
                     Destination = new Vector3(-384f, 97.2f, 278.1f),
                 };
+            case Aethernet.NorthBaseCamp:
+                return new AethernetData
+                {
+                    Aethernet = Aethernet.NorthBaseCamp,
+                    BaseId = 2015429,
+                    Position = ZoneData.Aetherytes[ZoneData.NORTHHORN],
+                    Destination = new Vector3(881.9951f, 258.5f, 881.9271f),
+                };
+            case Aethernet.SunkenTempleFront:
+                return new AethernetData
+                {
+                    Aethernet = Aethernet.SunkenTempleFront,
+                    BaseId = 2015430,
+                    Position = new Vector3(357.6689f, 45.76582f, -554.3083f),
+                    Destination = new Vector3(358.2281f, 45.13132f, -557.2622f),
+                };
+            case Aethernet.FloatingRuins:
+                return new AethernetData
+                {
+                    Aethernet = Aethernet.FloatingRuins,
+                    BaseId = 2015431,
+                    Position = new Vector3(-547.2471f, 67.99808f, 594.4042f),
+                    Destination = new Vector3(-549.5803f, 67.20449f, 596.822f),
+                };
+            case Aethernet.RuinedStreetsFront:
+                return new AethernetData
+                {
+                    Aethernet = Aethernet.RuinedStreetsFront,
+                    BaseId = 2015432,
+                    Position = new Vector3(-388.5732f, 41.22126f, -440.5197f),
+                    Destination = new Vector3(-387.1999f, 39.27517f, -437.6127f),
+                };
+            case Aethernet.WillOWispVillage:
+                return new AethernetData
+                {
+                    Aethernet = Aethernet.WillOWispVillage,
+                    BaseId = 2015433,
+                    Position = new Vector3(-13.3638f, 3.144829f, -40.51193f),
+                    Destination = new Vector3(-15.021f, 2.038227f, -43.83533f),
+                };
+            case Aethernet.KarnakCitadel:
+                return new AethernetData
+                {
+                    Aethernet = Aethernet.KarnakCitadel,
+                    BaseId = 2015434,
+                    Position = new Vector3(451.6841f, 70.9269f, 528.8388f),
+                    Destination = new Vector3(454.3429f, 69.99997f, 530.9988f),
+                };
             default:
-                return Aethernet.BaseCamp.GetData();
+                throw new ArgumentOutOfRangeException(nameof(aethernet), aethernet, "Unknown Occult Crescent aethernet");
         }
     }
 }

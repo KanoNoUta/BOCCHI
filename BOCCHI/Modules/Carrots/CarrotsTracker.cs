@@ -12,6 +12,11 @@ public class CarrotsTracker
 {
     public List<Carrot> carrots = [];
 
+    public void Reset()
+    {
+        carrots.Clear();
+    }
+
     public void Tick(IFramework _)
     {
         carrots = Svc.Objects

@@ -19,6 +19,10 @@
           "label": "使用快步",
           "tooltip": "使用辅助职业舞者的Buff「快步」"
         },
+        "use_inquiring_mind": {
+          "label": "使用探求心",
+          "tooltip": "使用辅助职业自由人的「探求心」代替逐个切换辅助职业施加Buff"
+        },
         "reapply_threshold": {
           "label": "重新使用阈值",
           "tooltip": "在自动执行期间如果Buff时长低于此时间，将会更新Buff"

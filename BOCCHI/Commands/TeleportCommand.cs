@@ -120,10 +120,7 @@ public class TeleportCommand(Plugin plugin) : OcelotCommand
                 continue;
             }
 
-            if (!EventData.CriticalEncounters.TryGetValue(encounter.DynamicEventId, out var data))
-            {
-                continue;
-            }
+            var data = EventData.GetCriticalEncounter(encounter.DynamicEventId, Svc.ClientState.TerritoryType);
 
             return data.Aethernet ?? ZoneData.GetClosestAethernetShard(data.StartPosition ?? encounter.MapMarker.Position);
         }

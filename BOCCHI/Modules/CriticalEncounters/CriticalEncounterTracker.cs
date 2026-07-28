@@ -32,6 +32,13 @@ public class CriticalEncounterTracker
 
     public event Action<DynamicEvent>? OnBattleState;
 
+    public void Reset()
+    {
+        CriticalEncounters.Clear();
+        Progress.Clear();
+        lastStates.Clear();
+    }
+
 
     public unsafe void Tick(IFramework _)
     {

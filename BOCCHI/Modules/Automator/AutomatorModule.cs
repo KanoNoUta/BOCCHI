@@ -28,8 +28,6 @@ public class AutomatorModule : Module
 
     public readonly Panel panel = new();
 
-    private readonly List<uint> occultCrescentTerritoryIds = [1252];
-
     public readonly Random random = new();
 
     public AutomatorModule(Plugin plugin, Config config)
@@ -54,12 +52,21 @@ public class AutomatorModule : Module
 
     public override void OnTerritoryChanged(uint id)
     {
-        if (occultCrescentTerritoryIds.Contains(id))
+        // Navigation and submitted activity chains are territory-bound. Always
+        // terminate them before refreshing, including South Horn <-> North Horn.
+        Plugin.Chain.Abort();
+        if (TryGetIPCSubscriber<VNavmesh>(out var navigation) && navigation != null && navigation.IsReady())
+        {
+            navigation.Stop();
+        }
+
+        automator.Refresh();
+
+        if (BOCCHI.Data.ZoneData.IsOccultCrescentTerritory(id))
         {
             return;
         }
 
-        automator.Refresh();
         Config.Enabled = false;
         PluginConfig.Save();
     }

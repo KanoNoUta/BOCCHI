@@ -41,10 +41,7 @@ public class Panel
                     continue;
                 }
 
-                if (!EventData.CriticalEncounters.TryGetValue(ev.DynamicEventId, out var data))
-                {
-                    continue;
-                }
+                var data = EventData.GetCriticalEncounter(ev.DynamicEventId, ECommons.DalamudServices.Svc.ClientState.TerritoryType);
 
                 ImGui.TextUnformatted(ev.Name.ToString());
 
@@ -137,7 +134,7 @@ public class Panel
         });
 
 
-        if (!TowerHelper.IsPlayerNearTower(TowerHelper.TowerType.Blood))
+        if (!ZoneData.IsInSouthHorn() || !TowerHelper.IsPlayerNearTower(TowerHelper.TowerType.Blood))
         {
             return;
         }

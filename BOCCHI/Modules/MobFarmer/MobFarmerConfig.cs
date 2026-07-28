@@ -17,7 +17,7 @@ public class MobFarmerConfig : ModuleConfig
 
     [Checkbox] public bool ConsiderSpecialMobs { get; set; } = false;
 
-    [IntRange(1, 28)] public int MaxMobLevel { get; set; } = 28;
+    [IntRange(1, 40)] public int MaxMobLevel { get; set; } = 40;
 
     [FloatRange(10f, 1000f)]
     [RangeIndicator(0.9f, 0.1f, 0.6f)]

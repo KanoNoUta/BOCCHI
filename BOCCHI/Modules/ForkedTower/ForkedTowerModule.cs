@@ -41,12 +41,25 @@ public class ForkedTowerModule(Plugin plugin, Config config) : Module(plugin, co
 
     public override void Update(UpdateContext context)
     {
+        if (!ZoneData.IsInSouthHorn())
+        {
+            return;
+        }
+
         TowerRun.Update(context);
     }
 
     public override void Render(RenderContext context)
     {
         if (!ZoneData.IsInOccultCrescent())
+        {
+            return;
+        }
+
+        // Trap groups and room geometry currently describe the South Horn
+        // Forked Tower: Blood only.  Do not project those coordinates into the
+        // two new North Horn towers.
+        if (!ZoneData.IsInSouthHorn())
         {
             return;
         }

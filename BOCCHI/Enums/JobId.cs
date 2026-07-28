@@ -18,4 +18,12 @@ public enum JobId
     MysticKnight = 13,
     Gladiator = 14,
     Dancer = 15,
+    Ninja = 16,
+    WhiteMage = 17,
+    BlackMage = 18,
+    Dragoon = 19,
+    Summoner = 20,
+    BlueMage = 21,
+    RedMage = 22,
+    Necromancer = 23,
 }

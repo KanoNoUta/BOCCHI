@@ -1,5 +1,6 @@
 ﻿using BOCCHI.Enums;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 
 namespace BOCCHI.Data;
@@ -7,6 +8,10 @@ namespace BOCCHI.Data;
 public struct EventData
 {
     public uint Id;
+
+    // Existing South Horn rows predate territory-aware data and therefore use
+    // zero here.  EffectiveTerritoryId keeps those rows backwards compatible.
+    public uint TerritoryId;
 
     public EventType Type;
 
@@ -18,11 +23,54 @@ public struct EventData
 
     public MonsterNote? Note;
 
+    public bool IsPot;
+
     public Aethernet? Aethernet;
 
     public Vector3? StartPosition;
 
     public float? Radius;
+
+    public readonly uint EffectiveTerritoryId
+    {
+        get => TerritoryId == 0 ? ZoneData.SOUTHHORN : TerritoryId;
+    }
+
+    public static EventData GetFate(uint id, uint territoryId)
+    {
+        return Fates.TryGetValue(id, out var data)
+            ? data
+            : new EventData
+            {
+                Id = id,
+                TerritoryId = territoryId,
+                Type = EventType.Fate,
+                InternalName = $"FATE {id}",
+            };
+    }
+
+    public static EventData GetCriticalEncounter(uint id, uint territoryId)
+    {
+        return CriticalEncounters.TryGetValue(id, out var data)
+            ? data
+            : new EventData
+            {
+                Id = id,
+                TerritoryId = territoryId,
+                Type = EventType.CriticalEncounter,
+                InternalName = $"Critical Encounter {id}",
+            };
+    }
+
+    public static IEnumerable<EventData> GetFatesForTerritory(uint territoryId)
+    {
+        return Fates.Values.Where(data => data.EffectiveTerritoryId == territoryId);
+    }
+
+    public static IEnumerable<EventData> GetCriticalEncountersForTerritory(uint territoryId)
+    {
+        return CriticalEncounters.Values.Where(data => data.EffectiveTerritoryId == territoryId);
+    }
 
     public readonly static Dictionary<uint, EventData> Fates = new()
     {
@@ -171,6 +219,151 @@ public struct EventData
                 Demiatma = Enums.Demiatma.Verdigris,
                 Note = MonsterNote.PersistentPots,
                 StartPosition = new Vector3(-481.00f, 75.00f, 528.00f),
+            }
+        },
+        {
+            2072,
+            new EventData
+            {
+                Id = 2072,
+                TerritoryId = ZoneData.NORTHHORN,
+                Type = EventType.Fate,
+                InternalName = "被欺负的魔法罐",
+                IsPot = true,
+                StartPosition = new Vector3(233f, 7.729229f, -470f),
+            }
+        },
+        {
+            2073,
+            new EventData
+            {
+                Id = 2073,
+                TerritoryId = ZoneData.NORTHHORN,
+                Type = EventType.Fate,
+                InternalName = "被吹飞的魔法罐",
+                IsPot = true,
+                StartPosition = new Vector3(-505.2822f, 53.14409f, 244.041f),
+            }
+        },
+        {
+            2074,
+            new EventData
+            {
+                Id = 2074,
+                TerritoryId = ZoneData.NORTHHORN,
+                Type = EventType.Fate,
+                InternalName = "暴力牛魔——好战弥诺陶洛斯",
+                StartPosition = new Vector3(724f, 70f, 220f),
+            }
+        },
+        {
+            2075,
+            new EventData
+            {
+                Id = 2075,
+                TerritoryId = ZoneData.NORTHHORN,
+                Type = EventType.Fate,
+                InternalName = "诅咒宝珠——邪瞳",
+                StartPosition = new Vector3(510f, 16.76658f, -30f),
+            }
+        },
+        {
+            2076,
+            new EventData
+            {
+                Id = 2076,
+                TerritoryId = ZoneData.NORTHHORN,
+                Type = EventType.Fate,
+                InternalName = "水边暴君——统领奇美拉",
+                StartPosition = new Vector3(95f, 10f, 470f),
+            }
+        },
+        {
+            2077,
+            new EventData
+            {
+                Id = 2077,
+                TerritoryId = ZoneData.NORTHHORN,
+                Type = EventType.Fate,
+                InternalName = "历战水马——凯尔派总领",
+                StartPosition = new Vector3(330f, 0f, -250f),
+            }
+        },
+        {
+            2078,
+            new EventData
+            {
+                Id = 2078,
+                TerritoryId = ZoneData.NORTHHORN,
+                Type = EventType.Fate,
+                InternalName = "魔界的叹息——妖艳魔花珊迪",
+                StartPosition = new Vector3(-402.0002f, 29.76808f, -252.9997f),
+            }
+        },
+        {
+            2079,
+            new EventData
+            {
+                Id = 2079,
+                TerritoryId = ZoneData.NORTHHORN,
+                Type = EventType.Fate,
+                InternalName = "自怨自艾的歌手——伊阿姆柏",
+                StartPosition = new Vector3(-170f, 30f, -500f),
+            }
+        },
+        {
+            2080,
+            new EventData
+            {
+                Id = 2080,
+                TerritoryId = ZoneData.NORTHHORN,
+                Type = EventType.Fate,
+                InternalName = "狼占狗窝——遗迹冰狼",
+                StartPosition = new Vector3(-90f, 67.47852f, 865.9999f),
+            }
+        },
+        {
+            2081,
+            new EventData
+            {
+                Id = 2081,
+                TerritoryId = ZoneData.NORTHHORN,
+                Type = EventType.Fate,
+                InternalName = "腐坏街道的守护者——忍耐基路伯",
+                StartPosition = new Vector3(-440f, 47.02659f, -790f),
+            }
+        },
+        {
+            2082,
+            new EventData
+            {
+                Id = 2082,
+                TerritoryId = ZoneData.NORTHHORN,
+                Type = EventType.Fate,
+                InternalName = "驾驭自然的巨兽——呼风狮鹫",
+                StartPosition = new Vector3(-855.7433f, 70.67716f, 482.1518f),
+            }
+        },
+        {
+            2083,
+            new EventData
+            {
+                Id = 2083,
+                TerritoryId = ZoneData.NORTHHORN,
+                Type = EventType.Fate,
+                InternalName = "仿制的蛇人偶——半灵美杜莎",
+                StartPosition = new Vector3(-661.0049f, 87f, -54.00021f),
+            }
+        },
+        {
+            2084,
+            new EventData
+            {
+                Id = 2084,
+                TerritoryId = ZoneData.NORTHHORN,
+                Type = EventType.Fate,
+                InternalName = "高傲的雷兽——新月女王",
+                StartPosition = new Vector3(140f, 37f, -708f),
             }
         },
     };
@@ -358,6 +551,201 @@ public struct EventData
                 InternalName = "Flame of Dusk",
                 Demiatma = Enums.Demiatma.Malachite,
                 Aethernet = Enums.Aethernet.CrystallizedCaverns,
+            }
+        },
+        {
+            49,
+            new EventData
+            {
+                Id = 49,
+                TerritoryId = ZoneData.NORTHHORN,
+                Type = EventType.CriticalEncounter,
+                InternalName = "四颚斧花——提蔛",
+                StartPosition = new Vector3(-870f, 20f, -560f),
+            }
+        },
+        {
+            50,
+            new EventData
+            {
+                Id = 50,
+                TerritoryId = ZoneData.NORTHHORN,
+                Type = EventType.CriticalEncounter,
+                InternalName = "魔女复制体——卡洛菲斯提莉二重身",
+                Note = MonsterNote.CalofisteriDoppelganger,
+                StartPosition = new Vector3(-215f, 18f, -65f),
+            }
+        },
+        {
+            51,
+            new EventData
+            {
+                Id = 51,
+                TerritoryId = ZoneData.NORTHHORN,
+                Type = EventType.CriticalEncounter,
+                InternalName = "纯白守护者——雪石膏之剑",
+                Note = MonsterNote.AlabasterBlade,
+                StartPosition = new Vector3(-519f, 48f, -641f),
+            }
+        },
+        {
+            52,
+            new EventData
+            {
+                Id = 52,
+                TerritoryId = ZoneData.NORTHHORN,
+                Type = EventType.CriticalEncounter,
+                InternalName = "禁书化形——古术魔典",
+                Note = MonsterNote.AncientGrimoire,
+                StartPosition = new Vector3(659f, 132f, 659f),
+            }
+        },
+        {
+            53,
+            new EventData
+            {
+                Id = 53,
+                TerritoryId = ZoneData.NORTHHORN,
+                Type = EventType.CriticalEncounter,
+                InternalName = "暗红尸骸——赤龙",
+                Note = MonsterNote.RedDragon,
+                StartPosition = new Vector3(-688f, 90f, 150f),
+            }
+        },
+        {
+            54,
+            new EventData
+            {
+                Id = 54,
+                TerritoryId = ZoneData.NORTHHORN,
+                Type = EventType.CriticalEncounter,
+                InternalName = "暴食咒鬼——阿尔戈尔",
+                Note = MonsterNote.Algol,
+                StartPosition = new Vector3(765f, 70f, 0f),
+            }
+        },
+        {
+            55,
+            new EventData
+            {
+                Id = 55,
+                TerritoryId = ZoneData.NORTHHORN,
+                Type = EventType.CriticalEncounter,
+                InternalName = "残暴的母蜘蛛——新月阿剌克涅",
+                StartPosition = new Vector3(170f, 4f, -136f),
+            }
+        },
+        {
+            56,
+            new EventData
+            {
+                Id = 56,
+                TerritoryId = ZoneData.NORTHHORN,
+                Type = EventType.CriticalEncounter,
+                InternalName = "叛逆使魔——负隅宝石兽",
+                StartPosition = new Vector3(238f, 15f, 367f),
+            }
+        },
+        {
+            57,
+            new EventData
+            {
+                Id = 57,
+                TerritoryId = ZoneData.NORTHHORN,
+                Type = EventType.CriticalEncounter,
+                InternalName = "天道好轮回——魔亡灵法师",
+                Note = MonsterNote.PhantomNecromancer,
+                StartPosition = new Vector3(224f, 52f, -860f),
+            }
+        },
+        {
+            58,
+            new EventData
+            {
+                Id = 58,
+                TerritoryId = ZoneData.NORTHHORN,
+                Type = EventType.CriticalEncounter,
+                InternalName = "求道的人造人——神木巨人",
+                StartPosition = new Vector3(-390f, 68f, 700f),
+            }
+        },
+        {
+            59,
+            new EventData
+            {
+                Id = 59,
+                TerritoryId = ZoneData.NORTHHORN,
+                Type = EventType.CriticalEncounter,
+                InternalName = "诅咒的继承者——惨白魔人",
+                Note = MonsterNote.PallidDemon,
+                StartPosition = new Vector3(807f, 61f, -562f),
+            }
+        },
+        {
+            60,
+            new EventData
+            {
+                Id = 60,
+                TerritoryId = ZoneData.NORTHHORN,
+                Type = EventType.CriticalEncounter,
+                InternalName = "魔法军团——小小法师",
+                Note = MonsterNote.LittleMage,
+                StartPosition = new Vector3(152f, 70f, 716f),
+            }
+        },
+        {
+            61,
+            new EventData
+            {
+                Id = 61,
+                TerritoryId = ZoneData.NORTHHORN,
+                Type = EventType.CriticalEncounter,
+                InternalName = "孤岛的绑架犯——诱拐魔",
+                Note = MonsterNote.KidnapperDemon,
+                StartPosition = new Vector3(-150f, 70f, -860f),
+            }
+        },
+        {
+            62,
+            new EventData
+            {
+                Id = 62,
+                TerritoryId = ZoneData.NORTHHORN,
+                Type = EventType.CriticalEncounter,
+                InternalName = "苏醒的多头龙——魔许德拉",
+                StartPosition = new Vector3(-82f, 12f, 485f),
+            }
+        },
+        {
+            63,
+            new EventData
+            {
+                Id = 63,
+                TerritoryId = ZoneData.NORTHHORN,
+                Type = EventType.CriticalEncounter,
+                InternalName = "拟态使魔——变形法师",
+                Note = MonsterNote.MorphingMage,
+                StartPosition = new Vector3(500f, 56f, -310f),
+            }
+        },
+        {
+            64,
+            new EventData
+            {
+                Id = 64,
+                TerritoryId = ZoneData.NORTHHORN,
+                Type = EventType.CriticalEncounter,
+                InternalName = "两岐塔 魔之塔",
+            }
+        },
+        {
+            65,
+            new EventData
+            {
+                Id = 65,
+                TerritoryId = ZoneData.NORTHHORN,
+                Type = EventType.CriticalEncounter,
+                InternalName = "两歧塔 超魔之塔",
             }
         },
     };

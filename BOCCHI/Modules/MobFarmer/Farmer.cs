@@ -126,6 +126,7 @@ public class Farmer : IDisposable
     public void DisableFarmerMode()
     {
         Running = false;
+        StartingPoint = Vector3.Zero;
         StateMachine.Reset();
     }
 

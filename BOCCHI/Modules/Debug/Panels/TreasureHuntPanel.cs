@@ -33,7 +33,15 @@ public class TreasureHuntPanel : Panel
 
     private uint Progress = 0;
 
-    private readonly uint MaxProgress = 0;
+    private uint MaxProgress
+    {
+        get
+        {
+            var treasureCount = Treasure.Count;
+            var aethernetCount = AethernetData.All().Count();
+            return (uint)(treasureCount * (treasureCount - 1 + 2 * aethernetCount));
+        }
+    }
 
     private ChainQueue ChainQueue
     {
@@ -57,7 +65,8 @@ public class TreasureHuntPanel : Panel
         {
             var transform = instance->GetTransformImpl();
             var position = transform->Translation;
-            if (position.Y <= -10f)
+            var minimumFieldHeight = ZoneData.IsInNorthHorn() ? -500f : -10f;
+            if (position.Y <= minimumFieldHeight)
             {
                 continue;
             }
@@ -74,9 +83,6 @@ public class TreasureHuntPanel : Panel
 
         Treasure = Treasure.OrderBy(t => t.id).ToList();
 
-        var t = Treasure.Count;
-        var a = Enum.GetNames(typeof(Aethernet)).Length;
-        MaxProgress = (uint)(t * (t - 1 + 2 * a));
     }
 
     public override string GetName()

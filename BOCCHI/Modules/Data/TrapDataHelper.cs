@@ -12,6 +12,7 @@ public class TrapDataHelper : DataHelper<string>
         get => new()
         {
             { ZoneData.SOUTHHORN, Path.Join(Svc.PluginInterface.ConfigDirectory.FullName, "southhorn_traps.json") },
+            { ZoneData.NORTHHORN, Path.Join(Svc.PluginInterface.ConfigDirectory.FullName, "northhorn_traps.json") },
         };
     }
 

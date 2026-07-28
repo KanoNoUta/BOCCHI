@@ -49,9 +49,9 @@ public class TargetPanel : Panel
             Draw("ObjectKind", obj->ObjectKind);
             Draw("SubKind", obj->SubKind);
             Draw("Sex", obj->Sex);
-            Draw("YalmDistX", obj->YalmDistanceFromPlayerX);
-            Draw("TargetStatus", obj->TargetStatus);
-            Draw("YalmDistZ", obj->YalmDistanceFromPlayerZ);
+            Draw("CurrentDistance", obj->CurrentDistance);
+            Draw("NextTargetStatus", obj->NextTargetStatus);
+            Draw("NextDistance", obj->NextDistance);
             Draw("TargetableStatus", obj->TargetableStatus);
             Draw("Position", obj->Position);
             Draw("Rotation", obj->Rotation);

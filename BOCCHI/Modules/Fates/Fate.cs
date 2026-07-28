@@ -10,7 +10,7 @@ namespace BOCCHI.Modules.Fates;
 
 public class Fate(IFate fate)
 {
-    public readonly EventData Data = EventData.Fates[fate.FateId];
+    public readonly EventData Data = EventData.GetFate(fate.FateId, ECommons.DalamudServices.Svc.ClientState.TerritoryType);
 
     public uint Id
     {
@@ -104,7 +104,7 @@ public class Fate(IFate fate)
 
     public bool IsPotFate()
     {
-        return Data.Note == MonsterNote.PersistentPots;
+        return Data.IsPot || Data.Note == MonsterNote.PersistentPots;
     }
 
     public Aethernet GetAethernet()

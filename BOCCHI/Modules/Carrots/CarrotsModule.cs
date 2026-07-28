@@ -48,7 +48,10 @@ public class CarrotsModule(Plugin plugin, Config config) : Module(plugin, config
     public override void Update(UpdateContext context)
     {
         tracker.Tick(context.Framework);
-        hunter.Update();
+        if (BOCCHI.Data.ZoneData.HasCurrentZoneDataFile("precomputed_carrot_hunt_data.json"))
+        {
+            hunter.Update();
+        }
     }
 
     public override void Render(RenderContext context)
@@ -60,11 +63,18 @@ public class CarrotsModule(Plugin plugin, Config config) : Module(plugin, config
     {
         panel.Draw(this);
 
-        if (Config.ShouldEnableCarrotHunt)
+        if (Config.ShouldEnableCarrotHunt
+            && BOCCHI.Data.ZoneData.HasCurrentZoneDataFile("precomputed_carrot_hunt_data.json"))
         {
             hunter.Draw(this);
         }
 
         return true;
+    }
+
+    public override void OnTerritoryChanged(uint id)
+    {
+        hunter?.Stop();
+        tracker.Reset();
     }
 }

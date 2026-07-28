@@ -84,7 +84,12 @@ public class CarrotHunt(CarrotsModule module) : Hunter(module)
 
         stepIndex = 0;
         Steps.Clear();
-        vnav.Stop();
+        if (module.TryGetIPCSubscriber<Ocelot.IPC.VNavmesh>(out var navigation)
+            && navigation != null
+            && navigation.IsReady())
+        {
+            navigation.Stop();
+        }
         Plugin.Chain.Abort();
         StepProcessor.Abort();
         pathfinder = null;
