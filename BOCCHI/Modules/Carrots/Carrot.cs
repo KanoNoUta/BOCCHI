@@ -1,5 +1,5 @@
+﻿using Dalamud.Game.ClientState.Objects.Types;
 using System.Numerics;
-using Dalamud.Game.ClientState.Objects.Types;
 
 namespace BOCCHI.Modules.Carrots;
 

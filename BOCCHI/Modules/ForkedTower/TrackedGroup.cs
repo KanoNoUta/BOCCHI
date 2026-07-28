@@ -1,6 +1,6 @@
-﻿using System.Collections.Generic;
-using BOCCHI.Data.Traps;
+﻿using BOCCHI.Data.Traps;
 using Dalamud.Game.ClientState.Objects.SubKinds;
+using System.Collections.Generic;
 
 namespace BOCCHI.Modules.ForkedTower;
 

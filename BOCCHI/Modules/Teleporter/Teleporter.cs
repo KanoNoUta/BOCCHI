@@ -3,15 +3,15 @@ using BOCCHI.Data;
 using BOCCHI.Enums;
 using BOCCHI.Modules.Automator;
 using BOCCHI.Modules.StateManager;
+using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using ECommons.Automation.NeoTaskManager;
 using ECommons.DalamudServices;
 using ECommons.ImGuiMethods;
-using Dalamud.Bindings.ImGui;
-using Ocelot.Ui;
 using Ocelot.Chain;
 using Ocelot.Chain.ChainEx;
 using Ocelot.IPC;
+using Ocelot.Ui;
 using System.Linq;
 using System.Numerics;
 

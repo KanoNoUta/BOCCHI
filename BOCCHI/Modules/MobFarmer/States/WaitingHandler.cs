@@ -1,8 +1,8 @@
-﻿using System.Linq;
-using Dalamud.Game.ClientState.Conditions;
+﻿using Dalamud.Game.ClientState.Conditions;
 using ECommons.DalamudServices;
 using ECommons.GameHelpers;
 using Ocelot.States;
+using System.Linq;
 
 namespace BOCCHI.Modules.MobFarmer.States;
 
@@ -11,12 +11,12 @@ public class WaitingHandler(MobFarmerModule module) : FarmerPhaseHandler(module)
 {
     public override FarmerPhase? Handle()
     {
-        var startingPoint =  Module.Farmer.StartingPoint;
+        var startingPoint = Module.Farmer.StartingPoint;
         if (Player.DistanceTo(startingPoint) > 2f)
         {
             return null;
         }
-        
+
         if (Svc.Condition[ConditionFlag.InCombat])
         {
             return FarmerPhase.Fighting;

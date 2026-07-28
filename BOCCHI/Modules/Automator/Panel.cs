@@ -1,6 +1,6 @@
-using System;
-using Dalamud.Bindings.ImGui;
+﻿using Dalamud.Bindings.ImGui;
 using Ocelot.Ui;
+using System;
 
 namespace BOCCHI.Modules.Automator;
 

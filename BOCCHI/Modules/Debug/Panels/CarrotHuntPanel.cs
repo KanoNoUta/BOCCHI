@@ -1,3 +1,19 @@
+﻿using BOCCHI.ActionHelpers;
+using BOCCHI.Data;
+using BOCCHI.Enums;
+using BOCCHI.ItemHelpers;
+using BOCCHI.Modules.Data;
+using BOCCHI.Pathfinding;
+using Dalamud.Bindings.ImGui;
+using Dalamud.Game.ClientState.Objects.SubKinds;
+using ECommons.DalamudServices;
+using ECommons.GameHelpers;
+using FFXIVClientStructs.FFXIV.Client.Game.Control;
+using FFXIVClientStructs.FFXIV.Client.Game.Object;
+using Ocelot.Chain;
+using Ocelot.Chain.ChainEx;
+using Ocelot.IPC;
+using Ocelot.Ui;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -6,22 +22,6 @@ using System.Linq;
 using System.Numerics;
 using System.Text.Json;
 using System.Threading.Tasks;
-using BOCCHI.ActionHelpers;
-using BOCCHI.Data;
-using BOCCHI.Enums;
-using BOCCHI.ItemHelpers;
-using BOCCHI.Modules.Data;
-using BOCCHI.Pathfinding;
-using Dalamud.Game.ClientState.Objects.SubKinds;
-using ECommons.DalamudServices;
-using ECommons.GameHelpers;
-using FFXIVClientStructs.FFXIV.Client.Game.Control;
-using FFXIVClientStructs.FFXIV.Client.Game.Object;
-using Dalamud.Bindings.ImGui;
-using Ocelot.Ui;
-using Ocelot.Chain;
-using Ocelot.Chain.ChainEx;
-using Ocelot.IPC;
 
 namespace BOCCHI.Modules.Debug.Panels;
 
@@ -119,7 +119,7 @@ public class CarrotHuntPanel : Panel
                 return;
             }
 
-            var Completion = (float)Progress / (float)MaxProgress * 100;
+            var Completion = Progress / (float)MaxProgress * 100;
 
             OcelotUi.LabelledValue("Progress: ", $"{Completion:f2}%");
             OcelotUi.Indent(() => OcelotUi.LabelledValue("Calculations: ", $"{Progress}/{MaxProgress}"));

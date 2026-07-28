@@ -1,6 +1,4 @@
-using System;
-using System.Numerics;
-using BOCCHI.Enums;
+﻿using BOCCHI.Enums;
 using BOCCHI.Modules.Mount;
 using BOCCHI.Modules.Mount.Chains;
 using BOCCHI.Modules.Teleporter;
@@ -10,6 +8,8 @@ using Ocelot.Chain;
 using Ocelot.Chain.ChainEx;
 using Ocelot.IPC;
 using Ocelot.Modules;
+using System;
+using System.Numerics;
 
 namespace BOCCHI.Chains;
 

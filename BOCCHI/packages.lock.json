@@ -14,9 +14,9 @@
         "resolved": "1.2.39",
         "contentHash": "fcFN01tDTIQqDuTwr1jUQK/geofiwjG5DycJQOnC72i1SsLAk1ELe+apBOuZ11UMQG8YKFZG1FgvjZPbqHyatg=="
       },
-      "ECommons": {
+      "FFXIVOcelot": {
         "type": "Direct",
-        "requested": "[1.1.5, 1.2.0)",
+        "requested": "[1.1.5, )",
         "resolved": "1.1.5",
         "contentHash": "EEm/v3MKAqW2gmniWJ5+YNJ3fMkv0HcsZdoIecyqq1TlnJqoFu/FVy6xOiXlz0FLzUEpL6CZmsVJWkLhVz4Xxw==",
         "dependencies": {
@@ -46,7 +46,7 @@
           "Microsoft.Extensions.DependencyInjection.Abstractions": "7.0.0"
         }
       },
-      "KamiToolKit": {
+      "ECommons": {
         "type": "Transitive",
         "resolved": "3.2.0.13",
         "contentHash": "7S85hhmzMoARE3q+Elf+dQaasVu/k0NNld7uffzmQqKCqdWjGWv+kxD28JL0zU17aK6k57IfSklNqbq3XLYVuw=="

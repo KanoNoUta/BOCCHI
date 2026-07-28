@@ -1,3 +1,13 @@
+﻿using BOCCHI.Data;
+using BOCCHI.Enums;
+using BOCCHI.Modules.Data;
+using BOCCHI.Pathfinding;
+using Dalamud.Bindings.ImGui;
+using ECommons.DalamudServices;
+using FFXIVClientStructs.FFXIV.Client.LayoutEngine;
+using Ocelot.Chain;
+using Ocelot.IPC;
+using Ocelot.Ui;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -6,16 +16,6 @@ using System.Linq;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using BOCCHI.Data;
-using BOCCHI.Enums;
-using BOCCHI.Modules.Data;
-using BOCCHI.Pathfinding;
-using ECommons.DalamudServices;
-using FFXIVClientStructs.FFXIV.Client.LayoutEngine;
-using Dalamud.Bindings.ImGui;
-using Ocelot.Ui;
-using Ocelot.Chain;
-using Ocelot.IPC;
 
 namespace BOCCHI.Modules.Debug.Panels;
 
@@ -101,7 +101,7 @@ public class TreasureHuntPanel : Panel
                 return;
             }
 
-            var Completion = (float)Progress / (float)MaxProgress * 100;
+            var Completion = Progress / (float)MaxProgress * 100;
 
             OcelotUi.LabelledValue("Progress: ", $"{Completion:f2}%");
             OcelotUi.Indent(() => OcelotUi.LabelledValue("Calculations: ", $"{Progress}/{MaxProgress}"));

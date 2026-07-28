@@ -10,15 +10,15 @@ public class BuffConfig : ModuleConfig
     [Label("generic.label.enabled")]
     public bool Enabled { get; set; } = true;
 
-    [Checkbox] [IllegalModeCompatible] public bool ApplyRomeosBallad { get; set; } = true;
+    [Checkbox][IllegalModeCompatible] public bool ApplyRomeosBallad { get; set; } = true;
 
-    [Checkbox] [IllegalModeCompatible] public bool ApplyEnduringFortitude { get; set; } = true;
+    [Checkbox][IllegalModeCompatible] public bool ApplyEnduringFortitude { get; set; } = true;
 
-    [Checkbox] [IllegalModeCompatible] public bool ApplyFleetfooted { get; set; } = true;
-    
-    [Checkbox] [IllegalModeCompatible] public bool ApplyQuickerStep { get; set; } = false;
+    [Checkbox][IllegalModeCompatible] public bool ApplyFleetfooted { get; set; } = true;
 
-    [Checkbox] [IllegalModeCompatible] public bool UseInquiringMind { get; set; } = false;
+    [Checkbox][IllegalModeCompatible] public bool ApplyQuickerStep { get; set; } = false;
+
+    [Checkbox][IllegalModeCompatible] public bool UseInquiringMind { get; set; } = false;
 
     [IntRange(0, 25)]
     [IllegalModeCompatible]

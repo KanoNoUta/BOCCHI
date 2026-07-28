@@ -1,8 +1,8 @@
+﻿using BOCCHI.Enums;
+using ECommons.DalamudServices;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
-using BOCCHI.Enums;
-using ECommons.DalamudServices;
 
 namespace BOCCHI.Modules.Automator;
 

@@ -1,9 +1,9 @@
-using System;
-using System.Linq;
-using BOCCHI.Data;
+﻿using BOCCHI.Data;
 using BOCCHI.Modules.Teleporter;
 using Dalamud.Bindings.ImGui;
 using Ocelot.Ui;
+using System;
+using System.Linq;
 
 namespace BOCCHI.Modules.Fates;
 

@@ -1,12 +1,10 @@
-﻿using System.Collections.Generic;
+﻿using BOCCHI.Pathfinding;
+using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
-using BOCCHI.Pathfinding;
 using Data_TreasureData = BOCCHI.Data.TreasureData;
 
 namespace BOCCHI.Modules.Treasure;
-
-using TreasureData = (uint id, Vector3 position, uint type);
 
 public class Pathfinder : BasePathfinder
 {

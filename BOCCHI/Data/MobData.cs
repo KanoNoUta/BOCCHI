@@ -1,7 +1,7 @@
-﻿using System.Collections.Generic;
-using System.Globalization;
-using ECommons.DalamudServices;
+﻿using ECommons.DalamudServices;
 using Lumina.Excel.Sheets;
+using System.Collections.Generic;
+using System.Globalization;
 
 namespace BOCCHI.Data;
 

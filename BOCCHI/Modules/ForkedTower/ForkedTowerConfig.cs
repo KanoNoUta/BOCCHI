@@ -1,6 +1,6 @@
-using System.Numerics;
-using Ocelot.Config.Attributes;
+﻿using Ocelot.Config.Attributes;
 using Ocelot.Modules;
+using System.Numerics;
 
 namespace BOCCHI.Modules.ForkedTower;
 
@@ -29,9 +29,9 @@ public class ForkedTowerConfig : ModuleConfig
 
     [Color4] public Vector4 BigTrapDrawColor { get; set; } = Vector4.One;
 
-    [Checkbox] [Experimental] public bool DrawSmallTrapRange { get; set; } = false;
+    [Checkbox][Experimental] public bool DrawSmallTrapRange { get; set; } = false;
 
-    [Checkbox] [Experimental] public bool DrawBigTrapRange { get; set; } = false;
+    [Checkbox][Experimental] public bool DrawBigTrapRange { get; set; } = false;
 
-    [Checkbox] [Experimental] public bool StopRenderingCompleteGroups { get; set; } = false;
+    [Checkbox][Experimental] public bool StopRenderingCompleteGroups { get; set; } = false;
 }

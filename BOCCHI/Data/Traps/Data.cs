@@ -1,7 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using BOCCHI.Modules.Data;
+﻿using BOCCHI.Modules.Data;
 using Dalamud.Game.ClientState.Objects.SubKinds;
+using System;
+using System.Collections.Generic;
 
 namespace BOCCHI.Data.Traps;
 

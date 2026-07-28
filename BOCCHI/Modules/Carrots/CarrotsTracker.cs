@@ -1,10 +1,10 @@
-using System.Collections.Generic;
-using System.Linq;
-using BOCCHI.Enums;
+﻿using BOCCHI.Enums;
 using Dalamud.Game.ClientState.Objects.Enums;
 using Dalamud.Plugin.Services;
 using ECommons.DalamudServices;
 using ECommons.GameHelpers;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace BOCCHI.Modules.Carrots;
 

@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-using System.Linq;
-using BOCCHI.Data.Traps;
+﻿using BOCCHI.Data.Traps;
 using BOCCHI.Enums;
 using BOCCHI.Modules.Data;
 using Dalamud.Game.ClientState.Objects.SubKinds;
@@ -9,6 +7,8 @@ using ECommons.DalamudServices;
 using ECommons.GameHelpers;
 using Ocelot.Modules;
 using Ocelot.Windows;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace BOCCHI.Modules.ForkedTower;
 

@@ -1,7 +1,7 @@
-using System.Numerics;
+﻿using Dalamud.Bindings.ImGui;
 using ECommons.GameHelpers;
-using Dalamud.Bindings.ImGui;
 using Ocelot.Ui;
+using System.Numerics;
 
 namespace BOCCHI.Modules.Treasure;
 

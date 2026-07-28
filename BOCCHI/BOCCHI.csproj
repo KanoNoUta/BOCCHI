@@ -31,13 +31,8 @@
             <Link>Data\%(RecursiveDir)%(Filename)%(Extension)</Link>
         </None>
     </ItemGroup>
-    <ItemGroup Condition="'$(Configuration)' == 'Debug'">
-        <ProjectReference Include="../Ocelot/Ocelot/Ocelot.csproj" />
-    </ItemGroup>
-    <ItemGroup Condition="'$(Configuration)' == 'Release'">
-        <PackageReference Include="FFXIVOcelot" Version="[1.1.5,1.2.0)" />
-    </ItemGroup>
     <ItemGroup>
+        <PackageReference Include="FFXIVOcelot" Version="1.1.5" />
         <PackageReference Include="Pictomancy" Version="1.0.3" />
         <PackageReference Include="TextCopy" Version="6.2.1" />
     </ItemGroup>

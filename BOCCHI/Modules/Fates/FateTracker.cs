@@ -1,8 +1,8 @@
+﻿using ECommons.DalamudServices;
+using Ocelot.Modules;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using ECommons.DalamudServices;
-using Ocelot.Modules;
 
 namespace BOCCHI.Modules.Fates;
 

@@ -1,6 +1,6 @@
+﻿using Dalamud.Bindings.ImGui;
 using ECommons.DalamudServices;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
-using Dalamud.Bindings.ImGui;
 using Ocelot.Ui;
 
 namespace BOCCHI.Modules.Debug.Panels;

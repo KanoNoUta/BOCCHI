@@ -1,6 +1,6 @@
-﻿using System.Collections.Generic;
+﻿using BOCCHI.Enums;
+using System.Collections.Generic;
 using System.Numerics;
-using BOCCHI.Enums;
 
 namespace BOCCHI.Data.Traps;
 

@@ -1,9 +1,9 @@
-using System.Linq;
-using BOCCHI.Data;
+﻿using BOCCHI.Data;
 using BOCCHI.Enums;
 using BOCCHI.Modules.Teleporter;
 using Dalamud.Bindings.ImGui;
 using Ocelot.Ui;
+using System.Linq;
 
 namespace BOCCHI.Modules.Debug.Panels;
 

@@ -1,5 +1,4 @@
-﻿using System.Linq;
-using BOCCHI.Modules.MobFarmer.Chains;
+﻿using BOCCHI.Modules.MobFarmer.Chains;
 using Dalamud.Game.ClientState.Conditions;
 using ECommons.DalamudServices;
 using Ocelot.States;

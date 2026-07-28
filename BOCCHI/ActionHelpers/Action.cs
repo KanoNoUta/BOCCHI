@@ -1,6 +1,6 @@
-﻿using System;
-using FFXIVClientStructs.FFXIV.Client.Game;
+﻿using FFXIVClientStructs.FFXIV.Client.Game;
 using Ocelot.Chain;
+using System;
 
 namespace BOCCHI.ActionHelpers;
 

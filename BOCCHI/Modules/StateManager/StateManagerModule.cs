@@ -1,6 +1,6 @@
-using System;
-using Ocelot.Modules;
+﻿using Ocelot.Modules;
 using Ocelot.Windows;
+using System;
 
 namespace BOCCHI.Modules.StateManager;
 

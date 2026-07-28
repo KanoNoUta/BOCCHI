@@ -1,9 +1,9 @@
-using System;
-using System.Numerics;
-using ECommons.Automation.NeoTaskManager;
+﻿using ECommons.Automation.NeoTaskManager;
 using Ocelot.Chain;
 using Ocelot.Chain.ChainEx;
 using Ocelot.IPC;
+using System;
+using System.Numerics;
 
 namespace BOCCHI.Chains;
 

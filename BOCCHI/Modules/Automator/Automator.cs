@@ -1,5 +1,4 @@
-using System.Linq;
-using BOCCHI.Chains;
+﻿using BOCCHI.Chains;
 using BOCCHI.Data;
 using BOCCHI.Enums;
 using BOCCHI.Modules.CriticalEncounters;
@@ -10,6 +9,7 @@ using ECommons.DalamudServices;
 using FFXIVClientStructs.FFXIV.Client.Game.InstanceContent;
 using Ocelot.Chain;
 using Ocelot.IPC;
+using System.Linq;
 
 namespace BOCCHI.Modules.Automator;
 

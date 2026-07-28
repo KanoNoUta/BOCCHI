@@ -1,6 +1,6 @@
-using Dalamud.Bindings.ImGui;
-using Ocelot.Ui;
+﻿using Dalamud.Bindings.ImGui;
 using Ocelot.Chain;
+using Ocelot.Ui;
 
 namespace BOCCHI.Modules.Debug.Panels;
 

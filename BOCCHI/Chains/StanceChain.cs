@@ -1,18 +1,9 @@
 ﻿using BOCCHI.ActionHelpers;
-using BOCCHI.Data;
-using BOCCHI.Enums;
-using BOCCHI.Modules.Automator;
-using BOCCHI.Modules.Buff;
-using BOCCHI.Modules.Buff.Chains;
-using BOCCHI.Modules.Teleporter;
 using Dalamud.Game.ClientState.Conditions;
-using ECommons.Automation;
-using ECommons.Automation.NeoTaskManager;
 using ECommons.DalamudServices;
 using ECommons.GameHelpers;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using Ocelot.Chain;
-using Ocelot.Chain.ChainEx;
 using Ocelot.Extensions;
 using Job = ECommons.ExcelServices.Job;
 
@@ -31,7 +22,7 @@ public class StanceChain(bool stance) : ChainFactory
         {
             case Job.PLD:
                 {
-                    var on  = new Action(ActionType.Action, 28);
+                    var on = new Action(ActionType.Action, 28);
                     var off = new Action(ActionType.Action, 32065);
                     if (Player.Status.HasStatus(79) != stance)
                     {
@@ -41,7 +32,7 @@ public class StanceChain(bool stance) : ChainFactory
                 }
             case Job.WAR:
                 {
-                    var on  = new Action(ActionType.Action, 48);
+                    var on = new Action(ActionType.Action, 48);
                     var off = new Action(ActionType.Action, 32066);
                     if (Player.Status.HasStatus(91) != stance)
                     {
@@ -51,7 +42,7 @@ public class StanceChain(bool stance) : ChainFactory
                 }
             case Job.DRK:
                 {
-                    var on  = new Action(ActionType.Action, 3629);
+                    var on = new Action(ActionType.Action, 3629);
                     var off = new Action(ActionType.Action, 32067);
                     if (Player.Status.HasStatus(743) != stance)
                     {
@@ -61,7 +52,7 @@ public class StanceChain(bool stance) : ChainFactory
                 }
             case Job.GNB:
                 {
-                    var on  = new Action(ActionType.Action, 16142);
+                    var on = new Action(ActionType.Action, 16142);
                     var off = new Action(ActionType.Action, 32068);
                     if (Player.Status.HasStatus(1833) != stance)
                     {
@@ -70,10 +61,10 @@ public class StanceChain(bool stance) : ChainFactory
                     break;
                 }
         }
-        
+
         return chain;
     }
-    
+
 
 
 }

@@ -1,11 +1,11 @@
-﻿using System;
+﻿using BOCCHI.Modules.ForkedTower;
+using Dalamud.Game.ClientState.Objects.Types;
+using ECommons.DalamudServices;
+using System;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
-using BOCCHI.Modules.ForkedTower;
-using Dalamud.Game.ClientState.Objects.Types;
-using ECommons.DalamudServices;
 
 namespace BOCCHI.Modules.Data;
 

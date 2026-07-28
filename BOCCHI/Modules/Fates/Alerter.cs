@@ -43,7 +43,8 @@ public class Alerter : IDisposable
             return;
         }
 
-        unsafe { UIGlobals.PlaySoundEffect(66); }
+        unsafe
+        { UIGlobals.PlaySoundEffect(66); }
     }
 
     private unsafe void OnFateDespawned(Fate fate)
@@ -58,7 +59,8 @@ public class Alerter : IDisposable
             return;
         }
 
-        unsafe { UIGlobals.PlaySoundEffect(68); }
+        unsafe
+        { UIGlobals.PlaySoundEffect(68); }
     }
 
     private bool ShouldAlertForFate(Fate fate)

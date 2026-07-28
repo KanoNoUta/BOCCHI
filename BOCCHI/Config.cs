@@ -1,5 +1,4 @@
-﻿using System;
-using BOCCHI.Modules.Automator;
+﻿using BOCCHI.Modules.Automator;
 using BOCCHI.Modules.Buff;
 using BOCCHI.Modules.Carrots;
 using BOCCHI.Modules.CriticalEncounters;
@@ -18,6 +17,7 @@ using BOCCHI.Modules.Treasure;
 using BOCCHI.Modules.WindowManager;
 using ECommons.DalamudServices;
 using Ocelot;
+using System;
 
 namespace BOCCHI;
 

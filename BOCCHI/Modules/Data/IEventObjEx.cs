@@ -1,5 +1,5 @@
-﻿using System;
-using Dalamud.Game.ClientState.Objects.SubKinds;
+﻿using Dalamud.Game.ClientState.Objects.SubKinds;
+using System;
 
 namespace BOCCHI.Modules.Data;
 

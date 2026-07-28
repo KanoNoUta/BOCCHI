@@ -1,5 +1,5 @@
+﻿using ECommons.Automation;
 using System;
-using ECommons.Automation;
 
 namespace BOCCHI.Modules.Automator;
 

@@ -1,6 +1,6 @@
-using System.Globalization;
-using FFXIVClientStructs.FFXIV.Client.Game.UI;
+﻿using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using Ocelot.Config.Handlers;
+using System.Globalization;
 using ExcelMount = Lumina.Excel.Sheets.Mount;
 
 namespace BOCCHI.Modules.Mount;

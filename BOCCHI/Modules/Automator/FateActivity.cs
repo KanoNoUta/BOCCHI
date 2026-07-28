@@ -1,7 +1,4 @@
-using System;
-using System.Linq;
-using System.Numerics;
-using BOCCHI.ActionHelpers;
+﻿using BOCCHI.ActionHelpers;
 using BOCCHI.Data;
 using BOCCHI.Modules.Fates;
 using BOCCHI.Modules.StateManager;
@@ -12,6 +9,9 @@ using ECommons.GameHelpers;
 using ECommons.Throttlers;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using Ocelot.IPC;
+using System;
+using System.Linq;
+using System.Numerics;
 
 namespace BOCCHI.Modules.Automator;
 

@@ -1,7 +1,7 @@
-using System.Collections.Generic;
-using BOCCHI.Data;
+﻿using BOCCHI.Data;
 using Ocelot.Config.Attributes;
 using Ocelot.Modules;
+using System.Collections.Generic;
 
 namespace BOCCHI.Modules.MobFarmer;
 
@@ -50,6 +50,6 @@ public class MobFarmerConfig : ModuleConfig
     [IntRange(0, 20)] public int MinimumMobsToStartLoop { get; set; } = 0;
 
     [IntRange(1, 20)] public int MinimumMobsToStartFight { get; set; } = 5;
-    
+
     [IntRange(0, 20)] public int ExtraTimeToWait { get; set; } = 0;
 }

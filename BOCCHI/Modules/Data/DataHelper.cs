@@ -1,7 +1,7 @@
-﻿using System.Collections.Generic;
+﻿using ECommons.DalamudServices;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
-using ECommons.DalamudServices;
 
 namespace BOCCHI.Modules.Data;
 

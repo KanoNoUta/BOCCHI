@@ -1,8 +1,8 @@
-﻿using System.Collections.Generic;
+﻿using BOCCHI.Data;
+using BOCCHI.Pathfinding;
+using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
-using BOCCHI.Data;
-using BOCCHI.Pathfinding;
 
 namespace BOCCHI.Modules.Carrots;
 

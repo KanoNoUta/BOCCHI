@@ -1,7 +1,4 @@
-using System.Numerics;
-using BOCCHI.Data;
-using Dalamud.Interface;
-using Dalamud.Interface.Windowing;
+﻿using BOCCHI.Data;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Windowing;

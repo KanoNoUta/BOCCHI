@@ -1,7 +1,7 @@
+﻿using Ocelot.Modules;
+using Ocelot.Windows;
 using System.Collections.Generic;
 using System.Numerics;
-using Ocelot.Modules;
-using Ocelot.Windows;
 
 namespace BOCCHI.Modules.Treasure;
 

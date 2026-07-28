@@ -1,4 +1,4 @@
-using Ocelot.Config.Attributes;
+﻿using Ocelot.Config.Attributes;
 using Ocelot.Modules;
 using ExcelMount = Lumina.Excel.Sheets.Mount;
 
@@ -11,5 +11,5 @@ public class MountConfig : ModuleConfig
     [IllegalModeCompatible]
     public uint Mount { get; set; } = 1;
 
-    [Checkbox] [IllegalModeCompatible] public bool MountRoulette { get; set; } = false;
+    [Checkbox][IllegalModeCompatible] public bool MountRoulette { get; set; } = false;
 }

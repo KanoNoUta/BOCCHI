@@ -1,6 +1,6 @@
-﻿using System.Text.RegularExpressions;
-using ECommons.DalamudServices;
+﻿using ECommons.DalamudServices;
 using Lumina.Excel.Sheets;
+using System.Text.RegularExpressions;
 
 namespace BOCCHI;
 

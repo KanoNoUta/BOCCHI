@@ -60,12 +60,12 @@ public class AutomatorConfig : ModuleConfig
     [DependsOn(nameof(DoCriticalEncounters))]
 
     public bool StanceOffBeforeCriticalEncounters { get; set; } = false;
-    
+
     public bool ShouldStanceOffBeforeCriticalEncounters
     {
         get => IsPropertyEnabled(nameof(StanceOffBeforeCriticalEncounters));
     }
-    
+
     [Checkbox]
     [DependsOn(nameof(DoCriticalEncounters))]
 
@@ -285,12 +285,12 @@ public class AutomatorConfig : ModuleConfig
     [DependsOn(nameof(DoFates))]
 
     public bool StanceOnBeforeDoFates { get; set; } = false;
-    
+
     public bool ShouldStanceOnBeforeDoFates
     {
         get => IsPropertyEnabled(nameof(StanceOnBeforeDoFates));
     }
-    
+
     [Checkbox]
     [Indent]
     [DependsOn(nameof(DoFates))]

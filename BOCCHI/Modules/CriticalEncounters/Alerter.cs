@@ -55,7 +55,8 @@ public class Alerter : IDisposable
             return;
         }
 
-        unsafe { UIGlobals.PlaySoundEffect(66); }
+        unsafe
+        { UIGlobals.PlaySoundEffect(66); }
     }
 
     private unsafe void OnCriticalEncounterDepawned(DynamicEvent ev)
@@ -70,7 +71,8 @@ public class Alerter : IDisposable
             return;
         }
 
-        unsafe { UIGlobals.PlaySoundEffect(68); }
+        unsafe
+        { UIGlobals.PlaySoundEffect(68); }
     }
 
     private bool ShouldAlertForCriticalEncounter(DynamicEvent ev)

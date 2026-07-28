@@ -1,12 +1,12 @@
-using System;
-using System.Numerics;
-using BOCCHI.Modules.EventDrop;
+﻿using BOCCHI.Modules.EventDrop;
+using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Textures;
 using Dalamud.Interface.Textures.TextureWraps;
 using ECommons.DalamudServices;
 using FFXIVClientStructs.FFXIV.Client.Game;
-using Dalamud.Bindings.ImGui;
 using Lumina.Excel.Sheets;
+using System;
+using System.Numerics;
 
 namespace BOCCHI.Data;
 

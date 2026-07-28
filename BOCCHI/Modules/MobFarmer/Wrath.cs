@@ -1,10 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using BOCCHI.Data;
+﻿using BOCCHI.Data;
 using BOCCHI.Enums;
 using ECommons.DalamudServices;
 using Ocelot.IPC;
 using Ocelot.Modules;
+using System;
+using System.Collections.Generic;
 
 namespace BOCCHI.Modules.MobFarmer;
 

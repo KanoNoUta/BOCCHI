@@ -1,7 +1,7 @@
-using System.Numerics;
-using Dalamud.Bindings.ImGui;
-using Ocelot.Ui;
+﻿using Dalamud.Bindings.ImGui;
 using Ocelot.IPC;
+using Ocelot.Ui;
+using System.Numerics;
 
 namespace BOCCHI.Modules.Debug.Panels;
 

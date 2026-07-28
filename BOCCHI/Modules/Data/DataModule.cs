@@ -1,9 +1,9 @@
-using System.Linq;
-using BOCCHI.Enums;
+﻿using BOCCHI.Enums;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using ECommons.DalamudServices;
 using ECommons.Throttlers;
 using Ocelot.Modules;
+using System.Linq;
 
 namespace BOCCHI.Modules.Data;
 

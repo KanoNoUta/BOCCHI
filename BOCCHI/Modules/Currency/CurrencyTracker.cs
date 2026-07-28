@@ -1,6 +1,6 @@
-using System;
-using BOCCHI.ItemHelpers;
+﻿using BOCCHI.ItemHelpers;
 using Dalamud.Plugin.Services;
+using System;
 
 namespace BOCCHI.Modules.Currency;
 

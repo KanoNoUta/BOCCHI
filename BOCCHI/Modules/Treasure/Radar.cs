@@ -1,9 +1,9 @@
-using System.Linq;
-using BOCCHI.Data;
+﻿using BOCCHI.Data;
 using BOCCHI.Enums;
 using Dalamud.Game.ClientState.Conditions;
 using ECommons.DalamudServices;
 using Ocelot.Windows;
+using System.Linq;
 
 namespace BOCCHI.Modules.Treasure;
 

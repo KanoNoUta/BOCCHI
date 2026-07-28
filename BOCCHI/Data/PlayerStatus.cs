@@ -34,7 +34,7 @@ public enum PlayerStatus : uint
     PhantomMysticKnight = 4803,
     PhantomGladiator = 4804,
     PhantomDancer = 4805,
-    
+
 }
 
 public static class StatusListExtensions
