@@ -3,90 +3,42 @@ using BOCCHI.Enums;
 using Dalamud.Game.ClientState.Fates;
 using ECommons;
 using Ocelot.Modules;
-using System;
 using System.Numerics;
 
 namespace BOCCHI.Modules.Fates;
 
-public class Fate(IFate fate)
+public class Fate
 {
-    public readonly EventData Data = EventData.GetFate(fate.FateId, ECommons.DalamudServices.Svc.ClientState.TerritoryType);
+    public readonly EventData Data;
 
-    public uint Id
-    {
-        get
-        {
-            try
-            {
-                return fate.FateId;
-            }
-            catch (AccessViolationException)
-            {
-                return 0;
-            }
-        }
-    }
+    public uint Id { get; }
 
-    public string Name
-    {
-        get
-        {
-            try
-            {
-                return fate.Name.GetText();
-            }
-            catch (AccessViolationException)
-            {
-                return "Unknown Fate";
-            }
-        }
-    }
+    public string Name { get; private set; } = "Unknown Fate";
 
-    public float Radius
-    {
-        get
-        {
-            try
-            {
-                return Data.Radius ?? fate.Radius;
-            }
-            catch (AccessViolationException)
-            {
-                return 0f;
-            }
-        }
-    }
+    public float Radius { get; private set; }
 
-    public Vector3 StartPosition
-    {
-        get
-        {
-            try
-            {
-                return Data.StartPosition ?? fate.Position;
-            }
-            catch (AccessViolationException)
-            {
-                return Vector3.Zero;
-            }
-        }
-    }
+    public Vector3 StartPosition { get; private set; }
 
     public readonly EventProgress Progress = new();
 
-    public byte CurrentProgress
+    public byte CurrentProgress { get; private set; }
+
+    public Fate(IFate fate)
     {
-        get
-        {
-            try
-            {
-                return fate.Progress;
-            }
-            catch (AccessViolationException)
-            {
-                return 100;
-            }
-        }
+        Id = fate.FateId;
+        Data = EventData.GetFate(Id, ECommons.DalamudServices.Svc.ClientState.TerritoryType);
+        Refresh(fate);
+    }
+
+    internal void Refresh(IFate fate)
+    {
+        // IFate is backed by game memory and becomes invalid as soon as the FATE
+        // despawns. Copy every value while the object is present in Svc.Fates so
+        // despawn callbacks and long-lived activities only touch managed data.
+        Name = fate.Name.GetText();
+        Radius = Data.Radius ?? fate.Radius;
+        StartPosition = Data.StartPosition ?? fate.Position;
+        CurrentProgress = fate.Progress;
     }
 
     public void Update(UpdateContext context)

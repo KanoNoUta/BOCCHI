@@ -1,6 +1,7 @@
 using BOCCHI;
 using BOCCHI.Data;
 using BOCCHI.Enums;
+using System.Reflection;
 using System.Text.RegularExpressions;
 
 static void Assert(bool condition, string message)
@@ -56,4 +57,11 @@ Assert(treasureMatch.Success, "CN treasure-count LogMessage pattern did not matc
 Assert(treasureMatch.Groups["lnum1"].Value == "3" && treasureMatch.Groups["lnum2"].Value == "17",
     "CN treasure-count LogMessage captures are incorrect.");
 
-Console.WriteLine("BOCCHI 7.55 North Horn data smoke test passed.");
+var retainedFateHandles = typeof(BOCCHI.Modules.Fates.Fate)
+    .GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+    .Where(field => field.FieldType.FullName == "Dalamud.Game.ClientState.Fates.IFate")
+    .ToArray();
+Assert(retainedFateHandles.Length == 0,
+    "Fate snapshots must not retain an IFate backed by game memory after despawn.");
+
+Console.WriteLine("BOCCHI 7.55 North Horn data and FATE lifecycle smoke tests passed.");

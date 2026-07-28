@@ -70,7 +70,7 @@ public class FateActivity(EventData data, Lifestream lifestream, VNavmesh vnav, 
 
     protected override float GetRadius()
     {
-        return module.GetModule<FatesModule>().fates[data.Id].Radius;
+        return fate.Radius;
     }
 
     public override bool IsValid()

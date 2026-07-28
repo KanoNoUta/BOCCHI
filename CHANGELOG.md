@@ -1,3 +1,9 @@
+# 3.2.1
+
+- Fixed an `AccessViolationException` when logging a despawned FATE
+- Snapshot FATE names, positions, radii, and progress while Dalamud's `IFate` is still valid
+- Preserve tracked FATE instances across framework ticks instead of retaining invalid game-memory handles
+
 # 3.2.0
 
 - Added Chinese 7.55 support for Occult Crescent: North Horn (territory 1346)
