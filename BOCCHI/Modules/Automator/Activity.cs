@@ -145,7 +145,10 @@ public abstract class Activity : IDisposable
                 case NavigationType.ReturnTeleportWalk:
                     chain
                         .Then(ChainHelper.ReturnChain(new ReturnChainConfig { ApproachAetheryte = true }))
-                        .Then(ChainHelper.TeleportChain(plan.DestinationAethernet, plan.SourceAethernet))
+                        .Then(ChainHelper.TeleportChain(
+                            plan.DestinationAethernet,
+                            plan.SourceAethernet,
+                            mountAfterTeleport: false))
                         .Debug("Waiting for lifestream to not be 'busy'")
                         .Then(new TaskManagerTask(() => !lifestream.IsBusy(), new TaskManagerConfiguration { TimeLimitMS = 30000 }));
                     chain = AppendPathfinding(chain, destination, pathfinding);
@@ -153,7 +156,10 @@ public abstract class Activity : IDisposable
 
                 case NavigationType.WalkTeleportWalk:
                     chain
-                        .Then(ChainHelper.TeleportChain(plan.DestinationAethernet, plan.SourceAethernet))
+                        .Then(ChainHelper.TeleportChain(
+                            plan.DestinationAethernet,
+                            plan.SourceAethernet,
+                            mountAfterTeleport: false))
                         .Debug("Waiting for lifestream to not be 'busy'")
                         .Then(new TaskManagerTask(() => !lifestream.IsBusy(), new TaskManagerConfiguration { TimeLimitMS = 30000 }));
                     chain = AppendPathfinding(chain, destination, pathfinding);
@@ -177,17 +183,13 @@ public abstract class Activity : IDisposable
 
     private Chain AppendPathfinding(Chain chain, Vector3 destination, PathfindingChain pathfinding)
     {
-        var useSouthCrossing = false;
-
         return chain
-            .ConditionalThen(_ =>
-            {
-                useSouthCrossing = NorthHornSouthCrossingRoute.ShouldUse(data, Player.Position);
-                return useSouthCrossing && ShouldMountToPathfindTo(destination);
-            }, ChainHelper.MountChain())
+            // Mount before submitting movement. Submitting a ground route and
+            // mounting afterwards interrupts vnavmesh and causes visible
+            // stop/start motion; teleport routes could previously do it twice.
+            .ConditionalThen(_ => ShouldMountToPathfindTo(destination), ChainHelper.MountChain())
             .Then(pathfinding)
-            .BreakIf(() => pathfinding.TransitAttempted && !pathfinding.TransitReachedEnd)
-            .ConditionalThen(_ => !useSouthCrossing && ShouldMountToPathfindTo(destination), ChainHelper.MountChain());
+            .BreakIf(() => pathfinding.TransitAttempted && !pathfinding.TransitReachedEnd);
     }
 
 
@@ -195,6 +197,37 @@ public abstract class Activity : IDisposable
     {
         return () =>
         {
+            var lastFateTargetPosition = Vector3.Zero;
+
+            void ApproachFateTarget(IBattleNpc? target)
+            {
+                if (data.Type != EventType.Fate || target == null || Svc.Condition[ConditionFlag.InCombat])
+                {
+                    return;
+                }
+
+                var distance = Vector3.Distance(Player.Position, target.Position) - target.HitboxRadius;
+                if (distance <= module.Config.EngagementRange)
+                {
+                    if (vnav.IsRunning())
+                    {
+                        vnav.Stop();
+                    }
+
+                    return;
+                }
+
+                var targetMovement = lastFateTargetPosition == Vector3.Zero
+                    ? float.MaxValue
+                    : Vector3.Distance(target.Position, lastFateTargetPosition);
+                if (FateNavigationPolicy.ShouldRepath(IsNavigationActive(), targetMovement)
+                    && EzThrottler.Throttle("Participating.FateApproach", 1000)
+                    && vnav.PathfindAndMoveTo(target.Position, false))
+                {
+                    lastFateTargetPosition = target.Position;
+                }
+            }
+
             return Chain.Create("Illegal:Participating")
                 // Retry the transition safeguard here as well. The initial
                 // unmount action can still be animation-locked on arrival.
@@ -209,22 +242,32 @@ public abstract class Activity : IDisposable
                 .Then(_ => vnav.Stop())
                 .Then(new TaskManagerTask(() =>
                 {
+                    if (HasParticipationEnded(states))
+                    {
+                        return true;
+                    }
+
                     if (!module.Config.ShouldForceTarget || !EzThrottler.Throttle("Participating.ForceTarget", 500))
                     {
-                        return HasParticipationEnded(states);
+                        return false;
                     }
 
                     var enemies = GetEnemies();
+                    IBattleNpc? target;
 
                     if (enemies.Any(e => DangerousEnemies.Contains(e.BaseId) && e.CurrentHp > 0))
                     {
-                        Svc.Targets.Target = enemies.FirstOrDefault(e => DangerousEnemies.Contains(e.BaseId) && e.CurrentHp > 0);
-                        return HasParticipationEnded(states);
+                        target = enemies.FirstOrDefault(e => DangerousEnemies.Contains(e.BaseId) && e.CurrentHp > 0);
+                    }
+                    else
+                    {
+                        target = module.Config.ShouldForceTargetCentralEnemy ? enemies.Centroid() : enemies.Closest();
                     }
 
-                    Svc.Targets.Target = module.Config.ShouldForceTargetCentralEnemy ? enemies.Centroid() : enemies.Closest();
+                    Svc.Targets.Target = target;
+                    ApproachFateTarget(target);
 
-                    return HasParticipationEnded(states);
+                    return false;
                 }, new TaskManagerConfiguration { TimeLimitMS = int.MaxValue }))
                 .Then(_ => state = ActivityState.Done);
         };

@@ -18,11 +18,14 @@ public class ReturnTeleportWalkChain(VNavmesh vnav, Lifestream lifestream, Vecto
     protected override Chain Create(Chain chain)
     {
         chain.Then(ChainHelper.ReturnChain(new ReturnChainConfig { ApproachAetheryte = true }));
-        chain.Then(ChainHelper.TeleportChain(activityShard.Aethernet, ZoneData.GetBaseCampAethernet()));
+        chain.Then(ChainHelper.TeleportChain(
+            activityShard.Aethernet,
+            ZoneData.GetBaseCampAethernet(),
+            mountAfterTeleport: false));
         chain.Debug("Waiting for lifestream to not be 'busy'");
         chain.Then(new TaskManagerTask(() => !lifestream.IsBusy(), new TaskManagerConfiguration { TimeLimitMS = 30000 }));
-        chain.Then(new PathfindAndMoveToChain(vnav, destination));
         chain.ConditionalThen(_ => Vector3.Distance(Player.Position, destination) > 15f, ChainHelper.MountChain());
+        chain.Then(new PathfindAndMoveToChain(vnav, destination));
         chain.WaitUntilNear(vnav, destination, 2f);
         chain.Then(_ => vnav.Stop());
         chain.ConditionalThen(_ => Svc.Condition[ConditionFlag.Mounted], _ => Actions.TryUnmount());

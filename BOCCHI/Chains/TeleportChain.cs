@@ -12,7 +12,8 @@ public class TeleportChain(
     Aethernet aethernet,
     Lifestream lifestream,
     TeleporterModule module,
-    Aethernet? sourceAethernet = null) : ChainFactory
+    Aethernet? sourceAethernet = null,
+    bool mountAfterTeleport = true) : ChainFactory
 {
     protected override Chain Create(Chain chain)
     {
@@ -36,7 +37,9 @@ public class TeleportChain(
         chain.Then(_ => lifestream.AethernetTeleportByPlaceNameId((uint)aethernet));
         chain.WaitToCycleCondition(ConditionFlag.BetweenAreas);
         // Mount if we should mount and not pathfind, otherwise let the pathfinder handle it
-        chain.ConditionalThen(_ => module.Config is { ShouldMount: true, PathToDestination: false }, ChainHelper.MountChain());
+        chain.ConditionalThen(
+            _ => mountAfterTeleport && module.Config is { ShouldMount: true, PathToDestination: false },
+            ChainHelper.MountChain());
 
         return chain;
     }

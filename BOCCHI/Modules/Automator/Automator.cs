@@ -85,6 +85,10 @@ public class Automator
             module.SetAiProviderEnabled(false);
             PromeRotationController.Stop();
             ClearActivity();
+            // Let the lower-priority FATE/CE trackers refresh before selecting
+            // another activity. Continuing in this same update can immediately
+            // reselect the just-despawned FATE from their stale cache.
+            return;
         }
 
         if (IsChainActive)
@@ -183,8 +187,14 @@ public class Automator
             return null;
         }
 
+        var liveFateIds = Svc.Fates.Select(fate => (uint)fate.FateId).ToHashSet();
         foreach (var fate in source.fates.Values)
         {
+            if (!liveFateIds.Contains(fate.Id))
+            {
+                continue;
+            }
+
             if (!module.Config.FatesMap.TryGetValue(fate.Id, out var enabled) || !enabled)
             {
                 continue;

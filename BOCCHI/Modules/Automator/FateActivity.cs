@@ -23,6 +23,16 @@ public static class FateTravelTargetPolicy
     }
 }
 
+public static class FateNavigationPolicy
+{
+    public const float RepathDistance = 5f;
+
+    public static bool ShouldRepath(bool navigationActive, float targetMovement)
+    {
+        return !navigationActive && targetMovement > RepathDistance;
+    }
+}
+
 public class FateActivity(EventData data, Lifestream lifestream, VNavmesh vnav, AutomatorModule module, Fate fate)
     : Activity(data, lifestream, vnav, module)
 {
@@ -54,11 +64,11 @@ public class FateActivity(EventData data, Lifestream lifestream, VNavmesh vnav, 
             if (target != null)
             {
                 // Target selectors can switch targets several times per second.
-                // Never submit a second SimpleMove request while vnavmesh is
-                // still calculating the previous one, and rate-limit genuine
-                // target movement repaths.
-                if (Vector3.Distance(target.Position, lastTargetPos) > 5f
-                    && !IsPathfindingInProgress()
+                // Let the active route finish before repathing; replacing a
+                // running SimpleMove every second causes visible stop/start.
+                if (FateNavigationPolicy.ShouldRepath(
+                        IsNavigationActive(),
+                        Vector3.Distance(target.Position, lastTargetPos))
                     && EzThrottler.Throttle("FatePathfindingWatcher.Repath", 1000)
                     && vnav.PathfindAndMoveTo(target.Position, false))
                 {
@@ -84,7 +94,7 @@ public class FateActivity(EventData data, Lifestream lifestream, VNavmesh vnav, 
             {
                 // The FATE target died or left the object table. Resume the
                 // activity route; never substitute an unrelated aggro target.
-                if (!IsPathfindingInProgress()
+                if (!IsNavigationActive()
                     && EzThrottler.Throttle("FatePathfindingWatcher.ResumeActivityRoute", 1000)
                     && vnav.PathfindAndMoveTo(GetPosition(), false))
                 {

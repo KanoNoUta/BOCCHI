@@ -216,6 +216,11 @@ Assert(FateTravelTargetPolicy.ShouldPursue(2075, 2075),
 Assert(!FateTravelTargetPolicy.ShouldPursue(2075, 0)
        && !FateTravelTargetPolicy.ShouldPursue(2075, 2076),
     "Roadside enemies and enemies from another FATE must not override the selected activity route.");
+Assert(!FateNavigationPolicy.ShouldRepath(navigationActive: true, targetMovement: 100f),
+    "A moving FATE target must not replace a vnavmesh route that is still active.");
+Assert(FateNavigationPolicy.ShouldRepath(navigationActive: false, targetMovement: 6f)
+       && !FateNavigationPolicy.ShouldRepath(navigationActive: false, targetMovement: 5f),
+    "FATE target repathing must wait for navigation to stop and enforce its movement threshold.");
 
 var southFates = EventData.GetFatesForTerritory(ZoneData.SOUTHHORN).ToList();
 var northFates = EventData.GetFatesForTerritory(ZoneData.NORTHHORN).ToList();
