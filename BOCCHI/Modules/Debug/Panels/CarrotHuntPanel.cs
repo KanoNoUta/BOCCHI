@@ -1,8 +1,7 @@
-﻿using BOCCHI.ActionHelpers;
+using BOCCHI.ActionHelpers;
 using BOCCHI.Data;
 using BOCCHI.Enums;
 using BOCCHI.ItemHelpers;
-using BOCCHI.Modules.Data;
 using BOCCHI.Pathfinding;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Game.ClientState.Objects.SubKinds;
@@ -20,47 +19,37 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Numerics;
-using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace BOCCHI.Modules.Debug.Panels;
 
-public class CarrotHuntPanel : Panel
+public sealed class CarrotHuntPanel : Panel
 {
-    private bool HasRun = false;
+    private readonly Stopwatch stopwatch = new();
 
-    private bool ShouldRun = false;
+    private CancellationTokenSource? cancellation;
 
-    private Stopwatch stopwatch = new();
+    private Task? task;
 
-    private Task? task = null;
+    private bool runRequested;
 
-    private uint Progress = 0;
+    private bool hasRun;
 
-    private uint MaxProgress
-    {
-        get
-        {
-            var carrotCount = CarrotData.Data.Count;
-            var aethernetCount = AethernetData.All().Count();
-            return (uint)(carrotCount * (carrotCount - 1 + 2 * aethernetCount));
-        }
-    }
+    private int progress;
 
-    private ChainQueue ChainQueue
-    {
-        get => ChainManager.Get("CarrotHuntPanelChain");
-    }
+    private int maxProgress;
 
-    public override string GetName()
-    {
-        return "Carrot Hunt Helper";
-    }
+    private int nodeCount;
+
+    private string status = string.Empty;
+
+    public override string GetName() => "Carrot Hunt Helper";
 
     public override unsafe void Render(DebugModule module)
     {
         var vnav = module.GetIPCSubscriber<VNavmesh>();
-        OcelotUi.LabelledValue("Carrots", CarrotData.Data.Count); // 25
+        OcelotUi.LabelledValue("Carrots", nodeCount > 0 ? nodeCount : GetSourceNodes(saveRuntimeNodes: false).Count);
 
         OcelotUi.Indent(() =>
         {
@@ -82,7 +71,6 @@ public class CarrotHuntPanel : Panel
                         }
 
                         Svc.Targets.Target = target;
-
                         if (!vnav.IsRunning())
                         {
                             vnav.PathfindAndMoveTo(target.Position, false);
@@ -97,154 +85,171 @@ public class CarrotHuntPanel : Panel
 
                         return false;
                     })
-                    .WaitToCast()
-                );
+                    .WaitToCast());
             }
 
-            var obj = Svc.Objects.OfType<IEventObj>();
-            foreach (var o in obj)
+            var isRunning = task is { IsCompleted: false };
+            if (!isRunning)
             {
-                ImGui.TextUnformatted(o.Name + " " + o.ObjectKind + " " + o.BaseId);
-            }
-
-            if (!HasRun)
-            {
-                if (ImGui.Button("Run"))
+                if (ImGui.Button(hasRun ? "Run again" : "Run"))
                 {
-                    ShouldRun = true;
+                    runRequested = true;
                 }
+            }
+            else if (ImGui.Button("Cancel"))
+            {
+                cancellation?.Cancel();
+            }
 
+            if (!hasRun)
+            {
                 return;
             }
 
-            var Completion = Progress / (float)MaxProgress * 100;
-
-            OcelotUi.LabelledValue("Progress: ", $"{Completion:f2}%");
-            OcelotUi.Indent(() => OcelotUi.LabelledValue("Calculations: ", $"{Progress}/{MaxProgress}"));
-            OcelotUi.LabelledValue("Elapsed: ", stopwatch.Elapsed.ToString("mm\\:ss"));
+            var completed = Volatile.Read(ref progress);
+            var completion = maxProgress == 0 ? 0f : completed / (float)maxProgress * 100f;
+            OcelotUi.LabelledValue("Progress", $"{completion:F2}%");
+            OcelotUi.Indent(() => OcelotUi.LabelledValue("Calculations", $"{completed}/{maxProgress}"));
+            OcelotUi.LabelledValue("Elapsed", stopwatch.Elapsed.ToString("mm\\:ss"));
+            if (!string.IsNullOrEmpty(status))
+            {
+                ImGui.TextWrapped(status);
+            }
         });
     }
 
     public override void Update(DebugModule module)
     {
-        if (!ShouldRun || HasRun || task != null)
+        if (!runRequested || task is { IsCompleted: false })
         {
             return;
         }
 
-        ShouldRun = true;
-        HasRun = true;
-
-        task = PrecomputeCarrotPathDistances(module);
+        runRequested = false;
+        hasRun = true;
+        progress = 0;
+        status = string.Empty;
+        cancellation?.Dispose();
+        cancellation = new CancellationTokenSource();
+        task = PrecomputeAsync(module, cancellation.Token);
     }
 
-    private Task PrecomputeCarrotPathDistances(DebugModule module)
+    public override void OnTerritoryChanged(uint id, DebugModule module)
+    {
+        CancelAndReset();
+        nodeCount = 0;
+    }
+
+    public override void Dispose()
+    {
+        CancelAndReset();
+        cancellation?.Dispose();
+        cancellation = null;
+    }
+
+    private async Task PrecomputeAsync(DebugModule module, CancellationToken token)
     {
         stopwatch.Restart();
-        var outputFile = Path.Join(ZoneData.GetCurrentZoneDataDirectory(), "precomputed_carrot_hunt_data.json");
-
-        var vnav = module.GetIPCSubscriber<VNavmesh>();
-
-        NodeDataSchema data = new();
-        foreach (var datum in AethernetData.All())
+        try
         {
-            data.AethernetToNodeDistances[datum.Aethernet] = [];
-        }
-
-        foreach (var carrot in CarrotData.Data)
-        {
-            data.NodeToNodeDistances[carrot.Id] = [];
-            data.NodeToAethernetDistances[carrot.Id] = [];
-
-            foreach (var other in CarrotData.Data.Where(c => c.Id != carrot.Id))
+            var nodes = GetSourceNodes(saveRuntimeNodes: true).ToArray();
+            nodeCount = nodes.Length;
+            var shards = AethernetData.All()
+                .Select(data => new HuntAethernet(data.Aethernet, data.Destination, data.Position))
+                .ToArray();
+            maxProgress = NodeDataPrecomputer.GetTaskCount(nodes.Length, shards.Length);
+            if (nodes.Length == 0)
             {
-                ChainQueue.Submit(() =>
-                    Chain.Create()
-                        .Then(async void (_) =>
-                        {
-                            var path = await vnav.Pathfind(carrot.Position, other.Position, false);
-                            var distance = CalculatePathLength(path);
-
-                            var nodes = path.Select(Position.Create).ToList();
-
-                            data.NodeToNodeDistances[carrot.Id].Add(new ToNode(other.Id, distance, nodes));
-
-                            Progress++;
-                        })
-                        .Then(_ => !vnav.IsRunning())
-                );
+                status = "No verified carrot nodes are available in the current territory.";
+                return;
             }
 
-            foreach (var datum in AethernetData.All())
+            var vnav = module.GetIPCSubscriber<VNavmesh>();
+            var data = await NodeDataPrecomputer.ComputeAsync(
+                nodes,
+                shards,
+                (start, destination, segmentToken) =>
+                    vnav.PathfindCancelable(start, destination, false, segmentToken),
+                completed => Volatile.Write(ref progress, completed),
+                message => Svc.Log.Warning(message),
+                segmentTimeout: TimeSpan.FromSeconds(30),
+                cancellationToken: token);
+
+            var outputFile = Path.Join(
+                ZoneData.GetCurrentZoneDataDirectory(),
+                "precomputed_carrot_hunt_data.json");
+            await NodeDataPrecomputer.WriteAtomicAsync(outputFile, data, token);
+            status = $"Saved {progress}/{maxProgress} calculations to {outputFile}";
+            Svc.Log.Info(status);
+        }
+        catch (OperationCanceledException)
+        {
+            status = "Carrot precomputation cancelled; no partial file was written.";
+        }
+        catch (Exception exception)
+        {
+            status = $"Carrot precomputation failed: {exception.GetBaseException().Message}";
+            Svc.Log.Error(exception, status);
+        }
+        finally
+        {
+            stopwatch.Stop();
+        }
+    }
+
+    private List<HuntNode> GetSourceNodes(bool saveRuntimeNodes)
+    {
+        if (ZoneData.IsInSouthHorn())
+        {
+            return CarrotData.Data
+                .Select(node => new HuntNode(node.Id, node.Position))
+                .ToList();
+        }
+
+        if (!ZoneData.IsInNorthHorn())
+        {
+            return [];
+        }
+
+        var territory = Svc.ClientState.TerritoryType;
+        var positions = RuntimeNodeStore.Load("carrot", territory);
+        var changed = false;
+        foreach (var carrot in GetCarrots())
+        {
+            var nodeId = RuntimeNodeId.FromPosition(carrot.Position);
+            if (positions.TryAdd(nodeId, carrot.Position))
             {
-                ChainQueue.Submit(() =>
-                    Chain.Create()
-                        .Then(async void (_) =>
-                        {
-                            var path = await vnav.Pathfind(datum.Destination, carrot.Position, false);
-                            var distance = CalculatePathLength(path);
-
-                            var nodes = path.Select(Position.Create).ToList();
-
-                            data.AethernetToNodeDistances[datum.Aethernet].Add(new ToNode(carrot.Id, distance, nodes));
-
-                            Progress++;
-                        })
-                        .Then(_ => !vnav.IsRunning())
-                );
-
-                ChainQueue.Submit(() =>
-                    Chain.Create()
-                        .Then(async void (_) =>
-                        {
-                            var path = await vnav.Pathfind(datum.Destination, carrot.Position, false);
-                            var distance = CalculatePathLength(path);
-
-                            var nodes = path.Select(Position.Create).ToList();
-
-                            data.NodeToAethernetDistances[carrot.Id].Add(new ToAethernet(datum.Aethernet, distance, nodes));
-
-                            Progress++;
-                        })
-                        .Then(_ => !vnav.IsRunning())
-                );
+                changed = true;
             }
         }
 
-        ChainQueue.Submit(() =>
-            Chain.Create()
-                .Then(_ =>
-                {
-                    stopwatch.Stop();
-
-                    var options = new JsonSerializerOptions
-                    {
-                        WriteIndented = false,
-                        IncludeFields = false,
-                    };
-
-                    Svc.Log.Info("Saving file to " + outputFile);
-                    var json = JsonSerializer.Serialize(data, options);
-                    File.WriteAllTextAsync(outputFile, json);
-                })
-        );
-        return Task.CompletedTask;
-    }
-
-    private float CalculatePathLength(List<Vector3> path)
-    {
-        var length = 0f;
-
-        for (var i = 1; i < path.Count; i++)
+        if (saveRuntimeNodes && changed)
         {
-            length += Vector3.Distance(path[i - 1], path[i]);
+            RuntimeNodeStore.Save("carrot", territory, positions);
         }
 
-        return length;
+        return positions
+            .OrderBy(pair => pair.Key)
+            .Select(pair => new HuntNode(pair.Key, pair.Value))
+            .ToList();
     }
 
-    private IEnumerable<IEventObj> GetBunnyChests()
+    private static IEnumerable<IEventObj> GetCarrots()
     {
-        return Svc.Objects.OfType<IEventObj>().Where(o => o.BaseId == (uint)OccultObjectType.BunnyChest);
+        return Svc.Objects.OfType<IEventObj>()
+            .Where(gameObject => gameObject.BaseId == (uint)OccultObjectType.Carrot && gameObject.IsValid());
+    }
+
+    private static IEnumerable<IEventObj> GetBunnyChests()
+    {
+        return Svc.Objects.OfType<IEventObj>()
+            .Where(gameObject => gameObject.BaseId == (uint)OccultObjectType.BunnyChest);
+    }
+
+    private void CancelAndReset()
+    {
+        cancellation?.Cancel();
+        runRequested = false;
+        stopwatch.Stop();
     }
 }

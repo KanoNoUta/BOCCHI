@@ -46,6 +46,10 @@
         "return_to_start_in_waiting_phase": {
           "label": "戦闘後に開始地点へ戻る",
           "tooltip": "開始地点は「開始」ボタンを押した時点の位置です"
+        },
+        "min_euclidean_distance_to_return_home": {
+          "label": null,
+          "tooltip": null
         }
       }
     }

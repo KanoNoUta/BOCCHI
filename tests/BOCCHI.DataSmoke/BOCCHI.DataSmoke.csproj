@@ -4,8 +4,18 @@
     <TargetFramework>net10.0-windows7.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <DalamudRuntimePath Condition="'$(DalamudRuntimePath)' == ''">$(AppData)\XIVLauncherCN\addon\Hooks\dev</DalamudRuntimePath>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\BOCCHI\BOCCHI.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="Exists('$(DalamudRuntimePath)\Dalamud.dll')">
+    <!-- The plugin SDK intentionally marks host assemblies CopyLocal=false.
+         The standalone smoke runner needs the same local CN host runtime for
+         type loading, even though it never initializes or calls Dalamud. -->
+    <None Include="$(DalamudRuntimePath)\*.dll"
+          Link="%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="Never" />
   </ItemGroup>
 </Project>

@@ -39,6 +39,10 @@
           "label": "Alert for Orpiment Demiatma Critical Encounters",
           "tooltip": "Play a sound effect when a critical encounter that drops the Orpiment Demiatma spawns"
         },
+        "alert_investigation_records": {
+          "label": "Alert for Investigation Record Critical Encounters",
+          "tooltip": "Play a sound effect when a critical encounter with a known Investigation Record drop spawns"
+        },
         "alert_oracle": {
           "label": "Alert for Oracle Soul Shard Critical Encounter",
           "tooltip": "Play a sound effect when a critical encounter that drops the Oracle Soul Shard spawns"
@@ -50,6 +54,38 @@
         "alert_ranger": {
           "label": "Alert for Ranger Soul Shard Critical Encounter",
           "tooltip": "Play a sound effect when a critical encounter that drops the Ranger Soul Shard spawns"
+        },
+        "alert_ninja": {
+          "label": "Ninja Soul Shard alert (source pending confirmation)",
+          "tooltip": "The item is confirmed in CN 7.55, but its producing event is not yet verified; this alert remains inactive until that mapping is confirmed."
+        },
+        "alert_black_mage": {
+          "label": "Black Mage Soul Shard alert (source pending confirmation)",
+          "tooltip": "The item is confirmed in CN 7.55, but its producing event is not yet verified; this alert remains inactive until that mapping is confirmed."
+        },
+        "alert_white_mage": {
+          "label": "White Mage Soul Shard alert (source pending confirmation)",
+          "tooltip": "The item is confirmed in CN 7.55, but its producing event is not yet verified; this alert remains inactive until that mapping is confirmed."
+        },
+        "alert_dragoon": {
+          "label": "Dragoon Soul Shard alert (source pending confirmation)",
+          "tooltip": "The item is confirmed in CN 7.55, but its producing event is not yet verified; this alert remains inactive until that mapping is confirmed."
+        },
+        "alert_summoner": {
+          "label": "Summoner Soul Shard alert (source pending confirmation)",
+          "tooltip": "The item is confirmed in CN 7.55, but its producing event is not yet verified; this alert remains inactive until that mapping is confirmed."
+        },
+        "alert_blue_mage": {
+          "label": "Blue Mage Soul Shard alert (source pending confirmation)",
+          "tooltip": "The item is confirmed in CN 7.55, but its producing event is not yet verified; this alert remains inactive until that mapping is confirmed."
+        },
+        "alert_red_mage": {
+          "label": "Red Mage Soul Shard alert (source pending confirmation)",
+          "tooltip": "The item is confirmed in CN 7.55, but its producing event is not yet verified; this alert remains inactive until that mapping is confirmed."
+        },
+        "alert_necromancer": {
+          "label": "Necromancer Soul Shard alert (source pending confirmation)",
+          "tooltip": "The item is confirmed in CN 7.55, but its producing event is not yet verified; this alert remains inactive until that mapping is confirmed."
         }
       },
       "panel": {

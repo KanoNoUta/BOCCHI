@@ -42,6 +42,14 @@
         "return_to_start_in_waiting_phase": {
           "label": null,
           "tooltip": null
+        },
+        "min_euclidean_distance_to_return_home": {
+          "label": null,
+          "tooltip": null
+        },
+        "mobs": {
+          "label": null,
+          "tooltip": null
         }
       }
     }

@@ -33,6 +33,10 @@ public sealed class Plugin : OcelotPlugin
         : base(plugin, Module.DalamudReflector)
     {
         Config = plugin.GetPluginConfig() as Config ?? new Config();
+        if (Config.Migrate())
+        {
+            plugin.SavePluginConfig(Config);
+        }
 
         SetupLanguage(plugin);
 

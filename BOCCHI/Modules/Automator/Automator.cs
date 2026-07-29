@@ -45,7 +45,7 @@ public class Automator
             {
                 var critical = module.GetModule<CriticalEncountersModule>();
                 var encounter = critical.CriticalEncounters.Values.LastOrDefault(ev => ev.State != DynamicEventState.Inactive);
-                if (encounter.DynamicEventId == 0)
+                if (encounter == null)
                 {
                     return;
                 }

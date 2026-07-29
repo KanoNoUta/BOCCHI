@@ -22,7 +22,7 @@ public class CriticalEncounter : Activity
 {
     private readonly CriticalEncountersModule source;
 
-    private DynamicEvent Encounter
+    private CriticalEncounterSnapshot Encounter
     {
         get => source.CriticalEncounters[data.Id];
     }

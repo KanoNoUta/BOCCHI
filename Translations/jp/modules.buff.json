@@ -18,6 +18,14 @@
         "reapply_threshold": {
           "label": "再適用しきい値",
           "tooltip": "自動実行中にすべてのバフを更新するための、最も低いバフの残り分数。"
+        },
+        "apply_quicker_step": {
+          "label": null,
+          "tooltip": null
+        },
+        "use_inquiring_mind": {
+          "label": null,
+          "tooltip": null
         }
       },
       "panel": {

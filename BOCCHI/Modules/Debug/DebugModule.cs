@@ -85,4 +85,10 @@ public class DebugModule(Plugin plugin, Config config) : Module(plugin, config)
     {
         panels.Each(p => p.OnTerritoryChanged(id, this));
     }
+
+    public override void Dispose()
+    {
+        panels.Each(panel => panel.Dispose());
+        base.Dispose();
+    }
 }

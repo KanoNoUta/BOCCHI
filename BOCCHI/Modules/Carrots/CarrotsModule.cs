@@ -48,7 +48,12 @@ public class CarrotsModule(Plugin plugin, Config config) : Module(plugin, config
     public override void Update(UpdateContext context)
     {
         tracker.Tick(context.Framework);
-        if (BOCCHI.Data.ZoneData.HasCurrentZoneDataFile("precomputed_carrot_hunt_data.json"))
+        if (BOCCHI.Data.ZoneData.IsInNorthHorn())
+        {
+            hunter.ObserveRuntimeNodes();
+        }
+
+        if (BOCCHI.Data.ZoneData.IsInOccultCrescent())
         {
             hunter.Update();
         }
@@ -63,8 +68,7 @@ public class CarrotsModule(Plugin plugin, Config config) : Module(plugin, config
     {
         panel.Draw(this);
 
-        if (Config.ShouldEnableCarrotHunt
-            && BOCCHI.Data.ZoneData.HasCurrentZoneDataFile("precomputed_carrot_hunt_data.json"))
+        if (Config.ShouldEnableCarrotHunt && BOCCHI.Data.ZoneData.IsInOccultCrescent())
         {
             hunter.Draw(this);
         }
@@ -76,5 +80,11 @@ public class CarrotsModule(Plugin plugin, Config config) : Module(plugin, config
     {
         hunter?.Stop();
         tracker.Reset();
+    }
+
+    public override void Dispose()
+    {
+        hunter?.Stop();
+        base.Dispose();
     }
 }

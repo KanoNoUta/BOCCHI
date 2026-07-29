@@ -7,6 +7,7 @@ public enum PathfinderState
     FileUnavailable,
     NoCompatibleNodes,
     FileLoaded,
+    FallbackReady,
     Pathfinding,
     PathfindingDone,
 }

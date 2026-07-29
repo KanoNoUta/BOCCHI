@@ -10,7 +10,7 @@ namespace BOCCHI.Modules.CriticalEncounters;
 
 public class CriticalEncounterTracker
 {
-    public Dictionary<uint, DynamicEvent> CriticalEncounters = new();
+    public Dictionary<uint, CriticalEncounterSnapshot> CriticalEncounters = new();
 
     public Dictionary<uint, EventProgress> Progress { get; } = new();
 
@@ -19,24 +19,31 @@ public class CriticalEncounterTracker
     // Store last known states of each event by ID
     private readonly Dictionary<uint, DynamicEventState> lastStates = new();
 
+    // DynamicEvent.Progress resets when an event becomes inactive. Keep the
+    // last managed value long enough to identify real completions.
+    private readonly Dictionary<uint, uint> lastProgress = new();
+
     public CriticalEncounterTracker(CriticalEncountersModule module)
     {
         TowerTimer = new TowerTimer(this, module.GetModule<FatesModule>());
     }
 
-    public event Action<DynamicEvent>? OnInactiveState;
+    public event Action<CriticalEncounterSnapshot>? OnInactiveState;
 
-    public event Action<DynamicEvent>? OnRegisterState;
+    public event Action<CriticalEncounterSnapshot>? OnRegisterState;
 
-    public event Action<DynamicEvent>? OnWarmupState;
+    public event Action<CriticalEncounterSnapshot>? OnWarmupState;
 
-    public event Action<DynamicEvent>? OnBattleState;
+    public event Action<CriticalEncounterSnapshot>? OnBattleState;
+
+    public event Action<CriticalEncounterSnapshot>? OnCompletedState;
 
     public void Reset()
     {
         CriticalEncounters.Clear();
         Progress.Clear();
         lastStates.Clear();
+        lastProgress.Clear();
     }
 
 
@@ -44,7 +51,8 @@ public class CriticalEncounterTracker
     {
         CriticalEncounters = PublicContentOccultCrescent.GetInstance()->DynamicEventContainer.Events
             .ToArray()
-            .ToDictionary(ev => (uint)ev.DynamicEventId, ev => ev);
+            .Select(CriticalEncounterSnapshot.From)
+            .ToDictionary(ev => ev.DynamicEventId);
 
         foreach (var ev in CriticalEncounters.Values)
         {
@@ -53,27 +61,32 @@ public class CriticalEncounterTracker
 
             var currentState = ev.State;
 
+            if (currentState != DynamicEventState.Inactive)
+            {
+                lastProgress[ev.DynamicEventId] = Math.Max(
+                    lastProgress.GetValueOrDefault(ev.DynamicEventId),
+                    ev.Progress);
+            }
+
             if (currentState == DynamicEventState.Battle)
             {
-                if (ev.Progress == 0)
+                if (ev.Progress > 0)
                 {
-                    continue;
-                }
+                    if (!Progress.TryGetValue(ev.DynamicEventId, out var current))
+                    {
+                        current = new EventProgress();
+                        Progress[ev.DynamicEventId] = current;
+                    }
 
-                if (!Progress.TryGetValue(ev.DynamicEventId, out var current))
-                {
-                    current = new EventProgress();
-                    Progress[ev.DynamicEventId] = current;
-                }
+                    if (current.samples.Count == 0 || current.samples[^1].Progress != ev.Progress)
+                    {
+                        current.Add(ev.Progress);
+                    }
 
-                if (current.samples.Count == 0 || current.samples[^1].Progress != ev.Progress)
-                {
-                    current.Add(ev.Progress);
-                }
-
-                if (ev.Progress == 100)
-                {
-                    Progress.Remove(ev.DynamicEventId);
+                    if (ev.Progress == 100)
+                    {
+                        Progress.Remove(ev.DynamicEventId);
+                    }
                 }
             }
             else
@@ -91,7 +104,15 @@ public class CriticalEncounterTracker
             switch (currentState)
             {
                 case DynamicEventState.Inactive:
+                    if (previousState == DynamicEventState.Battle
+                        && lastProgress.TryGetValue(ev.DynamicEventId, out var finalProgress)
+                        && finalProgress >= 100)
+                    {
+                        OnCompletedState?.Invoke(ev);
+                    }
+
                     OnInactiveState?.Invoke(ev);
+                    lastProgress.Remove(ev.DynamicEventId);
                     break;
 
                 case DynamicEventState.Register:

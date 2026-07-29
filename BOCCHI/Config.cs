@@ -24,7 +24,9 @@ namespace BOCCHI;
 [Serializable]
 public class Config : IOcelotConfig
 {
-    public int Version { get; set; } = 1;
+    public const int CurrentVersion = 2;
+
+    public int Version { get; set; } = CurrentVersion;
 
     // Core
     public MountConfig MountConfig { get; set; } = new();
@@ -65,6 +67,26 @@ public class Config : IOcelotConfig
 
     public DataConfig DataConfig { get; set; } = new();
 
+    /// <summary>
+    /// Applies one-way configuration migrations immediately after deserialization.
+    /// The old pot FATE switches were opt-in; their North Horn replacements must
+    /// keep that explicit user choice instead of silently becoming enabled.
+    /// </summary>
+    public bool Migrate()
+    {
+        var changed = false;
+
+        if (Version < 2)
+        {
+            AutomatorConfig ??= new AutomatorConfig();
+            AutomatorConfig.DoNorthHornFate2072 = AutomatorConfig.DoPersistentPots;
+            AutomatorConfig.DoNorthHornFate2073 = AutomatorConfig.DoPleadingPots;
+            Version = 2;
+            changed = true;
+        }
+
+        return changed;
+    }
 
     public void Save()
     {

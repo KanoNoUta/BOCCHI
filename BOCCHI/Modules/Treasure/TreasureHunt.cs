@@ -34,9 +34,16 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
             } && o.IsValid());
     }
 
-    protected override Vector3 GetDestinationForCurrentStep()
+    protected override bool TryGetDestinationForCurrentStep(out Vector3 destination)
     {
-        return Treasure.First(t => t.Id == CurrentStep.NodeId).Position;
+        if (pathfinder?.TryGetNodePosition(CurrentStep.NodeId, out destination) == true)
+        {
+            return true;
+        }
+
+        var treasure = Treasure.FirstOrDefault(node => node.Id == CurrentStep.NodeId);
+        destination = treasure.Position;
+        return treasure.Id == CurrentStep.NodeId;
     }
 
     protected override unsafe IPathfinder CreatePathfinder()
@@ -109,8 +116,20 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
 
     protected override List<uint> GetValidNodes(int max)
     {
+        var unknownLevelNodes = Treasure
+            .Where(treasure => !TreasureData.Levels.ContainsKey(treasure.Id))
+            .Select(treasure => treasure.Id)
+            .ToHashSet();
+
+        if (ZoneData.IsInNorthHorn() && unknownLevelNodes.Count > 0)
+        {
+            Svc.Log.Warning($"North Horn has {unknownLevelNodes.Count} runtime treasure nodes without verified level metadata; MaxLevel filtering is not applied to those nodes.");
+        }
+
         return Treasure
-            .Where(treasure => TreasureData.Levels.TryGetValue(treasure.Id, out var level) && level <= max)
+            .Where(treasure => TreasureData.Levels.TryGetValue(treasure.Id, out var level)
+                ? level <= max
+                : ZoneData.IsInNorthHorn())
             .Select(treasure => treasure.Id)
             .ToList();
     }

@@ -24,6 +24,8 @@ public struct ToAethernet(Aethernet aethernet, float distance, List<Position> pa
 
 public struct NodeDataSchema()
 {
+    public Dictionary<uint, Position> NodePositions { get; set; } = [];
+
     public Dictionary<uint, List<ToNode>> NodeToNodeDistances { get; set; } = [];
 
     public Dictionary<Aethernet, List<ToNode>> AethernetToNodeDistances { get; set; } = [];

@@ -149,6 +149,118 @@
         "toggle_ai_provider": {
           "label": "Activer/Désactiver le plugin d'IA",
           "tooltip": "Active le plugin d'IA au démarrage des Aléa/CC\nDésactive le plugin d'IA lors de la navigation vers les Aléa/CC"
+        },
+        "do_north_horn_ce49": {
+          "label": "North Horn CC 49",
+          "tooltip": "Active/Désactive la participation à la confrontation critique 49 de North Horn."
+        },
+        "do_north_horn_ce50": {
+          "label": "North Horn CC 50",
+          "tooltip": "Active/Désactive la participation à la confrontation critique 50 de North Horn."
+        },
+        "do_north_horn_ce51": {
+          "label": "North Horn CC 51",
+          "tooltip": "Active/Désactive la participation à la confrontation critique 51 de North Horn."
+        },
+        "do_north_horn_ce52": {
+          "label": "North Horn CC 52",
+          "tooltip": "Active/Désactive la participation à la confrontation critique 52 de North Horn."
+        },
+        "do_north_horn_ce53": {
+          "label": "North Horn CC 53",
+          "tooltip": "Active/Désactive la participation à la confrontation critique 53 de North Horn."
+        },
+        "do_north_horn_ce54": {
+          "label": "North Horn CC 54",
+          "tooltip": "Active/Désactive la participation à la confrontation critique 54 de North Horn."
+        },
+        "do_north_horn_ce55": {
+          "label": "North Horn CC 55",
+          "tooltip": "Active/Désactive la participation à la confrontation critique 55 de North Horn."
+        },
+        "do_north_horn_ce56": {
+          "label": "North Horn CC 56",
+          "tooltip": "Active/Désactive la participation à la confrontation critique 56 de North Horn."
+        },
+        "do_north_horn_ce57": {
+          "label": "North Horn CC 57",
+          "tooltip": "Active/Désactive la participation à la confrontation critique 57 de North Horn."
+        },
+        "do_north_horn_ce58": {
+          "label": "North Horn CC 58",
+          "tooltip": "Active/Désactive la participation à la confrontation critique 58 de North Horn."
+        },
+        "do_north_horn_ce59": {
+          "label": "North Horn CC 59",
+          "tooltip": "Active/Désactive la participation à la confrontation critique 59 de North Horn."
+        },
+        "do_north_horn_ce60": {
+          "label": "North Horn CC 60",
+          "tooltip": "Active/Désactive la participation à la confrontation critique 60 de North Horn."
+        },
+        "do_north_horn_ce61": {
+          "label": "North Horn CC 61",
+          "tooltip": "Active/Désactive la participation à la confrontation critique 61 de North Horn."
+        },
+        "do_north_horn_ce62": {
+          "label": "North Horn CC 62",
+          "tooltip": "Active/Désactive la participation à la confrontation critique 62 de North Horn."
+        },
+        "do_north_horn_ce63": {
+          "label": "North Horn CC 63",
+          "tooltip": "Active/Désactive la participation à la confrontation critique 63 de North Horn."
+        },
+        "do_north_horn_fate2072": {
+          "label": "North Horn Aléa 2072",
+          "tooltip": "Active/Désactive la participation à l'Aléa 2072 de North Horn."
+        },
+        "do_north_horn_fate2073": {
+          "label": "North Horn Aléa 2073",
+          "tooltip": "Active/Désactive la participation à l'Aléa 2073 de North Horn."
+        },
+        "do_north_horn_fate2074": {
+          "label": "North Horn Aléa 2074",
+          "tooltip": "Active/Désactive la participation à l'Aléa 2074 de North Horn."
+        },
+        "do_north_horn_fate2075": {
+          "label": "North Horn Aléa 2075",
+          "tooltip": "Active/Désactive la participation à l'Aléa 2075 de North Horn."
+        },
+        "do_north_horn_fate2076": {
+          "label": "North Horn Aléa 2076",
+          "tooltip": "Active/Désactive la participation à l'Aléa 2076 de North Horn."
+        },
+        "do_north_horn_fate2077": {
+          "label": "North Horn Aléa 2077",
+          "tooltip": "Active/Désactive la participation à l'Aléa 2077 de North Horn."
+        },
+        "do_north_horn_fate2078": {
+          "label": "North Horn Aléa 2078",
+          "tooltip": "Active/Désactive la participation à l'Aléa 2078 de North Horn."
+        },
+        "do_north_horn_fate2079": {
+          "label": "North Horn Aléa 2079",
+          "tooltip": "Active/Désactive la participation à l'Aléa 2079 de North Horn."
+        },
+        "do_north_horn_fate2080": {
+          "label": "North Horn Aléa 2080",
+          "tooltip": "Active/Désactive la participation à l'Aléa 2080 de North Horn."
+        },
+        "do_north_horn_fate2081": {
+          "label": "North Horn Aléa 2081",
+          "tooltip": "Active/Désactive la participation à l'Aléa 2081 de North Horn."
+        },
+        "do_north_horn_fate2082": {
+          "label": "North Horn Aléa 2082",
+          "tooltip": "Active/Désactive la participation à l'Aléa 2082 de North Horn."
+        },
+        "do_north_horn_fate2083": {
+          "label": "North Horn Aléa 2083",
+          "tooltip": "Active/Désactive la participation à l'Aléa 2083 de North Horn."
+        },
+        "do_north_horn_fate2084": {
+          "label": "North Horn Aléa 2084",
+          "tooltip": "Active/Désactive la participation à l'Aléa 2084 de North Horn."
         }
       },
       "panel": {

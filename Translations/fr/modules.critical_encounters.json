@@ -18,6 +18,42 @@
           "label": null,
           "tooltip": null
         },
+        "alert_investigation_records": {
+          "label": "Alerte pour les rapports d'enquête",
+          "tooltip": "Joue un son lorsqu'une confrontation critique avec un rapport d'enquête confirmé apparaît."
+        },
+        "alert_ninja": {
+          "label": "Alerte éclat d'âme Ninja (source à confirmer)",
+          "tooltip": "L'objet existe dans CN 7.55, mais son événement d'obtention n'est pas encore vérifié ; l'alerte restera inactive jusque-là."
+        },
+        "alert_black_mage": {
+          "label": "Alerte éclat d'âme Mage noir (source à confirmer)",
+          "tooltip": "L'objet existe dans CN 7.55, mais son événement d'obtention n'est pas encore vérifié ; l'alerte restera inactive jusque-là."
+        },
+        "alert_white_mage": {
+          "label": "Alerte éclat d'âme Mage blanc (source à confirmer)",
+          "tooltip": "L'objet existe dans CN 7.55, mais son événement d'obtention n'est pas encore vérifié ; l'alerte restera inactive jusque-là."
+        },
+        "alert_dragoon": {
+          "label": "Alerte éclat d'âme Chevalier dragon (source à confirmer)",
+          "tooltip": "L'objet existe dans CN 7.55, mais son événement d'obtention n'est pas encore vérifié ; l'alerte restera inactive jusque-là."
+        },
+        "alert_summoner": {
+          "label": "Alerte éclat d'âme Invocateur (source à confirmer)",
+          "tooltip": "L'objet existe dans CN 7.55, mais son événement d'obtention n'est pas encore vérifié ; l'alerte restera inactive jusque-là."
+        },
+        "alert_blue_mage": {
+          "label": "Alerte éclat d'âme Mage bleu (source à confirmer)",
+          "tooltip": "L'objet existe dans CN 7.55, mais son événement d'obtention n'est pas encore vérifié ; l'alerte restera inactive jusque-là."
+        },
+        "alert_red_mage": {
+          "label": "Alerte éclat d'âme Mage rouge (source à confirmer)",
+          "tooltip": "L'objet existe dans CN 7.55, mais son événement d'obtention n'est pas encore vérifié ; l'alerte restera inactive jusque-là."
+        },
+        "alert_necromancer": {
+          "label": "Alerte éclat d'âme Nécromancien (source à confirmer)",
+          "tooltip": "L'objet existe dans CN 7.55, mais son événement d'obtention n'est pas encore vérifié ; l'alerte restera inactive jusque-là."
+        },
         "alert_malachite": {
           "label": null,
           "tooltip": null

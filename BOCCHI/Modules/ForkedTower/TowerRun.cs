@@ -9,14 +9,25 @@ using Ocelot.Modules;
 using Ocelot.Windows;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 
 namespace BOCCHI.Modules.ForkedTower;
 
-public class TowerRun(string hash)
+public class TowerRun(string hash, uint dynamicEventId = 0, TowerHelper.TowerType? towerType = null)
 {
+    public sealed record TrapSnapshot(uint BaseId, string Name, Vector3 Position);
+
     public readonly string Hash = hash;
 
-    private readonly Dictionary<string, IEventObj> DiscoveredTraps = [];
+    public readonly uint DynamicEventId = dynamicEventId;
+
+    public readonly TowerHelper.TowerType? TowerType = towerType;
+
+    private readonly HashSet<string> DiscoveredTraps = [];
+
+    private readonly HashSet<string> DiscoveredUnmappedTraps = [];
+
+    private readonly Dictionary<string, TrapSnapshot> CapturedTraps = [];
 
     private readonly Dictionary<string, TrackedGroup> TrackedGroups = [];
 
@@ -34,12 +45,27 @@ public class TowerRun(string hash)
     {
         foreach (var trap in GetNearbyTraps())
         {
-            if (!DiscoveredTraps.TryAdd(trap.GetKey(), trap))
+            var trapKey = trap.GetKey();
+            CapturedTraps.TryAdd(
+                trapKey,
+                new TrapSnapshot(trap.BaseId, trap.Name.TextValue, trap.Position));
+
+            if (!DiscoveredTraps.Add(trapKey))
             {
                 continue;
             }
 
-            var group = TrapData.GetGroup(trap);
+            // The precomputed group table is Blood Tower-only. North Horn is
+            // captured as managed coordinates until its real layout is known.
+            if (TowerType != TowerHelper.TowerType.Blood
+                || !TrapData.TryGetGroup(trap, out var group))
+            {
+                DiscoveredUnmappedTraps.Add(trapKey);
+                Svc.Log.Info(
+                    $"Unmapped tower trap: event={DynamicEventId}, territory={Svc.ClientState.TerritoryType}, " +
+                    $"baseId={trap.BaseId}, position=({trap.Position.X:F3}, {trap.Position.Y:F3}, {trap.Position.Z:F3})");
+                continue;
+            }
 
             if (!TrackedGroups.TryGetValue(group.GetKey(), out var trackedGroup))
             {
@@ -47,9 +73,15 @@ public class TowerRun(string hash)
                 TrackedGroups.Add(group.GetKey(), trackedGroup);
             }
 
-            trackedGroup.Traps.Add(trap);
+            trackedGroup.RecordTrap(trapKey);
         }
     }
+
+    public int DiscoveredTrapCount => DiscoveredTraps.Count;
+
+    public int DiscoveredUnmappedTrapCount => DiscoveredUnmappedTraps.Count;
+
+    public IReadOnlyCollection<TrapSnapshot> CapturedTrapSnapshots => CapturedTraps.Values;
 
     public void Render(RenderContext context)
     {

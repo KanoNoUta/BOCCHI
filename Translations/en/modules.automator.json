@@ -149,6 +149,118 @@
         "do_pleading_pots": {
           "label": "Fate: Pleading Pots",
           "tooltip": "Toggle participation in the 'Pleading Pots' fate."
+        },
+        "do_north_horn_ce49": {
+          "label": "North Horn CE 49",
+          "tooltip": "Toggle participation in North Horn critical encounter 49."
+        },
+        "do_north_horn_ce50": {
+          "label": "North Horn CE 50",
+          "tooltip": "Toggle participation in North Horn critical encounter 50."
+        },
+        "do_north_horn_ce51": {
+          "label": "North Horn CE 51",
+          "tooltip": "Toggle participation in North Horn critical encounter 51."
+        },
+        "do_north_horn_ce52": {
+          "label": "North Horn CE 52",
+          "tooltip": "Toggle participation in North Horn critical encounter 52."
+        },
+        "do_north_horn_ce53": {
+          "label": "North Horn CE 53",
+          "tooltip": "Toggle participation in North Horn critical encounter 53."
+        },
+        "do_north_horn_ce54": {
+          "label": "North Horn CE 54",
+          "tooltip": "Toggle participation in North Horn critical encounter 54."
+        },
+        "do_north_horn_ce55": {
+          "label": "North Horn CE 55",
+          "tooltip": "Toggle participation in North Horn critical encounter 55."
+        },
+        "do_north_horn_ce56": {
+          "label": "North Horn CE 56",
+          "tooltip": "Toggle participation in North Horn critical encounter 56."
+        },
+        "do_north_horn_ce57": {
+          "label": "North Horn CE 57",
+          "tooltip": "Toggle participation in North Horn critical encounter 57."
+        },
+        "do_north_horn_ce58": {
+          "label": "North Horn CE 58",
+          "tooltip": "Toggle participation in North Horn critical encounter 58."
+        },
+        "do_north_horn_ce59": {
+          "label": "North Horn CE 59",
+          "tooltip": "Toggle participation in North Horn critical encounter 59."
+        },
+        "do_north_horn_ce60": {
+          "label": "North Horn CE 60",
+          "tooltip": "Toggle participation in North Horn critical encounter 60."
+        },
+        "do_north_horn_ce61": {
+          "label": "North Horn CE 61",
+          "tooltip": "Toggle participation in North Horn critical encounter 61."
+        },
+        "do_north_horn_ce62": {
+          "label": "North Horn CE 62",
+          "tooltip": "Toggle participation in North Horn critical encounter 62."
+        },
+        "do_north_horn_ce63": {
+          "label": "North Horn CE 63",
+          "tooltip": "Toggle participation in North Horn critical encounter 63."
+        },
+        "do_north_horn_fate2072": {
+          "label": "North Horn FATE 2072",
+          "tooltip": "Toggle participation in North Horn FATE 2072."
+        },
+        "do_north_horn_fate2073": {
+          "label": "North Horn FATE 2073",
+          "tooltip": "Toggle participation in North Horn FATE 2073."
+        },
+        "do_north_horn_fate2074": {
+          "label": "North Horn FATE 2074",
+          "tooltip": "Toggle participation in North Horn FATE 2074."
+        },
+        "do_north_horn_fate2075": {
+          "label": "North Horn FATE 2075",
+          "tooltip": "Toggle participation in North Horn FATE 2075."
+        },
+        "do_north_horn_fate2076": {
+          "label": "North Horn FATE 2076",
+          "tooltip": "Toggle participation in North Horn FATE 2076."
+        },
+        "do_north_horn_fate2077": {
+          "label": "North Horn FATE 2077",
+          "tooltip": "Toggle participation in North Horn FATE 2077."
+        },
+        "do_north_horn_fate2078": {
+          "label": "North Horn FATE 2078",
+          "tooltip": "Toggle participation in North Horn FATE 2078."
+        },
+        "do_north_horn_fate2079": {
+          "label": "North Horn FATE 2079",
+          "tooltip": "Toggle participation in North Horn FATE 2079."
+        },
+        "do_north_horn_fate2080": {
+          "label": "North Horn FATE 2080",
+          "tooltip": "Toggle participation in North Horn FATE 2080."
+        },
+        "do_north_horn_fate2081": {
+          "label": "North Horn FATE 2081",
+          "tooltip": "Toggle participation in North Horn FATE 2081."
+        },
+        "do_north_horn_fate2082": {
+          "label": "North Horn FATE 2082",
+          "tooltip": "Toggle participation in North Horn FATE 2082."
+        },
+        "do_north_horn_fate2083": {
+          "label": "North Horn FATE 2083",
+          "tooltip": "Toggle participation in North Horn FATE 2083."
+        },
+        "do_north_horn_fate2084": {
+          "label": "North Horn FATE 2084",
+          "tooltip": "Toggle participation in North Horn FATE 2084."
         }
       },
       "panel": {

@@ -10,7 +10,8 @@ public class Pathfinder : BasePathfinder
 {
     private readonly List<Data_TreasureData.TreasureDatum> treasure;
 
-    public Pathfinder(List<Data_TreasureData.TreasureDatum> treasure, float returnCost = 300f, float teleportCost = 50f) : base(returnCost, teleportCost)
+    public Pathfinder(List<Data_TreasureData.TreasureDatum> treasure, float returnCost = 300f, float teleportCost = 50f)
+        : base(CreateNodePositions(treasure), returnCost, teleportCost)
     {
         this.treasure = treasure;
 
@@ -37,5 +38,13 @@ public class Pathfinder : BasePathfinder
         }
 
         return startTreasure.Id;
+    }
+
+    private static IReadOnlyDictionary<uint, Vector3> CreateNodePositions(
+        IEnumerable<Data_TreasureData.TreasureDatum> treasure)
+    {
+        return treasure
+            .GroupBy(node => node.Id)
+            .ToDictionary(group => group.Key, group => group.First().Position);
     }
 }

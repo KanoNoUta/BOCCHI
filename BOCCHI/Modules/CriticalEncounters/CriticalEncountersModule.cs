@@ -26,7 +26,7 @@ public class CriticalEncountersModule : Module
 
     public readonly CriticalEncounterTracker Tracker;
 
-    public Dictionary<uint, DynamicEvent> CriticalEncounters
+    public Dictionary<uint, CriticalEncounterSnapshot> CriticalEncounters
     {
         get => Tracker.CriticalEncounters;
     }
@@ -65,6 +65,7 @@ public class CriticalEncountersModule : Module
 
     public override void Dispose()
     {
+        Tracker.TowerTimer.Dispose();
         base.Dispose();
         alerter.Dispose();
     }

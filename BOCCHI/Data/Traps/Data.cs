@@ -25,17 +25,30 @@ public static partial class TrapData
 
     public static TrapGroup GetGroup(IEventObj obj)
     {
-        foreach (var group in Groups)
+        if (TryGetGroup(obj, out var group))
         {
-            foreach (var trap in group.Traps)
+            return group;
+        }
+
+        throw new Exception("Trap group not found");
+    }
+
+    public static bool TryGetGroup(IEventObj obj, out TrapGroup group)
+    {
+        var key = obj.GetKey();
+        foreach (var candidate in Groups)
+        {
+            foreach (var trap in candidate.Traps)
             {
-                if (obj.GetKey() == trap.GetKey())
+                if (key == trap.GetKey())
                 {
-                    return group;
+                    group = candidate;
+                    return true;
                 }
             }
         }
 
-        throw new Exception("Trap group not found");
+        group = null!;
+        return false;
     }
 }

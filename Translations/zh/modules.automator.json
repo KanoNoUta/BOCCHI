@@ -177,6 +177,118 @@
         "do_pleading_pots": {
           "label": "FATE: 瑟瑟发抖的魔法罐",
           "tooltip": "选择是否参加FATE “瑟瑟发抖的魔法罐”"
+        },
+        "do_north_horn_ce49": {
+          "label": "北岛 CE 49：四颚斧花——提蔛",
+          "tooltip": "选择是否参加北岛 CE 49“四颚斧花——提蔛”"
+        },
+        "do_north_horn_ce50": {
+          "label": "北岛 CE 50：魔女复制体——卡洛菲斯提莉二重身",
+          "tooltip": "选择是否参加北岛 CE 50“魔女复制体——卡洛菲斯提莉二重身”"
+        },
+        "do_north_horn_ce51": {
+          "label": "北岛 CE 51：纯白守护者——雪石膏之剑",
+          "tooltip": "选择是否参加北岛 CE 51“纯白守护者——雪石膏之剑”"
+        },
+        "do_north_horn_ce52": {
+          "label": "北岛 CE 52：禁书化形——古术魔典",
+          "tooltip": "选择是否参加北岛 CE 52“禁书化形——古术魔典”"
+        },
+        "do_north_horn_ce53": {
+          "label": "北岛 CE 53：暗红尸骸——赤龙",
+          "tooltip": "选择是否参加北岛 CE 53“暗红尸骸——赤龙”"
+        },
+        "do_north_horn_ce54": {
+          "label": "北岛 CE 54：暴食咒鬼——阿尔戈尔",
+          "tooltip": "选择是否参加北岛 CE 54“暴食咒鬼——阿尔戈尔”"
+        },
+        "do_north_horn_ce55": {
+          "label": "北岛 CE 55：残暴的母蜘蛛——新月阿剌克涅",
+          "tooltip": "选择是否参加北岛 CE 55“残暴的母蜘蛛——新月阿剌克涅”"
+        },
+        "do_north_horn_ce56": {
+          "label": "北岛 CE 56：叛逆使魔——负隅宝石兽",
+          "tooltip": "选择是否参加北岛 CE 56“叛逆使魔——负隅宝石兽”"
+        },
+        "do_north_horn_ce57": {
+          "label": "北岛 CE 57：天道好轮回——魔亡灵法师",
+          "tooltip": "选择是否参加北岛 CE 57“天道好轮回——魔亡灵法师”"
+        },
+        "do_north_horn_ce58": {
+          "label": "北岛 CE 58：求道的人造人——神木巨人",
+          "tooltip": "选择是否参加北岛 CE 58“求道的人造人——神木巨人”"
+        },
+        "do_north_horn_ce59": {
+          "label": "北岛 CE 59：诅咒的继承者——惨白魔人",
+          "tooltip": "选择是否参加北岛 CE 59“诅咒的继承者——惨白魔人”"
+        },
+        "do_north_horn_ce60": {
+          "label": "北岛 CE 60：魔法军团——小小法师",
+          "tooltip": "选择是否参加北岛 CE 60“魔法军团——小小法师”"
+        },
+        "do_north_horn_ce61": {
+          "label": "北岛 CE 61：孤岛的绑架犯——诱拐魔",
+          "tooltip": "选择是否参加北岛 CE 61“孤岛的绑架犯——诱拐魔”"
+        },
+        "do_north_horn_ce62": {
+          "label": "北岛 CE 62：苏醒的多头龙——魔许德拉",
+          "tooltip": "选择是否参加北岛 CE 62“苏醒的多头龙——魔许德拉”"
+        },
+        "do_north_horn_ce63": {
+          "label": "北岛 CE 63：拟态使魔——变形法师",
+          "tooltip": "选择是否参加北岛 CE 63“拟态使魔——变形法师”"
+        },
+        "do_north_horn_fate2072": {
+          "label": "北岛 FATE 2072：被欺负的魔法罐",
+          "tooltip": "选择是否参加北岛 FATE 2072“被欺负的魔法罐”"
+        },
+        "do_north_horn_fate2073": {
+          "label": "北岛 FATE 2073：被吹飞的魔法罐",
+          "tooltip": "选择是否参加北岛 FATE 2073“被吹飞的魔法罐”"
+        },
+        "do_north_horn_fate2074": {
+          "label": "北岛 FATE 2074：暴力牛魔——好战弥诺陶洛斯",
+          "tooltip": "选择是否参加北岛 FATE 2074“暴力牛魔——好战弥诺陶洛斯”"
+        },
+        "do_north_horn_fate2075": {
+          "label": "北岛 FATE 2075：诅咒宝珠——邪瞳",
+          "tooltip": "选择是否参加北岛 FATE 2075“诅咒宝珠——邪瞳”"
+        },
+        "do_north_horn_fate2076": {
+          "label": "北岛 FATE 2076：水边暴君——统领奇美拉",
+          "tooltip": "选择是否参加北岛 FATE 2076“水边暴君——统领奇美拉”"
+        },
+        "do_north_horn_fate2077": {
+          "label": "北岛 FATE 2077：历战水马——凯尔派总领",
+          "tooltip": "选择是否参加北岛 FATE 2077“历战水马——凯尔派总领”"
+        },
+        "do_north_horn_fate2078": {
+          "label": "北岛 FATE 2078：魔界的叹息——妖艳魔花珊迪",
+          "tooltip": "选择是否参加北岛 FATE 2078“魔界的叹息——妖艳魔花珊迪”"
+        },
+        "do_north_horn_fate2079": {
+          "label": "北岛 FATE 2079：自怨自艾的歌手——伊阿姆柏",
+          "tooltip": "选择是否参加北岛 FATE 2079“自怨自艾的歌手——伊阿姆柏”"
+        },
+        "do_north_horn_fate2080": {
+          "label": "北岛 FATE 2080：狼占狗窝——遗迹冰狼",
+          "tooltip": "选择是否参加北岛 FATE 2080“狼占狗窝——遗迹冰狼”"
+        },
+        "do_north_horn_fate2081": {
+          "label": "北岛 FATE 2081：腐坏街道的守护者——忍耐基路伯",
+          "tooltip": "选择是否参加北岛 FATE 2081“腐坏街道的守护者——忍耐基路伯”"
+        },
+        "do_north_horn_fate2082": {
+          "label": "北岛 FATE 2082：驾驭自然的巨兽——呼风狮鹫",
+          "tooltip": "选择是否参加北岛 FATE 2082“驾驭自然的巨兽——呼风狮鹫”"
+        },
+        "do_north_horn_fate2083": {
+          "label": "北岛 FATE 2083：仿制的蛇人偶——半灵美杜莎",
+          "tooltip": "选择是否参加北岛 FATE 2083“仿制的蛇人偶——半灵美杜莎”"
+        },
+        "do_north_horn_fate2084": {
+          "label": "北岛 FATE 2084：高傲的雷兽——新月女王",
+          "tooltip": "选择是否参加北岛 FATE 2084“高傲的雷兽——新月女王”"
         }
       },
       "panel": {

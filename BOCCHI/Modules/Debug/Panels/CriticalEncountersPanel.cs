@@ -3,7 +3,6 @@ using BOCCHI.Modules.CriticalEncounters;
 using BOCCHI.Modules.Teleporter;
 using Dalamud.Bindings.ImGui;
 using FFXIVClientStructs.FFXIV.Client.Game.InstanceContent;
-using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using Ocelot.Ui;
 using System;
 using System.Linq;
@@ -91,7 +90,7 @@ public class CriticalEncountersPanel : Panel
         });
     }
 
-    private unsafe void PrintEvent(DynamicEvent ev)
+    private void PrintEvent(CriticalEncounterSnapshot ev)
     {
         OcelotUi.Title("Name Offset:");
         ImGui.SameLine();
@@ -218,13 +217,10 @@ public class CriticalEncountersPanel : Panel
         ImGui.TextUnformatted(
             $"X: {ev.MapMarker.Position.X}, Y: {ev.MapMarker.Position.Y}, IconId: {ev.MapMarker.IconId}"); // example, adjust fields accordingly
 
-        OcelotUi.Title("Event Container Pointer:");
-        ImGui.SameLine();
-        ImGui.TextUnformatted(((IntPtr)ev.EventContainer).ToString("X"));
     }
 
 
-    private unsafe void PrintMapMarker(MapMarkerData marker)
+    private void PrintMapMarker(MapMarkerSnapshot marker)
     {
         OcelotUi.Title("Level Id:");
         ImGui.SameLine();
@@ -236,7 +232,7 @@ public class CriticalEncountersPanel : Panel
 
         OcelotUi.Title("Tooltip String:");
         ImGui.SameLine();
-        ImGui.TextUnformatted(marker.TooltipString != null ? marker.TooltipString->ToString() : "null");
+        ImGui.TextUnformatted(marker.TooltipString);
 
         OcelotUi.Title("Icon Id:");
         ImGui.SameLine();
@@ -256,7 +252,7 @@ public class CriticalEncountersPanel : Panel
 
         OcelotUi.Title("Radius:");
         ImGui.SameLine();
-        ImGui.TextUnformatted(marker.Radius.ToString("F2"));
+        ImGui.TextUnformatted(marker.Radius);
 
         OcelotUi.Title("Map Id:");
         ImGui.SameLine();

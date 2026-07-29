@@ -50,7 +50,7 @@ public class TreasureModule(Plugin _plugin, Config config) : Module(_plugin, con
     public override void Update(UpdateContext context)
     {
         Tracker.Tick(Plugin);
-        if (BOCCHI.Data.ZoneData.HasCurrentZoneDataFile("precomputed_treasure_hunt_data.json"))
+        if (BOCCHI.Data.ZoneData.IsInOccultCrescent())
         {
             hunter.Update();
         }
@@ -65,8 +65,7 @@ public class TreasureModule(Plugin _plugin, Config config) : Module(_plugin, con
     {
         panel.Draw(this);
 
-        if (Config.ShouldEnableTreasureHunt
-            && BOCCHI.Data.ZoneData.HasCurrentZoneDataFile("precomputed_treasure_hunt_data.json"))
+        if (Config.ShouldEnableTreasureHunt && BOCCHI.Data.ZoneData.IsInOccultCrescent())
         {
             hunter.Draw(this);
         }
@@ -78,5 +77,11 @@ public class TreasureModule(Plugin _plugin, Config config) : Module(_plugin, con
     {
         hunter?.Stop();
         Tracker.Reset();
+    }
+
+    public override void Dispose()
+    {
+        hunter?.Stop();
+        base.Dispose();
     }
 }

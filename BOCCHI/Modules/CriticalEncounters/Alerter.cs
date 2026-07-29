@@ -1,39 +1,14 @@
 ﻿using BOCCHI.Data;
-using BOCCHI.Enums;
 using ECommons.DalamudServices;
 using FFXIVClientStructs.FFXIV.Client.Game.InstanceContent;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using System;
-using System.Collections.Generic;
 
 namespace BOCCHI.Modules.CriticalEncounters;
 
 public class Alerter : IDisposable
 {
     private readonly CriticalEncountersModule module;
-
-    private Dictionary<Demiatma, Func<bool>> DemiatmaAlerts
-    {
-        get => new()
-        {
-            [Demiatma.Azurite] = () => module.Config.AlertAzurite,
-            [Demiatma.Verdigris] = () => module.Config.AlertVerdigris,
-            [Demiatma.Malachite] = () => module.Config.AlertMalachite,
-            [Demiatma.Realgar] = () => module.Config.AlertRealgar,
-            [Demiatma.CaputMortuum] = () => module.Config.AlertCaputMortuum,
-            [Demiatma.Orpiment] = () => module.Config.AlertOrpiment,
-        };
-    }
-
-    private Dictionary<SoulShard, Func<bool>> SoulShardAlerts
-    {
-        get => new()
-        {
-            [SoulShard.Oracle] = () => module.Config.AlertOracle,
-            [SoulShard.Berserker] = () => module.Config.AlertBerserker,
-            [SoulShard.Ranger] = () => module.Config.AlertRanger,
-        };
-    }
 
     public Alerter(CriticalEncountersModule module)
     {
@@ -43,7 +18,7 @@ public class Alerter : IDisposable
         this.module.Tracker.OnInactiveState += OnCriticalEncounterDepawned;
     }
 
-    private unsafe void OnCriticalEncounterSpawned(DynamicEvent ev)
+    private unsafe void OnCriticalEncounterSpawned(CriticalEncounterSnapshot ev)
     {
         if (module.Config.LogSpawn)
         {
@@ -59,7 +34,7 @@ public class Alerter : IDisposable
         { UIGlobals.PlaySoundEffect(66); }
     }
 
-    private unsafe void OnCriticalEncounterDepawned(DynamicEvent ev)
+    private unsafe void OnCriticalEncounterDepawned(CriticalEncounterSnapshot ev)
     {
         if (module.Config.LogSpawn)
         {
@@ -75,7 +50,7 @@ public class Alerter : IDisposable
         { UIGlobals.PlaySoundEffect(68); }
     }
 
-    private bool ShouldAlertForCriticalEncounter(DynamicEvent ev)
+    private bool ShouldAlertForCriticalEncounter(CriticalEncounterSnapshot ev)
     {
         if (module.Config.AlertAll)
         {
@@ -87,25 +62,7 @@ public class Alerter : IDisposable
             return false;
         }
 
-        if (data.Demiatma != null)
-        {
-            var demiatma = (Demiatma)data.Demiatma;
-            if (DemiatmaAlerts.TryGetValue(demiatma, out var getter))
-            {
-                return getter();
-            }
-        }
-
-        if (data.Soulshard != null)
-        {
-            var soulshard = (SoulShard)data.Soulshard;
-            if (SoulShardAlerts.TryGetValue(soulshard, out var getter))
-            {
-                return getter();
-            }
-        }
-
-        return false;
+        return module.Config.ShouldAlertForRewards(data);
     }
 
     public void Dispose()

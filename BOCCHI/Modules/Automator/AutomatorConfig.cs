@@ -273,6 +273,157 @@ public class AutomatorConfig : ModuleConfig
         get => IsPropertyEnabled(nameof(DoFlameOfDusk));
     }
 
+    // North Horn Critical Encounters
+    [Checkbox]
+    [DependsOn(nameof(DoCriticalEncounters))]
+    [Indent]
+    public bool DoNorthHornCe49 { get; set; } = true;
+
+    public bool ShouldDoNorthHornCe49
+    {
+        get => IsPropertyEnabled(nameof(DoNorthHornCe49));
+    }
+
+    [Checkbox]
+    [DependsOn(nameof(DoCriticalEncounters))]
+    [Indent]
+    public bool DoNorthHornCe50 { get; set; } = true;
+
+    public bool ShouldDoNorthHornCe50
+    {
+        get => IsPropertyEnabled(nameof(DoNorthHornCe50));
+    }
+
+    [Checkbox]
+    [DependsOn(nameof(DoCriticalEncounters))]
+    [Indent]
+    public bool DoNorthHornCe51 { get; set; } = true;
+
+    public bool ShouldDoNorthHornCe51
+    {
+        get => IsPropertyEnabled(nameof(DoNorthHornCe51));
+    }
+
+    [Checkbox]
+    [DependsOn(nameof(DoCriticalEncounters))]
+    [Indent]
+    public bool DoNorthHornCe52 { get; set; } = true;
+
+    public bool ShouldDoNorthHornCe52
+    {
+        get => IsPropertyEnabled(nameof(DoNorthHornCe52));
+    }
+
+    [Checkbox]
+    [DependsOn(nameof(DoCriticalEncounters))]
+    [Indent]
+    public bool DoNorthHornCe53 { get; set; } = true;
+
+    public bool ShouldDoNorthHornCe53
+    {
+        get => IsPropertyEnabled(nameof(DoNorthHornCe53));
+    }
+
+    [Checkbox]
+    [DependsOn(nameof(DoCriticalEncounters))]
+    [Indent]
+    public bool DoNorthHornCe54 { get; set; } = true;
+
+    public bool ShouldDoNorthHornCe54
+    {
+        get => IsPropertyEnabled(nameof(DoNorthHornCe54));
+    }
+
+    [Checkbox]
+    [DependsOn(nameof(DoCriticalEncounters))]
+    [Indent]
+    public bool DoNorthHornCe55 { get; set; } = true;
+
+    public bool ShouldDoNorthHornCe55
+    {
+        get => IsPropertyEnabled(nameof(DoNorthHornCe55));
+    }
+
+    [Checkbox]
+    [DependsOn(nameof(DoCriticalEncounters))]
+    [Indent]
+    public bool DoNorthHornCe56 { get; set; } = true;
+
+    public bool ShouldDoNorthHornCe56
+    {
+        get => IsPropertyEnabled(nameof(DoNorthHornCe56));
+    }
+
+    [Checkbox]
+    [DependsOn(nameof(DoCriticalEncounters))]
+    [Indent]
+    public bool DoNorthHornCe57 { get; set; } = true;
+
+    public bool ShouldDoNorthHornCe57
+    {
+        get => IsPropertyEnabled(nameof(DoNorthHornCe57));
+    }
+
+    [Checkbox]
+    [DependsOn(nameof(DoCriticalEncounters))]
+    [Indent]
+    public bool DoNorthHornCe58 { get; set; } = true;
+
+    public bool ShouldDoNorthHornCe58
+    {
+        get => IsPropertyEnabled(nameof(DoNorthHornCe58));
+    }
+
+    [Checkbox]
+    [DependsOn(nameof(DoCriticalEncounters))]
+    [Indent]
+    public bool DoNorthHornCe59 { get; set; } = true;
+
+    public bool ShouldDoNorthHornCe59
+    {
+        get => IsPropertyEnabled(nameof(DoNorthHornCe59));
+    }
+
+    [Checkbox]
+    [DependsOn(nameof(DoCriticalEncounters))]
+    [Indent]
+    public bool DoNorthHornCe60 { get; set; } = true;
+
+    public bool ShouldDoNorthHornCe60
+    {
+        get => IsPropertyEnabled(nameof(DoNorthHornCe60));
+    }
+
+    [Checkbox]
+    [DependsOn(nameof(DoCriticalEncounters))]
+    [Indent]
+    public bool DoNorthHornCe61 { get; set; } = true;
+
+    public bool ShouldDoNorthHornCe61
+    {
+        get => IsPropertyEnabled(nameof(DoNorthHornCe61));
+    }
+
+    [Checkbox]
+    [DependsOn(nameof(DoCriticalEncounters))]
+    [Indent]
+    public bool DoNorthHornCe62 { get; set; } = true;
+
+    public bool ShouldDoNorthHornCe62
+    {
+        get => IsPropertyEnabled(nameof(DoNorthHornCe62));
+    }
+
+    [Checkbox]
+    [DependsOn(nameof(DoCriticalEncounters))]
+    [Indent]
+    public bool DoNorthHornCe63 { get; set; } = true;
+
+    public bool ShouldDoNorthHornCe63
+    {
+        get => IsPropertyEnabled(nameof(DoNorthHornCe63));
+    }
+
     // Fates
     [Checkbox] public bool DoFates { get; set; } = true;
 
@@ -437,6 +588,140 @@ public class AutomatorConfig : ModuleConfig
         get => IsPropertyEnabled(nameof(DoPleadingPots));
     }
 
+    // North Horn FATEs
+    [Checkbox]
+    [Indent]
+    [DependsOn(nameof(DoFates))]
+    // These two North Horn FATEs replace the old opt-in pot FATEs.  Keep the
+    // conservative default until Config migration copies an existing user's
+    // explicit legacy selection.
+    public bool DoNorthHornFate2072 { get; set; } = false;
+
+    public bool ShouldDoNorthHornFate2072
+    {
+        get => IsPropertyEnabled(nameof(DoNorthHornFate2072));
+    }
+
+    [Checkbox]
+    [Indent]
+    [DependsOn(nameof(DoFates))]
+    public bool DoNorthHornFate2073 { get; set; } = false;
+
+    public bool ShouldDoNorthHornFate2073
+    {
+        get => IsPropertyEnabled(nameof(DoNorthHornFate2073));
+    }
+
+    [Checkbox]
+    [Indent]
+    [DependsOn(nameof(DoFates))]
+    public bool DoNorthHornFate2074 { get; set; } = true;
+
+    public bool ShouldDoNorthHornFate2074
+    {
+        get => IsPropertyEnabled(nameof(DoNorthHornFate2074));
+    }
+
+    [Checkbox]
+    [Indent]
+    [DependsOn(nameof(DoFates))]
+    public bool DoNorthHornFate2075 { get; set; } = true;
+
+    public bool ShouldDoNorthHornFate2075
+    {
+        get => IsPropertyEnabled(nameof(DoNorthHornFate2075));
+    }
+
+    [Checkbox]
+    [Indent]
+    [DependsOn(nameof(DoFates))]
+    public bool DoNorthHornFate2076 { get; set; } = true;
+
+    public bool ShouldDoNorthHornFate2076
+    {
+        get => IsPropertyEnabled(nameof(DoNorthHornFate2076));
+    }
+
+    [Checkbox]
+    [Indent]
+    [DependsOn(nameof(DoFates))]
+    public bool DoNorthHornFate2077 { get; set; } = true;
+
+    public bool ShouldDoNorthHornFate2077
+    {
+        get => IsPropertyEnabled(nameof(DoNorthHornFate2077));
+    }
+
+    [Checkbox]
+    [Indent]
+    [DependsOn(nameof(DoFates))]
+    public bool DoNorthHornFate2078 { get; set; } = true;
+
+    public bool ShouldDoNorthHornFate2078
+    {
+        get => IsPropertyEnabled(nameof(DoNorthHornFate2078));
+    }
+
+    [Checkbox]
+    [Indent]
+    [DependsOn(nameof(DoFates))]
+    public bool DoNorthHornFate2079 { get; set; } = true;
+
+    public bool ShouldDoNorthHornFate2079
+    {
+        get => IsPropertyEnabled(nameof(DoNorthHornFate2079));
+    }
+
+    [Checkbox]
+    [Indent]
+    [DependsOn(nameof(DoFates))]
+    public bool DoNorthHornFate2080 { get; set; } = true;
+
+    public bool ShouldDoNorthHornFate2080
+    {
+        get => IsPropertyEnabled(nameof(DoNorthHornFate2080));
+    }
+
+    [Checkbox]
+    [Indent]
+    [DependsOn(nameof(DoFates))]
+    public bool DoNorthHornFate2081 { get; set; } = true;
+
+    public bool ShouldDoNorthHornFate2081
+    {
+        get => IsPropertyEnabled(nameof(DoNorthHornFate2081));
+    }
+
+    [Checkbox]
+    [Indent]
+    [DependsOn(nameof(DoFates))]
+    public bool DoNorthHornFate2082 { get; set; } = true;
+
+    public bool ShouldDoNorthHornFate2082
+    {
+        get => IsPropertyEnabled(nameof(DoNorthHornFate2082));
+    }
+
+    [Checkbox]
+    [Indent]
+    [DependsOn(nameof(DoFates))]
+    public bool DoNorthHornFate2083 { get; set; } = true;
+
+    public bool ShouldDoNorthHornFate2083
+    {
+        get => IsPropertyEnabled(nameof(DoNorthHornFate2083));
+    }
+
+    [Checkbox]
+    [Indent]
+    [DependsOn(nameof(DoFates))]
+    public bool DoNorthHornFate2084 { get; set; } = true;
+
+    public bool ShouldDoNorthHornFate2084
+    {
+        get => IsPropertyEnabled(nameof(DoNorthHornFate2084));
+    }
+
     public IReadOnlyDictionary<uint, bool> CriticalEncountersMap
     {
         get => new Dictionary<uint, bool>
@@ -456,21 +741,21 @@ public class AutomatorConfig : ModuleConfig
             { 45, ShouldDoCursedConcern },
             { 46, ShouldDoEternalWatch },
             { 47, ShouldDoFlameOfDusk },
-            { 49, true },
-            { 50, true },
-            { 51, true },
-            { 52, true },
-            { 53, true },
-            { 54, true },
-            { 55, true },
-            { 56, true },
-            { 57, true },
-            { 58, true },
-            { 59, true },
-            { 60, true },
-            { 61, true },
-            { 62, true },
-            { 63, true },
+            { 49, ShouldDoNorthHornCe49 },
+            { 50, ShouldDoNorthHornCe50 },
+            { 51, ShouldDoNorthHornCe51 },
+            { 52, ShouldDoNorthHornCe52 },
+            { 53, ShouldDoNorthHornCe53 },
+            { 54, ShouldDoNorthHornCe54 },
+            { 55, ShouldDoNorthHornCe55 },
+            { 56, ShouldDoNorthHornCe56 },
+            { 57, ShouldDoNorthHornCe57 },
+            { 58, ShouldDoNorthHornCe58 },
+            { 59, ShouldDoNorthHornCe59 },
+            { 60, ShouldDoNorthHornCe60 },
+            { 61, ShouldDoNorthHornCe61 },
+            { 62, ShouldDoNorthHornCe62 },
+            { 63, ShouldDoNorthHornCe63 },
         };
     }
 
@@ -491,19 +776,19 @@ public class AutomatorConfig : ModuleConfig
             { 1972, ShouldDoServingDarkness },
             { 1976, ShouldDoPersistentPots },
             { 1977, ShouldDoPleadingPots },
-            { 2072, ShouldDoPersistentPots },
-            { 2073, ShouldDoPleadingPots },
-            { 2074, true },
-            { 2075, true },
-            { 2076, true },
-            { 2077, true },
-            { 2078, true },
-            { 2079, true },
-            { 2080, true },
-            { 2081, true },
-            { 2082, true },
-            { 2083, true },
-            { 2084, true },
+            { 2072, ShouldDoNorthHornFate2072 },
+            { 2073, ShouldDoNorthHornFate2073 },
+            { 2074, ShouldDoNorthHornFate2074 },
+            { 2075, ShouldDoNorthHornFate2075 },
+            { 2076, ShouldDoNorthHornFate2076 },
+            { 2077, ShouldDoNorthHornFate2077 },
+            { 2078, ShouldDoNorthHornFate2078 },
+            { 2079, ShouldDoNorthHornFate2079 },
+            { 2080, ShouldDoNorthHornFate2080 },
+            { 2081, ShouldDoNorthHornFate2081 },
+            { 2082, ShouldDoNorthHornFate2082 },
+            { 2083, ShouldDoNorthHornFate2083 },
+            { 2084, ShouldDoNorthHornFate2084 },
         };
     }
 }

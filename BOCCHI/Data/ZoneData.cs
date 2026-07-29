@@ -99,10 +99,24 @@ public static class ZoneData
         ) && IsOccultCrescentTerritory(Svc.ClientState.TerritoryType);
     }
 
-    public static unsafe bool IsInForkedTower()
+    public static unsafe uint GetCurrentForkedTowerEventId()
     {
         var events = FFXIVClientStructs.FFXIV.Client.Game.InstanceContent.DynamicEventContainer.GetInstance();
-        if (events != null && events->CurrentEventId is 48 or 64 or 65)
+        if (events == null)
+        {
+            return 0;
+        }
+
+        var eventId = (uint)events->CurrentEventId;
+        return TowerHelper.TryGetDefinitionByEventId(eventId, out var definition)
+               && definition.TerritoryId == Svc.ClientState.TerritoryType
+            ? eventId
+            : 0;
+    }
+
+    public static unsafe bool IsInForkedTower()
+    {
+        if (GetCurrentForkedTowerEventId() != 0)
         {
             return true;
         }

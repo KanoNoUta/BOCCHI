@@ -1,6 +1,8 @@
-﻿namespace BOCCHI.Modules.Debug.Panels;
+using System;
 
-public abstract class Panel
+namespace BOCCHI.Modules.Debug.Panels;
+
+public abstract class Panel : IDisposable
 {
     public abstract string GetName();
 
@@ -13,6 +15,10 @@ public abstract class Panel
     }
 
     public virtual void OnTerritoryChanged(uint id, DebugModule module)
+    {
+    }
+
+    public virtual void Dispose()
     {
     }
 }

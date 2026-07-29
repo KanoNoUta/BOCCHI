@@ -18,7 +18,15 @@
           "label": "Seuil de réapplication",
           "tooltip": "Nombre de minutes restantes sur le buff le plus bas avant de les rafraîchir automatiquement."
         },
-        "title": "Configuration des Buffs"
+        "title": "Configuration des Buffs",
+        "apply_quicker_step": {
+          "label": null,
+          "tooltip": null
+        },
+        "use_inquiring_mind": {
+          "label": null,
+          "tooltip": null
+        }
       },
       "panel": {
         "button": {

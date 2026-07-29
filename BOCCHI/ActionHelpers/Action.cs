@@ -6,6 +6,10 @@ namespace BOCCHI.ActionHelpers;
 
 public unsafe class Action(ActionType type, uint id)
 {
+    public ActionType Type => type;
+
+    public uint Id => id;
+
     public float GetRecastTime()
     {
         var recast = ActionManager.Instance()->GetRecastTime(type, id);

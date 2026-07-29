@@ -149,6 +149,118 @@
         "do_pleading_pots": {
           "label": "F.A.T.E.: カチカチのマジックポット",
           "tooltip": "'カチカチのマジックポット' のF.A.T.E.への参加を切り替えます。"
+        },
+        "do_north_horn_ce49": {
+          "label": "North Horn CE 49",
+          "tooltip": "North Horn CE 49 への参加を切り替えます。"
+        },
+        "do_north_horn_ce50": {
+          "label": "North Horn CE 50",
+          "tooltip": "North Horn CE 50 への参加を切り替えます。"
+        },
+        "do_north_horn_ce51": {
+          "label": "North Horn CE 51",
+          "tooltip": "North Horn CE 51 への参加を切り替えます。"
+        },
+        "do_north_horn_ce52": {
+          "label": "North Horn CE 52",
+          "tooltip": "North Horn CE 52 への参加を切り替えます。"
+        },
+        "do_north_horn_ce53": {
+          "label": "North Horn CE 53",
+          "tooltip": "North Horn CE 53 への参加を切り替えます。"
+        },
+        "do_north_horn_ce54": {
+          "label": "North Horn CE 54",
+          "tooltip": "North Horn CE 54 への参加を切り替えます。"
+        },
+        "do_north_horn_ce55": {
+          "label": "North Horn CE 55",
+          "tooltip": "North Horn CE 55 への参加を切り替えます。"
+        },
+        "do_north_horn_ce56": {
+          "label": "North Horn CE 56",
+          "tooltip": "North Horn CE 56 への参加を切り替えます。"
+        },
+        "do_north_horn_ce57": {
+          "label": "North Horn CE 57",
+          "tooltip": "North Horn CE 57 への参加を切り替えます。"
+        },
+        "do_north_horn_ce58": {
+          "label": "North Horn CE 58",
+          "tooltip": "North Horn CE 58 への参加を切り替えます。"
+        },
+        "do_north_horn_ce59": {
+          "label": "North Horn CE 59",
+          "tooltip": "North Horn CE 59 への参加を切り替えます。"
+        },
+        "do_north_horn_ce60": {
+          "label": "North Horn CE 60",
+          "tooltip": "North Horn CE 60 への参加を切り替えます。"
+        },
+        "do_north_horn_ce61": {
+          "label": "North Horn CE 61",
+          "tooltip": "North Horn CE 61 への参加を切り替えます。"
+        },
+        "do_north_horn_ce62": {
+          "label": "North Horn CE 62",
+          "tooltip": "North Horn CE 62 への参加を切り替えます。"
+        },
+        "do_north_horn_ce63": {
+          "label": "North Horn CE 63",
+          "tooltip": "North Horn CE 63 への参加を切り替えます。"
+        },
+        "do_north_horn_fate2072": {
+          "label": "North Horn FATE 2072",
+          "tooltip": "North Horn FATE 2072 への参加を切り替えます。"
+        },
+        "do_north_horn_fate2073": {
+          "label": "North Horn FATE 2073",
+          "tooltip": "North Horn FATE 2073 への参加を切り替えます。"
+        },
+        "do_north_horn_fate2074": {
+          "label": "North Horn FATE 2074",
+          "tooltip": "North Horn FATE 2074 への参加を切り替えます。"
+        },
+        "do_north_horn_fate2075": {
+          "label": "North Horn FATE 2075",
+          "tooltip": "North Horn FATE 2075 への参加を切り替えます。"
+        },
+        "do_north_horn_fate2076": {
+          "label": "North Horn FATE 2076",
+          "tooltip": "North Horn FATE 2076 への参加を切り替えます。"
+        },
+        "do_north_horn_fate2077": {
+          "label": "North Horn FATE 2077",
+          "tooltip": "North Horn FATE 2077 への参加を切り替えます。"
+        },
+        "do_north_horn_fate2078": {
+          "label": "North Horn FATE 2078",
+          "tooltip": "North Horn FATE 2078 への参加を切り替えます。"
+        },
+        "do_north_horn_fate2079": {
+          "label": "North Horn FATE 2079",
+          "tooltip": "North Horn FATE 2079 への参加を切り替えます。"
+        },
+        "do_north_horn_fate2080": {
+          "label": "North Horn FATE 2080",
+          "tooltip": "North Horn FATE 2080 への参加を切り替えます。"
+        },
+        "do_north_horn_fate2081": {
+          "label": "North Horn FATE 2081",
+          "tooltip": "North Horn FATE 2081 への参加を切り替えます。"
+        },
+        "do_north_horn_fate2082": {
+          "label": "North Horn FATE 2082",
+          "tooltip": "North Horn FATE 2082 への参加を切り替えます。"
+        },
+        "do_north_horn_fate2083": {
+          "label": "North Horn FATE 2083",
+          "tooltip": "North Horn FATE 2083 への参加を切り替えます。"
+        },
+        "do_north_horn_fate2084": {
+          "label": "North Horn FATE 2084",
+          "tooltip": "North Horn FATE 2084 への参加を切り替えます。"
         }
       },
       "panel": {

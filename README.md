@@ -4,10 +4,9 @@
 
 BOCCHI 国服维护版，当前适配国服 7.55 新月岛南部与北部。
 
+- 维护与国服 7.55 适配：KanoNoUta
 - 本维护仓库：[KanoNoUta/BOCCHI](https://github.com/KanoNoUta/BOCCHI)
 - 国服插件库：[KanoNoUta/DalamudPlugins](https://github.com/KanoNoUta/DalamudPlugins)
-- 原始项目：[OhKannaDuh/BOCCHI](https://github.com/OhKannaDuh/BOCCHI)
-- 前序国服维护：[NiGuangOwO/OccultCrescentHelper](https://github.com/NiGuangOwO/OccultCrescentHelper)
 
 自定义插件仓库地址：
 
@@ -32,11 +31,9 @@ https://raw.githubusercontent.com/KanoNoUta/DalamudPlugins/main/pluginmaster.jso
     - Displays estimated completion time
     - Button to teleport, mount and pathfind to Fate/CE
     - Automatic return after Fate/CE
-- Auto buffs (Bard/Knight/Monk)
-
-## Plans
-
-- Carrot hunter
+- Auto buffs and actions for all supported South Horn and North Horn auxiliary jobs
+- Forked Tower event timer, progress tracking, and territory-safe trap capture
+- Per-event FATE/CE rewards, investigation records, alerts, and Automator controls
 
 ## CN build and smoke test
 
@@ -48,6 +45,10 @@ dotnet run --project tests\BOCCHI.DataSmoke\BOCCHI.DataSmoke.csproj -c Release_C
 
 ## Known issues
 
-- North Horn real-time treasure/carrot radar is supported, but automated hunting remains disabled until North Horn
-  node levels and precomputed vnavmesh routes are collected in game.
-- North Horn Forked Tower trap layouts are not available yet; South Horn trap coordinates are never reused there.
+- North Horn treasure and carrot automation can run with direct-distance fallback routes. Runtime coordinates are cached
+  after discovery, and the debug panels can precompute persistent vnavmesh routes. A cold start with no trustworthy
+  coordinates will ask you to collect nearby nodes in game first.
+- North Horn Forked Tower supports independent event tracking and safe live capture. Exact platform centers, radii,
+  and complete trap layouts still require in-game samples; South Horn trap coordinates are never reused there.
+- Soul-crystal items `51967`–`51974` are supported by the UI, but their exact source events remain marked as pending
+  verification until confirmed from live CN 7.55 data.

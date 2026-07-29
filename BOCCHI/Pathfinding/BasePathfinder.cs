@@ -11,48 +11,131 @@ using System.Threading.Tasks;
 
 namespace BOCCHI.Pathfinding;
 
-public abstract class BasePathfinder(float returnCost = 300f, float teleportCost = 50f) : IPathfinder
+public abstract class BasePathfinder : IPathfinder
 {
     public PathfinderState State { get; private set; } = PathfinderState.None;
 
     private NodeDataSchema data = new();
 
+    private readonly Dictionary<uint, Vector3> knownNodePositions;
+
+    private readonly float returnCost;
+
+    private readonly float teleportCost;
+
+    public IReadOnlyCollection<uint> KnownNodeIds
+    {
+        get => knownNodePositions.Keys;
+    }
+
+    protected BasePathfinder(float returnCost = 300f, float teleportCost = 50f)
+        : this(new Dictionary<uint, Vector3>(), returnCost, teleportCost)
+    {
+    }
+
+    protected BasePathfinder(
+        IReadOnlyDictionary<uint, Vector3> knownNodePositions,
+        float returnCost = 300f,
+        float teleportCost = 50f)
+    {
+        this.knownNodePositions = knownNodePositions
+            .Where(pair => IsFinite(pair.Value))
+            .ToDictionary(pair => pair.Key, pair => pair.Value);
+        this.returnCost = returnCost;
+        this.teleportCost = teleportCost;
+    }
+
     protected abstract uint GetStartingNode(Vector3 start, List<uint> nodes);
+
+    public bool TryGetNodePosition(uint nodeId, out Vector3 position)
+    {
+        return knownNodePositions.TryGetValue(nodeId, out position);
+    }
 
     public Task<List<PathfinderStep>> FindPath(Vector3 start, List<uint> nodes)
     {
-        if (State != PathfinderState.FileLoaded)
+        if (State is not (PathfinderState.FileLoaded or PathfinderState.FallbackReady))
         {
-            throw new Exception("File not loaded");
+            throw new InvalidOperationException("Pathfinder data is not ready.");
         }
 
-        nodes = nodes
-            .Distinct()
-            .Where(node => data.NodeToNodeDistances.ContainsKey(node)
-                           && data.NodeToAethernetDistances.ContainsKey(node))
-            .ToList();
+        nodes = nodes.Distinct().ToList();
+        State = PathfinderState.Pathfinding;
 
-        if (nodes.Count == 0)
+        var steps = new List<PathfinderStep>();
+        var routedNodeIds = new HashSet<uint>();
+        var fallbackStart = start;
+
+        if (StateBeforePathfindingWasFileLoaded())
         {
-            Svc.Log.Error("No compatible hunt nodes were found in the current zone data file.");
+            var precomputedNodes = nodes
+                .Where(node => knownNodePositions.ContainsKey(node)
+                               && data.NodeToNodeDistances.ContainsKey(node)
+                               && data.NodeToAethernetDistances.ContainsKey(node))
+                .ToList();
+
+            if (precomputedNodes.Count > 0)
+            {
+                var startNode = GetStartingNode(start, precomputedNodes);
+                var graph = BuildCostGraph(precomputedNodes);
+                var graphIsComplete = HybridRoutePlanner.HasCompleteFiniteGraph(precomputedNodes, graph);
+                var ordered = graphIsComplete
+                    ? SolveTSPNearestInsertion(startNode, precomputedNodes, graph)
+                    : HybridRoutePlanner.BuildReachableGreedyRoute(startNode, precomputedNodes, graph);
+
+                if (!graphIsComplete)
+                {
+                    Svc.Log.Warning(
+                        "Precomputed hunt graph contains missing/unreachable segments; " +
+                        "using verified graph edges first and vnavmesh fallback for the remainder.");
+                }
+
+                if (ordered.Count > 0)
+                {
+                    steps.Add(PathfinderStep.WalkToDestination(ordered[0]));
+                    steps.AddRange(BuildStepPath(ordered, graph));
+                    routedNodeIds.UnionWith(ordered);
+                    if (knownNodePositions.TryGetValue(ordered[^1], out var lastPosition))
+                    {
+                        fallbackStart = lastPosition;
+                    }
+                }
+            }
+        }
+
+        var fallbackCandidates = nodes.Where(node => !routedNodeIds.Contains(node)).ToList();
+        var fallbackOrdered = FallbackRoutePlanner.OrderByEuclideanCost(
+            fallbackStart,
+            fallbackCandidates,
+            knownNodePositions);
+        steps.AddRange(fallbackOrdered.Select(PathfinderStep.WalkToDestination));
+        routedNodeIds.UnionWith(fallbackOrdered);
+
+        var skippedNodes = nodes.Where(node => !routedNodeIds.Contains(node)).ToList();
+        if (skippedNodes.Count > 0)
+        {
+            Svc.Log.Warning(
+                $"Skipping {skippedNodes.Count} hunt nodes without usable paths or known positions: " +
+                FormatNodeIds(skippedNodes));
+        }
+
+        if (steps.Count == 0)
+        {
+            Svc.Log.Error("No compatible hunt nodes with verified positions were found.");
             State = PathfinderState.NoCompatibleNodes;
             return Task.FromResult(new List<PathfinderStep>());
         }
 
-        State = PathfinderState.Pathfinding;
-
-        var startNode = GetStartingNode(start, nodes);
-
-
-        var graph = BuildCostGraph(nodes);
-        var ordered = SolveTSPNearestInsertion(startNode, nodes, graph);
-        var steps = BuildStepPath(ordered, graph);
-
-        steps.Insert(0, PathfinderStep.WalkToDestination(startNode));
-
         PrintPath(steps);
         State = PathfinderState.PathfindingDone;
         return Task.FromResult(steps);
+
+        bool StateBeforePathfindingWasFileLoaded()
+        {
+            // State has already changed to Pathfinding above; usable graph data
+            // is the reliable discriminator for hybrid routing.
+            return HasUsablePrecomputedData(data);
+        }
     }
 
     protected (float Cost, List<PathfinderStep> Steps) GetBestSteps(uint fromId, uint toId)
@@ -142,8 +225,7 @@ public abstract class BasePathfinder(float returnCost = 300f, float teleportCost
         var file = Path.Join(ZoneData.GetCurrentZoneDataDirectory(), filename);
         if (!File.Exists(file))
         {
-            Svc.Log.Error($"Required file not found: {file}");
-            State = PathfinderState.FileUnavailable;
+            UseFallbackOrUnavailable($"Precomputed hunt data file was not found: {file}");
             return;
         }
 
@@ -151,31 +233,117 @@ public abstract class BasePathfinder(float returnCost = 300f, float teleportCost
         {
             var json = File.ReadAllText(file);
             var loaded = JsonSerializer.Deserialize<NodeDataSchema>(json, options);
-            if (loaded.NodeToNodeDistances.Count == 0
-                || loaded.NodeToAethernetDistances.Count == 0
-                || loaded.AethernetToNodeDistances.Count == 0)
-            {
-                Svc.Log.Error($"Zone data file is empty or incomplete: {file}");
-                State = PathfinderState.FileUnavailable;
-                return;
-            }
-
+            loaded.NodePositions ??= [];
+            loaded.NodeToNodeDistances ??= [];
+            loaded.NodeToAethernetDistances ??= [];
+            loaded.AethernetToNodeDistances ??= [];
             var currentAethernets = ZoneData.GetCurrentAethernets().ToHashSet();
             if (loaded.AethernetToNodeDistances.Keys.Any(aethernet => !currentAethernets.Contains(aethernet)))
             {
-                Svc.Log.Error($"Zone data file contains aethernet entries from a different territory: {file}");
-                State = PathfinderState.FileUnavailable;
+                UseFallbackOrUnavailable($"Precomputed hunt data belongs to a different territory: {file}");
                 return;
             }
 
+            RecoverNodePositions(ref loaded);
+            foreach (var (nodeId, position) in knownNodePositions)
+            {
+                loaded.NodePositions[nodeId] = BOCCHI.Modules.Data.Position.Create(position);
+            }
+
+            foreach (var (nodeId, position) in loaded.NodePositions)
+            {
+                var vector = new Vector3(position.X, position.Y, position.Z);
+                if (IsFinite(vector))
+                {
+                    knownNodePositions.TryAdd(nodeId, vector);
+                }
+            }
+
             data = loaded;
-            State = PathfinderState.FileLoaded;
+            if (HasUsablePrecomputedData(loaded))
+            {
+                State = PathfinderState.FileLoaded;
+            }
+            else
+            {
+                UseFallbackOrUnavailable($"Precomputed hunt data file has no usable route segments: {file}");
+            }
         }
         catch (Exception ex)
         {
-            Svc.Log.Error(ex, $"Failed to load zone data file: {file}");
-            State = PathfinderState.FileUnavailable;
+            Svc.Log.Error(ex, $"Failed to load precomputed hunt data: {file}");
+            UseFallbackOrUnavailable($"Precomputed hunt data could not be loaded: {file}");
         }
+    }
+
+    private void UseFallbackOrUnavailable(string message)
+    {
+        if (knownNodePositions.Count > 0)
+        {
+            Svc.Log.Warning($"{message} Using Euclidean fallback ordering for {knownNodePositions.Count} known nodes; vnavmesh will calculate each walking segment.");
+            State = PathfinderState.FallbackReady;
+            return;
+        }
+
+        Svc.Log.Error($"{message} No runtime nodes are currently known.");
+        State = PathfinderState.FileUnavailable;
+    }
+
+    private static void RecoverNodePositions(ref NodeDataSchema loaded)
+    {
+        foreach (var (fromId, destinations) in loaded.NodeToNodeDistances)
+        {
+            foreach (var destination in destinations.Where(destination => destination.Path is { Count: > 0 }))
+            {
+                var first = destination.Path[0];
+                var last = destination.Path[^1];
+                loaded.NodePositions.TryAdd(fromId, first);
+                loaded.NodePositions.TryAdd(destination.Id, last);
+            }
+        }
+
+        foreach (var destinations in loaded.AethernetToNodeDistances.Values)
+        {
+            foreach (var destination in destinations.Where(destination => destination.Path is { Count: > 0 }))
+            {
+                loaded.NodePositions.TryAdd(destination.Id, destination.Path[^1]);
+            }
+        }
+    }
+
+    private static bool IsFinite(Vector3 position)
+    {
+        return float.IsFinite(position.X)
+               && float.IsFinite(position.Y)
+               && float.IsFinite(position.Z);
+    }
+
+    private static string FormatNodeIds(IEnumerable<uint> nodeIds)
+    {
+        const int limit = 10;
+        var ids = nodeIds.Take(limit).ToList();
+        var suffix = nodeIds.Skip(limit).Any() ? ", ..." : string.Empty;
+        return string.Join(", ", ids) + suffix;
+    }
+
+    private static bool HasUsablePrecomputedData(NodeDataSchema schema)
+    {
+        var hasDirectRoute = schema.NodeToNodeDistances.Values
+            .SelectMany(routes => routes)
+            .Any(route => IsUsableDistance(route.Distance));
+        var hasRouteToShard = schema.NodeToAethernetDistances.Values
+            .SelectMany(routes => routes)
+            .Any(route => IsUsableDistance(route.Distance));
+        var hasRouteFromShard = schema.AethernetToNodeDistances.Values
+            .SelectMany(routes => routes)
+            .Any(route => IsUsableDistance(route.Distance));
+
+        return hasDirectRoute || (hasRouteToShard && hasRouteFromShard);
+    }
+
+    private static bool IsUsableDistance(float distance)
+    {
+        return float.IsFinite(distance) && distance >= 0f && distance < float.MaxValue;
     }
 
     protected Dictionary<uint, Dictionary<uint, (float Cost, List<PathfinderStep> Steps)>> BuildCostGraph(List<uint> nodes)
@@ -207,7 +375,7 @@ public abstract class BasePathfinder(float returnCost = 300f, float teleportCost
     {
         if (nodes.Count == 1)
         {
-            return [start, nodes.First()];
+            return [start];
         }
 
 

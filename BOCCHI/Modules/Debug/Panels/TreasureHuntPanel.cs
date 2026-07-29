@@ -1,11 +1,9 @@
-﻿using BOCCHI.Data;
+using BOCCHI.Data;
 using BOCCHI.Enums;
-using BOCCHI.Modules.Data;
 using BOCCHI.Pathfinding;
 using Dalamud.Bindings.ImGui;
 using ECommons.DalamudServices;
 using FFXIVClientStructs.FFXIV.Client.LayoutEngine;
-using Ocelot.Chain;
 using Ocelot.IPC;
 using Ocelot.Ui;
 using System;
@@ -15,223 +13,200 @@ using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Runtime.CompilerServices;
-using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace BOCCHI.Modules.Debug.Panels;
 
 using TreasureData = (uint id, Vector3 position, uint type);
 
-public class TreasureHuntPanel : Panel
+public sealed class TreasureHuntPanel : Panel
 {
-    private List<TreasureData> Treasure = [];
+    private readonly List<TreasureData> treasure = [];
 
-    private bool HasRun = false;
+    private readonly Stopwatch stopwatch = new();
 
-    private bool ShouldRun = false;
+    private CancellationTokenSource? cancellation;
 
-    private Stopwatch stopwatch = new();
+    private Task? task;
 
-    private uint Progress = 0;
+    private bool runRequested;
 
-    private uint MaxProgress
+    private bool hasRun;
+
+    private int progress;
+
+    private int maxProgress;
+
+    private uint snapshotTerritory;
+
+    private string status = string.Empty;
+
+    public override string GetName() => "Treasure Hunt Helper";
+
+    public override unsafe void Render(DebugModule module)
     {
-        get
+        if (snapshotTerritory != Svc.ClientState.TerritoryType)
         {
-            var treasureCount = Treasure.Count;
-            var aethernetCount = AethernetData.All().Count();
-            return (uint)(treasureCount * (treasureCount - 1 + 2 * aethernetCount));
+            RefreshTreasureSnapshot();
+        }
+
+        OcelotUi.LabelledValue("Bronze", treasure.Count(node => node.type == 1596));
+        OcelotUi.LabelledValue("Silver", treasure.Count(node => node.type == 1597));
+
+        OcelotUi.Indent(() =>
+        {
+            var isRunning = task is { IsCompleted: false };
+            if (!isRunning)
+            {
+                if (ImGui.Button(hasRun ? "Run again" : "Run"))
+                {
+                    RefreshTreasureSnapshot();
+                    runRequested = true;
+                }
+            }
+            else if (ImGui.Button("Cancel"))
+            {
+                cancellation?.Cancel();
+            }
+
+            if (!hasRun)
+            {
+                return;
+            }
+
+            var completed = Volatile.Read(ref progress);
+            var completion = maxProgress == 0 ? 0f : completed / (float)maxProgress * 100f;
+            OcelotUi.LabelledValue("Progress", $"{completion:F2}%");
+            OcelotUi.Indent(() => OcelotUi.LabelledValue("Calculations", $"{completed}/{maxProgress}"));
+            OcelotUi.LabelledValue("Elapsed", stopwatch.Elapsed.ToString("mm\\:ss"));
+            if (!string.IsNullOrEmpty(status))
+            {
+                ImGui.TextWrapped(status);
+            }
+        });
+    }
+
+    public override void Update(DebugModule module)
+    {
+        if (!runRequested || task is { IsCompleted: false })
+        {
+            return;
+        }
+
+        runRequested = false;
+        hasRun = true;
+        progress = 0;
+        status = string.Empty;
+        cancellation?.Dispose();
+        cancellation = new CancellationTokenSource();
+        task = PrecomputeAsync(module, cancellation.Token);
+    }
+
+    public override void OnTerritoryChanged(uint id, DebugModule module)
+    {
+        CancelAndReset();
+        snapshotTerritory = 0;
+        treasure.Clear();
+    }
+
+    public override void Dispose()
+    {
+        CancelAndReset();
+        cancellation?.Dispose();
+        cancellation = null;
+    }
+
+    private async Task PrecomputeAsync(DebugModule module, CancellationToken token)
+    {
+        stopwatch.Restart();
+        try
+        {
+            var nodes = treasure.Select(node => new HuntNode(node.id, node.position)).ToArray();
+            var shards = AethernetData.All()
+                .Select(data => new HuntAethernet(data.Aethernet, data.Destination, data.Position))
+                .ToArray();
+            maxProgress = NodeDataPrecomputer.GetTaskCount(nodes.Length, shards.Length);
+            if (nodes.Length == 0)
+            {
+                status = "No treasure layout nodes are available in the current territory.";
+                return;
+            }
+
+            var vnav = module.GetIPCSubscriber<VNavmesh>();
+            var data = await NodeDataPrecomputer.ComputeAsync(
+                nodes,
+                shards,
+                (start, destination, segmentToken) =>
+                    vnav.PathfindCancelable(start, destination, false, segmentToken),
+                completed => Volatile.Write(ref progress, completed),
+                message => Svc.Log.Warning(message),
+                segmentTimeout: TimeSpan.FromSeconds(30),
+                cancellationToken: token);
+
+            var outputFile = Path.Join(
+                ZoneData.GetCurrentZoneDataDirectory(),
+                "precomputed_treasure_hunt_data.json");
+            await NodeDataPrecomputer.WriteAtomicAsync(outputFile, data, token);
+            status = $"Saved {progress}/{maxProgress} calculations to {outputFile}";
+            Svc.Log.Info(status);
+        }
+        catch (OperationCanceledException)
+        {
+            status = "Treasure precomputation cancelled; no partial file was written.";
+        }
+        catch (Exception exception)
+        {
+            status = $"Treasure precomputation failed: {exception.GetBaseException().Message}";
+            Svc.Log.Error(exception, status);
+        }
+        finally
+        {
+            stopwatch.Stop();
         }
     }
 
-    private ChainQueue ChainQueue
+    private unsafe void RefreshTreasureSnapshot()
     {
-        get => ChainManager.Get("TreasureHuntPanelChain");
-    }
+        treasure.Clear();
+        snapshotTerritory = Svc.ClientState.TerritoryType;
 
-    public unsafe TreasureHuntPanel()
-    {
         var layout = LayoutWorld.Instance()->ActiveLayout;
-        if (layout == null)
+        if (layout == null || !layout->InstancesByType.TryGetValue(InstanceType.Treasure, out var mapPtr, false))
         {
             return;
         }
 
-        if (!layout->InstancesByType.TryGetValue(InstanceType.Treasure, out var mapPtr, false))
-        {
-            return;
-        }
-
+        var treasureSheet = Svc.Data.GetExcelSheet<Lumina.Excel.Sheets.Treasure>();
         foreach (ILayoutInstance* instance in mapPtr.Value->Values)
         {
-            var transform = instance->GetTransformImpl();
-            var position = transform->Translation;
+            var position = instance->GetTransformImpl()->Translation;
             var minimumFieldHeight = ZoneData.IsInNorthHorn() ? -500f : -10f;
             if (position.Y <= minimumFieldHeight)
             {
                 continue;
             }
 
-            var treasureRowId = Unsafe.Read<uint>((byte*)instance + 0x30);
-            var sgbId = Svc.Data.GetExcelSheet<Lumina.Excel.Sheets.Treasure>().GetRow(treasureRowId).SGB.RowId;
-            if (sgbId != 1596 && sgbId != 1597)
+            var rowId = Unsafe.Read<uint>((byte*)instance + 0x30);
+            if (!treasureSheet.TryGetRow(rowId, out var row))
             {
                 continue;
             }
 
-            Treasure.Add((treasureRowId, position, sgbId));
-        }
-
-        Treasure = Treasure.OrderBy(t => t.id).ToList();
-
-    }
-
-    public override string GetName()
-    {
-        return "Treasure Hunt Helper";
-    }
-
-    public override void Render(DebugModule module)
-    {
-        OcelotUi.LabelledValue("Bronze", Treasure.Count(t => t.type == 1596)); // 60
-        OcelotUi.LabelledValue("Silver", Treasure.Count(t => t.type == 1597)); // 8
-
-        OcelotUi.Indent(() =>
-        {
-            if (!HasRun)
+            var sgbId = row.SGB.RowId;
+            if (sgbId is 1596 or 1597)
             {
-                if (ImGui.Button("Run"))
-                {
-                    ShouldRun = true;
-                }
-
-                return;
-            }
-
-            var Completion = Progress / (float)MaxProgress * 100;
-
-            OcelotUi.LabelledValue("Progress: ", $"{Completion:f2}%");
-            OcelotUi.Indent(() => OcelotUi.LabelledValue("Calculations: ", $"{Progress}/{MaxProgress}"));
-            OcelotUi.LabelledValue("Elapsed: ", stopwatch.Elapsed.ToString("mm\\:ss"));
-        });
-    }
-
-    public override void Update(DebugModule module)
-    {
-        if (!ShouldRun || HasRun)
-        {
-            return;
-        }
-
-        ShouldRun = true;
-        HasRun = true;
-
-        PrecomputeTreasurePathDistances(module);
-    }
-
-    private void PrecomputeTreasurePathDistances(DebugModule module)
-    {
-        stopwatch.Restart();
-
-        var outputFile = Path.Join(ZoneData.GetCurrentZoneDataDirectory(), "precomputed_treasure_hunt_data.json");
-
-        var vnav = module.GetIPCSubscriber<VNavmesh>();
-
-        NodeDataSchema data = new();
-        foreach (var datum in AethernetData.All())
-        {
-            data.AethernetToNodeDistances[datum.Aethernet] = [];
-        }
-
-        foreach (var treasure in Treasure)
-        {
-            data.NodeToNodeDistances[treasure.id] = [];
-            data.NodeToAethernetDistances[treasure.id] = [];
-
-            foreach (var other in Treasure.Where(t => t != treasure))
-            {
-                ChainQueue.Submit(() =>
-                    Chain.Create()
-                        .Then(async void (_) =>
-                        {
-                            var path = await vnav.Pathfind(treasure.position, other.position, false);
-                            var distance = CalculatePathLength(path);
-
-                            var nodes = path.Select(p => Position.Create(p)).ToList();
-
-                            data.NodeToNodeDistances[treasure.id].Add(new ToNode(other.id, distance, nodes));
-
-                            Progress++;
-                        })
-                        .Then(_ => !vnav.IsRunning())
-                );
-            }
-
-            foreach (var datum in AethernetData.All())
-            {
-                ChainQueue.Submit(() =>
-                    Chain.Create()
-                        .Then(async void (_) =>
-                        {
-                            var path = await vnav.Pathfind(datum.Destination, treasure.position, false);
-                            var distance = CalculatePathLength(path);
-
-                            var nodes = path.Select(p => Position.Create(p)).ToList();
-
-                            data.AethernetToNodeDistances[datum.Aethernet].Add(new ToNode(treasure.id, distance, nodes));
-
-                            Progress++;
-                        })
-                        .Then(_ => !vnav.IsRunning())
-                );
-
-                ChainQueue.Submit(() =>
-                    Chain.Create()
-                        .Then(async void (_) =>
-                        {
-                            var path = await vnav.Pathfind(datum.Destination, treasure.position, false);
-                            var distance = CalculatePathLength(path);
-
-                            var nodes = path.Select(p => Position.Create(p)).ToList();
-
-
-                            data.NodeToAethernetDistances[treasure.id].Add(new ToAethernet(datum.Aethernet, distance, nodes));
-
-                            Progress++;
-                        })
-                        .Then(_ => !vnav.IsRunning())
-                );
+                treasure.Add((rowId, position, sgbId));
             }
         }
 
-        ChainQueue.Submit(() =>
-            Chain.Create()
-                .Wait(5000)
-                .Then(_ =>
-                {
-                    stopwatch.Stop();
-
-                    var options = new JsonSerializerOptions
-                    {
-                        WriteIndented = false,
-                        IncludeFields = false,
-                    };
-
-                    Svc.Log.Info("Saving file to " + outputFile);
-                    var json = JsonSerializer.Serialize(data, options);
-                    File.WriteAllTextAsync(outputFile, json);
-                })
-        );
+        treasure.Sort((left, right) => left.id.CompareTo(right.id));
     }
 
-    private float CalculatePathLength(List<Vector3> path)
+    private void CancelAndReset()
     {
-        var length = 0f;
-
-        for (var i = 1; i < path.Count; i++)
-        {
-            length += Vector3.Distance(path[i - 1], path[i]);
-        }
-
-        return length;
+        cancellation?.Cancel();
+        runRequested = false;
+        stopwatch.Stop();
     }
 }

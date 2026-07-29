@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Dalamud.CN.NET.Sdk/15.0.0">
     <PropertyGroup>
-        <Version>3.2.1</Version>
+        <Version>3.3.0</Version>
+        <Authors>KanoNoUta</Authors>
         <Description>A helper for Occult Crescent.</Description>
         <PackageProjectUrl>https://github.com/KanoNoUta/BOCCHI</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/KanoNoUta/BOCCHI</RepositoryUrl>
         <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
         <IsPackable>false</IsPackable>
         <NoWarn>$(NoWarn);4014</NoWarn>
@@ -18,6 +20,9 @@
     </PropertyGroup>
     <!-- Files -->
     <ItemGroup>
+        <None Include="BOCCHI.json">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
         <Content Include="..\assets\icon.png">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
             <Visible>false</Visible>

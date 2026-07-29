@@ -50,6 +50,15 @@ public enum PlayerStatus : uint
     WeaknessLightning = 5324,
     WeaknessWind = 5325,
 
+    // CN 7.55 action statuses verified from the Status sheet.  These are
+    // exposed for feature integrations, but are not auto-applied because most
+    // are short combat effects rather than persistent cross-job buffs.
+    MagicEvasion = 5316,
+    DragonSword = 5319,
+    EarthenWall = 5320,
+    MagicMightyGuard = 5321,
+    SmokeBomb = 5327,
+
 }
 
 public static class StatusListExtensions
