@@ -422,6 +422,12 @@ var automatorConfig = new AutomatorConfig();
 var northFateIds = Enumerable.Range(2072, 13).Select(id => (uint)id).ToArray();
 var northCriticalEncounterIds = Enumerable.Range(49, 15).Select(id => (uint)id).ToArray();
 
+Assert(NavigationActivityState.IsActive(false, true, false)
+       && NavigationActivityState.IsActive(false, false, true),
+    "Automator must keep one activity chain alive while vnavmesh SimpleMove/Nav is calculating a route.");
+Assert(!NavigationActivityState.IsActive(false, false, false),
+    "Automator must still detect a genuinely stopped vnavmesh route.");
+
 Assert(automatorConfig.FatesMap.Keys.Where(northFateIds.Contains).Order().SequenceEqual(northFateIds),
     "Automator must expose one mapping for every North Horn FATE ID 2072 through 2084.");
 Assert(automatorConfig.CriticalEncountersMap.Keys.Where(northCriticalEncounterIds.Contains).Order()

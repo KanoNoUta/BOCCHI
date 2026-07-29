@@ -46,7 +46,7 @@ public class CriticalEncounter : Activity
                 throw new Exception("Activity is no longer valid.");
             }
 
-            if (!finalDestination && IsCloseToZone())
+            if (!finalDestination && IsCloseToZone() && !IsPathfindingInProgress())
             {
                 var rand = module.GetModule<AutomatorModule>().random;
                 var angle = (float)(rand.NextDouble() * MathF.PI * 2);
@@ -57,8 +57,7 @@ public class CriticalEncounter : Activity
                 var randomPoint = new Vector3(GetPosition().X + offsetX, GetPosition().Y, GetPosition().Z + offsetZ);
                 module.Debug($"Pathfinding to random point: {randomPoint}");
 
-                vnav.PathfindAndMoveTo(randomPoint, false);
-                finalDestination = true;
+                finalDestination = vnav.PathfindAndMoveTo(randomPoint, false);
             }
 
             if (!finalDestination && IsInZone())
@@ -81,10 +80,10 @@ public class CriticalEncounter : Activity
 
             if (finalDestination)
             {
-                return !vnav.IsRunning();
+                return !IsNavigationActive();
             }
 
-            if (!vnav.IsRunning())
+            if (!IsNavigationActive())
             {
                 throw new VnavmeshStoppedException();
             }

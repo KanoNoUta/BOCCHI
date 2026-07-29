@@ -53,9 +53,15 @@ public class FateActivity(EventData data, Lifestream lifestream, VNavmesh vnav, 
 
             if (target != null)
             {
-                if (Vector3.Distance(target.Position, lastTargetPos) > 5f)
+                // Target selectors can switch targets several times per second.
+                // Never submit a second SimpleMove request while vnavmesh is
+                // still calculating the previous one, and rate-limit genuine
+                // target movement repaths.
+                if (Vector3.Distance(target.Position, lastTargetPos) > 5f
+                    && !IsPathfindingInProgress()
+                    && EzThrottler.Throttle("FatePathfindingWatcher.Repath", 1000)
+                    && vnav.PathfindAndMoveTo(target.Position, false))
                 {
-                    vnav.PathfindAndMoveTo(target.Position, false);
                     lastTargetPos = target.Position;
                 }
 
@@ -83,7 +89,7 @@ public class FateActivity(EventData data, Lifestream lifestream, VNavmesh vnav, 
                 followingActivityTarget = false;
             }
 
-            if (!vnav.IsRunning())
+            if (!IsNavigationActive())
             {
                 throw new VnavmeshStoppedException();
             }

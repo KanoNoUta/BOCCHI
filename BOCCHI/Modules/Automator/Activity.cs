@@ -343,6 +343,24 @@ public abstract class Activity : IDisposable
         return Player.DistanceTo(GetPosition()) <= radius;
     }
 
+    /// <summary>
+    /// vnavmesh's simple-move request calculates the route before Path.IsRunning
+    /// becomes true. Treat that calculation window as active navigation so the
+    /// automator does not tear down and resubmit the same activity every frame.
+    /// </summary>
+    protected bool IsPathfindingInProgress()
+    {
+        return NavigationActivityState.IsCalculating(vnav.IsSimpleMoveInProgress(), vnav.IsPathfinding());
+    }
+
+    protected bool IsNavigationActive()
+    {
+        return NavigationActivityState.IsActive(
+            vnav.IsRunning(),
+            vnav.IsSimpleMoveInProgress(),
+            vnav.IsPathfinding());
+    }
+
     private bool ShouldMountToPathfindTo(Vector3 destination)
     {
         if (!module.PluginConfig.TeleporterConfig.ShouldMount)
@@ -395,5 +413,18 @@ public abstract class Activity : IDisposable
             CancellationToken.None,
             TaskContinuationOptions.ExecuteSynchronously,
             TaskScheduler.Default);
+    }
+}
+
+public static class NavigationActivityState
+{
+    public static bool IsCalculating(bool simpleMoveInProgress, bool pathfindInProgress)
+    {
+        return simpleMoveInProgress || pathfindInProgress;
+    }
+
+    public static bool IsActive(bool movementRunning, bool simpleMoveInProgress, bool pathfindInProgress)
+    {
+        return movementRunning || IsCalculating(simpleMoveInProgress, pathfindInProgress);
     }
 }
