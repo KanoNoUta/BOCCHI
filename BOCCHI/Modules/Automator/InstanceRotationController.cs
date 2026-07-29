@@ -199,7 +199,7 @@ public sealed class InstanceRotationController
 
         if (module.Config.ShouldToggleAiProvider)
         {
-            module.Config.AiProvider.Off();
+            module.SetAiProviderEnabled(false);
         }
 
         PromeRotationController.Stop();

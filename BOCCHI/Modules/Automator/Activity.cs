@@ -95,7 +95,7 @@ public abstract class Activity : IDisposable
 
             return Chain.Create("Illegal:Idle")
                 .Then(_ => PromeRotationController.Stop())
-                .ConditionalThen(ShouldToggleAi, _ => module.Config.AiProvider.Off())
+                .ConditionalThen(ShouldToggleAi, _ => module.SetAiProviderEnabled(false))
                 .ConditionalThen(_ => Svc.PluginInterface.InstalledPlugins.Any(p => p.InternalName == "AEAssistV3" && p.IsLoaded), _ =>
                 {
                     Chat.ExecuteCommand("/aeTargetSelector off");
@@ -204,7 +204,7 @@ public abstract class Activity : IDisposable
                 // unmount action can still be animation-locked on arrival.
                 .Then(_ => Actions.TryUnmount())
                 .Then(_ => PromeRotationController.Start())
-                .ConditionalThen(_ => module.Config.ShouldToggleAiProvider, _ => module.Config.AiProvider.On())
+                .ConditionalThen(_ => module.Config.ShouldToggleAiProvider, _ => module.SetAiProviderEnabled(true))
                 .ConditionalThen(_ => Svc.PluginInterface.InstalledPlugins.Any(p => p.InternalName == "AEAssistV3" && p.IsLoaded), _ =>
                 {
                     Chat.ExecuteCommand("/aeTargetSelector off");

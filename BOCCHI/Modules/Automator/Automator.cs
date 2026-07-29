@@ -82,6 +82,7 @@ public class Automator
         {
             Plugin.Chain.Abort();
             vnav.Stop();
+            module.SetAiProviderEnabled(false);
             PromeRotationController.Stop();
             ClearActivity();
         }
@@ -95,6 +96,7 @@ public class Automator
         {
             if (Activity.state == ActivityState.Done)
             {
+                module.SetAiProviderEnabled(false);
                 PromeRotationController.Stop();
                 ClearActivity();
                 return;

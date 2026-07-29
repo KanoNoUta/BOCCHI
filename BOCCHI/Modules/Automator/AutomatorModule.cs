@@ -66,6 +66,7 @@ public class AutomatorModule : Module
         {
             navigation.Stop();
         }
+        SetAiProviderEnabled(false);
         PromeRotationController.Stop();
 
         automator.Refresh();
@@ -107,6 +108,10 @@ public class AutomatorModule : Module
     {
         var wasDisabled = !Config.Enabled;
         Config.Enabled = true;
+        if (!Svc.Condition[Dalamud.Game.ClientState.Conditions.ConditionFlag.InCombat])
+        {
+            SetAiProviderEnabled(false);
+        }
         PromeRotationController.Stop();
 
         if (wasDisabled)
@@ -118,6 +123,10 @@ public class AutomatorModule : Module
     public void DisableIllegalMode()
     {
         var wasEnabled = Config.Enabled;
+        // Do this before clearing Enabled: ShouldToggleAiProvider is a
+        // configuration-dependent property and the plugin must release any
+        // BossMod AI state it owns while the module is still active.
+        SetAiProviderEnabled(false);
         Config.Enabled = false;
         instanceRotation.Reset();
         automator.Refresh();
@@ -132,6 +141,23 @@ public class AutomatorModule : Module
         if (wasEnabled)
         {
             Svc.Chat.Print(T("messages.off"));
+        }
+    }
+
+    public void SetAiProviderEnabled(bool enabled)
+    {
+        if (!Config.ShouldToggleAiProvider)
+        {
+            return;
+        }
+
+        if (enabled)
+        {
+            Config.AiProvider.On();
+        }
+        else
+        {
+            Config.AiProvider.Off();
         }
     }
 }

@@ -9,7 +9,7 @@
   "ApplicableVersion": "any",
   "DalamudApiLevel": 15,
   "RepoUrl": "https://github.com/KanoNoUta/BOCCHI",
-  "Changelog": "3.3.8：修复 PromeRotation 未认证或启动失败时阻塞自动器链，导致 FATE/CE 看得到却不移动的问题；到达事件范围后改为必定下坐骑，并修复无可选目标的 FATE 到场后反复重建活动。",
+  "Changelog": "3.3.8：修复 PromeRotation 失败时阻塞 FATE/CE 自动移动；到场后必定下坐骑；修复 BossMod AI 在暂停、事件结束/失效或换图后残留开启，并在非战斗状态启动非法模式时先关闭 AI。",
   "AcceptsFeedback": true,
   "Tags": [
     "BOCCHI",

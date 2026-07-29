@@ -120,7 +120,7 @@ public class CriticalEncounter : Activity
 
                             if (module.Config.ShouldToggleAiProvider)
                             {
-                                module.Config.AiProvider.On();
+                                module.SetAiProviderEnabled(true);
                             }
 
                             if (Svc.PluginInterface.InstalledPlugins.Any(p => p.InternalName == "AEAssistV3" && p.IsLoaded))
