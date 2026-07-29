@@ -3,6 +3,7 @@ using BOCCHI.Data;
 using BOCCHI.Enums;
 using BOCCHI.Modules.Automator;
 using BOCCHI.Modules.CriticalEncounters;
+using BOCCHI.Modules.StateManager;
 using BOCCHI.Pathfinding;
 using System.Numerics;
 using System.Reflection;
@@ -242,11 +243,25 @@ var automatorConfig = new AutomatorConfig();
 var northFateIds = Enumerable.Range(2072, 13).Select(id => (uint)id).ToArray();
 var northCriticalEncounterIds = Enumerable.Range(49, 15).Select(id => (uint)id).ToArray();
 
+Assert(PromeRotationController.PluginInternalName == "PromeRotation"
+       && PromeRotationController.StartIpcName == "PromeRotation.IPC.Start"
+       && PromeRotationController.StopIpcName == "PromeRotation.IPC.Stop"
+       && PromeRotationController.IsRunningIpcName == "PromeRotation.IPC.IsRunning",
+    "PromeRotation automatic-rotation integration must retain the official plugin and IPC names.");
+
 Assert(NavigationActivityState.IsActive(false, true, false)
        && NavigationActivityState.IsActive(false, false, true),
     "Automator must keep one activity chain alive while vnavmesh SimpleMove/Nav is calculating a route.");
 Assert(!NavigationActivityState.IsActive(false, false, false),
     "Automator must still detect a genuinely stopped vnavmesh route.");
+Assert(!ActivityParticipationState.HasEnded(false, State.Idle),
+    "Automator must not reselect the same activity while waiting for initial FATE/CE participation.");
+Assert(ActivityParticipationState.IsInsideActivity(State.InFate)
+       && ActivityParticipationState.IsInsideActivity(State.InCriticalEncounter)
+       && !ActivityParticipationState.IsInsideActivity(State.InCombat),
+    "Only an observed FATE/CE state may arm activity-completion detection.");
+Assert(ActivityParticipationState.HasEnded(true, State.Idle),
+    "Automator must finish an activity after an observed FATE/CE returns to Idle.");
 
 Assert(automatorConfig.FatesMap.Keys.Where(northFateIds.Contains).Order().SequenceEqual(northFateIds),
     "Automator must expose one mapping for every North Horn FATE ID 2072 through 2084.");

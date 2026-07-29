@@ -59,6 +59,7 @@ public class AutomatorModule : Module
         {
             navigation.Stop();
         }
+        PromeRotationController.Stop();
 
         automator.Refresh();
 
@@ -93,6 +94,7 @@ public class AutomatorModule : Module
     {
         var wasDisabled = !Config.Enabled;
         Config.Enabled = true;
+        PromeRotationController.Stop();
 
         if (wasDisabled)
         {
@@ -105,7 +107,11 @@ public class AutomatorModule : Module
         var wasEnabled = Config.Enabled;
         Config.Enabled = false;
         automator.Refresh();
-        Plugin.IPC.GetSubscriber<VNavmesh>().Stop();
+        PromeRotationController.Stop();
+        if (TryGetIPCSubscriber<VNavmesh>(out var navigation) && navigation != null && navigation.IsReady())
+        {
+            navigation.Stop();
+        }
         Plugin.Chain.Abort();
         ChainManager.AbortAll();
 

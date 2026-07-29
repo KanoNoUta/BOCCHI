@@ -111,6 +111,7 @@ public class Farmer : IDisposable
 
         StartingPoint = Player.Position;
         RotationPlugin.PhantomJobOff();
+        PromeRotationController.Stop();
         if (Svc.PluginInterface.InstalledPlugins.Any(p => p.InternalName == "AEAssistV3" && p.IsLoaded))
         {
             Chat.ExecuteCommand("/aepull off");
@@ -125,6 +126,7 @@ public class Farmer : IDisposable
 
     public void DisableFarmerMode()
     {
+        PromeRotationController.Stop();
         Running = false;
         StartingPoint = Vector3.Zero;
         StateMachine.Reset();
@@ -144,6 +146,7 @@ public class Farmer : IDisposable
 
     public void Dispose()
     {
+        PromeRotationController.Stop();
         RotationPlugin.Dispose();
     }
 }

@@ -136,6 +136,7 @@ public class CriticalEncounter : Activity
                     {
                         TimeLimitMS = 180000,
                     }))
+                .Then(_ => PromeRotationController.Start())
                 .Then(_ => state = ActivityState.Participating);
         };
     }

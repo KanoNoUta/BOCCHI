@@ -21,11 +21,15 @@ namespace BOCCHI.Modules.MobFarmer.States;
 [State<FarmerPhase>(FarmerPhase.Fighting)]
 public class FightingHandler(MobFarmerModule module) : FarmerPhaseHandler(module)
 {
+    private bool promeRotationEnabled;
+
     public override void Enter()
     {
         base.Enter();
         var auto = Module.GetModule<AutomatorModule>();
         auto.Config.AiProvider.On();
+        PromeRotationController.Start();
+        promeRotationEnabled = true;
 
         if (Svc.PluginInterface.InstalledPlugins.Any(p => p.InternalName == "AEAssistV3" && p.IsLoaded))
         {
@@ -39,6 +43,8 @@ public class FightingHandler(MobFarmerModule module) : FarmerPhaseHandler(module
         base.Exit();
         var auto = Module.GetModule<AutomatorModule>();
         auto.Config.AiProvider.Off();
+        PromeRotationController.Stop();
+        promeRotationEnabled = false;
 
         if (Svc.PluginInterface.InstalledPlugins.Any(p => p.InternalName == "AEAssistV3" && p.IsLoaded))
         {
@@ -51,6 +57,12 @@ public class FightingHandler(MobFarmerModule module) : FarmerPhaseHandler(module
     public override FarmerPhase? Handle()
     {
         var anyInCombat = Module.Scanner.InCombat.Any();
+        if ((anyInCombat || Svc.Condition[ConditionFlag.InCombat]) && !promeRotationEnabled)
+        {
+            PromeRotationController.Start();
+            promeRotationEnabled = true;
+        }
+
         if (anyInCombat && EzThrottler.Throttle("Targetter"))
         {
             Svc.Targets.Target = Module.Scanner.InCombat.Centroid();
@@ -64,6 +76,7 @@ public class FightingHandler(MobFarmerModule module) : FarmerPhaseHandler(module
 
         if (shouldRefreshBuffs && !anyInCombat && !Plugin.Chain.IsRunning && EzThrottler.Throttle("Fighting.BuffChain", 1000))
         {
+            StopPromeRotationForTravel();
             var vnav = Module.GetIPCSubscriber<VNavmesh>();
             var lifestream = Module.GetIPCSubscriber<Lifestream>();
             var activityShard = AethernetData.AllByDistance(startingPoint).First();
@@ -74,6 +87,7 @@ public class FightingHandler(MobFarmerModule module) : FarmerPhaseHandler(module
 
         if (shouldReturnHome && !anyInCombat && !Plugin.Chain.IsRunning && EzThrottler.Throttle("Fighting.ReturnHome", 500))
         {
+            StopPromeRotationForTravel();
             var vnav = Module.GetIPCSubscriber<VNavmesh>();
             if (!vnav.IsRunning())
             {
@@ -96,5 +110,16 @@ public class FightingHandler(MobFarmerModule module) : FarmerPhaseHandler(module
         }
 
         return null;
+    }
+
+    private void StopPromeRotationForTravel()
+    {
+        if (!promeRotationEnabled)
+        {
+            return;
+        }
+
+        PromeRotationController.Stop();
+        promeRotationEnabled = false;
     }
 }

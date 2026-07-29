@@ -82,6 +82,7 @@ public class Automator
         {
             Plugin.Chain.Abort();
             vnav.Stop();
+            PromeRotationController.Stop();
             Activity = null;
         }
 
@@ -94,6 +95,7 @@ public class Automator
         {
             if (Activity.state == ActivityState.Done)
             {
+                PromeRotationController.Stop();
                 Activity = null;
                 return;
             }

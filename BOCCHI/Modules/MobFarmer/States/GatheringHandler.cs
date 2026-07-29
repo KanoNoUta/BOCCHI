@@ -29,6 +29,7 @@ public class GatheringHandler(MobFarmerModule module) : FarmerPhaseHandler(modul
         base.Enter();
         var auto = Module.GetModule<AutomatorModule>();
         auto.Config.AiProvider.Off();
+        PromeRotationController.Stop();
 
         if (Svc.PluginInterface.InstalledPlugins.Any(p => p.InternalName == "AEAssistV3" && p.IsLoaded))
         {

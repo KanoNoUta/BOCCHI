@@ -36,6 +36,8 @@ public abstract class Activity
 
     public ActivityState state = ActivityState.Idle;
 
+    private bool hasEnteredActivity;
+
     protected readonly Dictionary<ActivityState, Func<StateManagerModule, Func<Chain>?>> handlers;
 
     private readonly static List<uint> DangerousEnemies = [
@@ -65,6 +67,7 @@ public abstract class Activity
             || (DynamicEventContainer.GetInstance() != null && DynamicEventContainer.GetInstance()->CurrentEventId != 0))
         {
             state = ActivityState.Participating;
+            hasEnteredActivity = true;
         }
     }
 
@@ -84,6 +87,7 @@ public abstract class Activity
             }
 
             return Chain.Create("Illegal:Idle")
+                .Then(_ => PromeRotationController.Stop())
                 .ConditionalThen(ShouldToggleAi, _ => module.Config.AiProvider.Off())
                 .ConditionalThen(_ => Svc.PluginInterface.InstalledPlugins.Any(p => p.InternalName == "AEAssistV3" && p.IsLoaded), _ =>
                 {
@@ -182,6 +186,7 @@ public abstract class Activity
         return () =>
         {
             return Chain.Create("Illegal:Participating")
+                .Then(_ => PromeRotationController.Start())
                 .ConditionalThen(_ => module.Config.ShouldToggleAiProvider, _ => module.Config.AiProvider.On())
                 .ConditionalThen(_ => Svc.PluginInterface.InstalledPlugins.Any(p => p.InternalName == "AEAssistV3" && p.IsLoaded), _ =>
                 {
@@ -193,7 +198,7 @@ public abstract class Activity
                 {
                     if (!module.Config.ShouldForceTarget || !EzThrottler.Throttle("Participating.ForceTarget", 500))
                     {
-                        return states.GetState() == State.Idle;
+                        return HasParticipationEnded(states);
                     }
 
                     var enemies = GetEnemies();
@@ -201,12 +206,12 @@ public abstract class Activity
                     if (enemies.Any(e => DangerousEnemies.Contains(e.BaseId) && e.CurrentHp > 0))
                     {
                         Svc.Targets.Target = enemies.FirstOrDefault(e => DangerousEnemies.Contains(e.BaseId) && e.CurrentHp > 0);
-                        return states.GetState() == State.Idle;
+                        return HasParticipationEnded(states);
                     }
 
                     Svc.Targets.Target = module.Config.ShouldForceTargetCentralEnemy ? enemies.Centroid() : enemies.Closest();
 
-                    return states.GetState() == State.Idle;
+                    return HasParticipationEnded(states);
                 }, new TaskManagerConfiguration { TimeLimitMS = int.MaxValue }))
                 .Then(_ => state = ActivityState.Done);
         };
@@ -234,6 +239,13 @@ public abstract class Activity
         var radius = data.Radius ?? GetRadius();
 
         return Player.DistanceTo(GetPosition()) <= radius;
+    }
+
+    private bool HasParticipationEnded(StateManagerModule states)
+    {
+        var currentState = states.GetState();
+        hasEnteredActivity |= ActivityParticipationState.IsInsideActivity(currentState);
+        return ActivityParticipationState.HasEnded(hasEnteredActivity, currentState);
     }
 
     /// <summary>
@@ -287,5 +299,21 @@ public static class NavigationActivityState
     public static bool IsActive(bool movementRunning, bool simpleMoveInProgress, bool pathfindInProgress)
     {
         return movementRunning || IsCalculating(simpleMoveInProgress, pathfindInProgress);
+    }
+}
+
+public static class ActivityParticipationState
+{
+    public static bool IsInsideActivity(State state)
+    {
+        return state is State.InFate or State.InCriticalEncounter;
+    }
+
+    public static bool HasEnded(bool hasEnteredActivity, State state)
+    {
+        // Idle before the client awards FATE/CE participation means "waiting
+        // for the event to engage", not "event finished". Only accept Idle as
+        // completion after the state machine has observed the event once.
+        return hasEnteredActivity && state == State.Idle;
     }
 }
