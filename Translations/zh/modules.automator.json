@@ -30,6 +30,22 @@
           "label": "接战距离",
           "tooltip": "距离FATE怪物多远时下坐骑并启动循环/AI插件"
         },
+        "auto_rotate_instance": {
+          "label": "自动轮换副本",
+          "tooltip": "无人值守时自动退出当前蜃景岛，并重新进入刚才所在的南征或北征区域"
+        },
+        "instance_stay_minutes": {
+          "label": "岛内停留时间（分钟）",
+          "tooltip": "达到该时间后等待无FATE、CE、战斗和自动化任务时开始轮换"
+        },
+        "rotate_when_population_low": {
+          "label": "人数过少时轮换",
+          "tooltip": "服务器返回的岛内人数连续两次低于阈值时也开始轮换"
+        },
+        "minimum_instance_population": {
+          "label": "最低岛内人数",
+          "tooltip": "游戏的场景成员列表人数低于此值时轮换，不使用附近玩家数估算"
+        },
         "do_critical_encounters": {
           "label": "参加CE",
           "tooltip": "选择运行时是否考虑参加CE"
@@ -301,13 +317,31 @@
           "label": "运行状态",
           "none": "等待运行"
         },
+        "rotation": {
+          "state": "副本轮换",
+          "remaining": "剩余时间",
+          "population": "岛内人数",
+          "states": {
+            "idle": "未启动",
+            "monitoring": "监控中",
+            "waitingforexit": "等待离岛",
+            "cooldown": "等待15秒后重新进入",
+            "waitingforentry": "等待重新进入",
+            "failed": "异常后已停止"
+          }
+        },
         "lens": {
           "title": "BOCCHI 非法模式"
         }
       },
       "messages": {
         "off": "[BOCCHI] 非法模式关闭",
-        "on": "[BOCCHI] 非法模式启动"
+        "on": "[BOCCHI] 非法模式启动",
+        "rotation": {
+          "exit": "[BOCCHI] 副本轮换：正在退出当前区域。",
+          "entry": "[BOCCHI] 副本轮换：正在申请重新进入之前的区域。",
+          "failed": "[BOCCHI] 副本轮换因超时或DailyRoutines命令不可用而停止。处理问题后请关闭并重新开启非法模式。"
+        }
       }
     }
   }

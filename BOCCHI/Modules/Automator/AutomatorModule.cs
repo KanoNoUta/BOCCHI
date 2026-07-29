@@ -26,6 +26,8 @@ public class AutomatorModule : Module
 
     public readonly Automator automator = new();
 
+    public readonly InstanceRotationController instanceRotation = new();
+
     public readonly Panel panel = new();
 
     public readonly Random random = new();
@@ -40,6 +42,11 @@ public class AutomatorModule : Module
 
     public override void PostUpdate(UpdateContext context)
     {
+        if (instanceRotation.PostUpdate(this))
+        {
+            return;
+        }
+
         automator.PostUpdate(this, context.Framework);
     }
 
@@ -61,8 +68,14 @@ public class AutomatorModule : Module
         }
 
         automator.Refresh();
+        instanceRotation.OnTerritoryChanged(id);
 
         if (BOCCHI.Data.ZoneData.IsOccultCrescentTerritory(id))
+        {
+            return;
+        }
+
+        if (InstanceRotationController.IsTransitionActive)
         {
             return;
         }
@@ -104,6 +117,7 @@ public class AutomatorModule : Module
     {
         var wasEnabled = Config.Enabled;
         Config.Enabled = false;
+        instanceRotation.Reset();
         automator.Refresh();
         Plugin.IPC.GetSubscriber<VNavmesh>().Stop();
         Plugin.Chain.Abort();

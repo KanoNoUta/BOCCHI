@@ -496,6 +496,102 @@ Assert(northFateIds.All(id => !automatorConfig.FatesMap[id]),
 Assert(northCriticalEncounterIds.All(id => !automatorConfig.CriticalEncountersMap[id]),
     "The master CE switch must suppress all North Horn CE settings.");
 
+Assert(!automatorConfig.AutoRotateInstance && automatorConfig.InstanceStayMinutes == 90f
+       && !automatorConfig.RotateWhenPopulationLow && automatorConfig.MinimumInstancePopulation == 10,
+    "Unattended instance rotation must remain opt-in with conservative defaults.");
+foreach (var propertyName in new[]
+         {
+             nameof(AutomatorConfig.AutoRotateInstance), nameof(AutomatorConfig.InstanceStayMinutes),
+             nameof(AutomatorConfig.RotateWhenPopulationLow), nameof(AutomatorConfig.MinimumInstancePopulation),
+         })
+{
+    Assert(typeof(AutomatorConfig).GetProperty(propertyName)?.GetCustomAttributes().Any() == true,
+        $"Instance rotation setting {propertyName} must be rendered by the configuration UI.");
+}
+
+var rotationStart = new DateTimeOffset(2026, 7, 30, 0, 0, 0, TimeSpan.Zero);
+var rotation = new InstanceRotationStateMachine();
+var monitoringInput = new InstanceRotationInput(true, ZoneData.SOUTHHORN, true, TimeSpan.FromMinutes(90), false);
+Assert(rotation.Update(rotationStart, monitoringInput) == InstanceRotationAction.None
+       && rotation.State == InstanceRotationState.Monitoring,
+    "Instance rotation must begin by monitoring the current Occult Crescent territory.");
+
+var unsafeLowPopulationInput = monitoringInput with { CanStart = false, PopulationLow = true };
+Assert(rotation.Update(rotationStart.AddMinutes(1), unsafeLowPopulationInput) == InstanceRotationAction.None
+       && rotation.State == InstanceRotationState.Monitoring,
+    "Low population must not force an exit during a FATE, CE, combat, or active automation task.");
+
+var safeLowPopulationInput = monitoringInput with { PopulationLow = true };
+Assert(rotation.Update(rotationStart.AddMinutes(1).AddSeconds(1), safeLowPopulationInput)
+       == InstanceRotationAction.RequestExit,
+    "A confirmed low-population condition must request one safe exit.");
+Assert(rotation.Reason == InstanceRotationReason.PopulationLow
+       && rotation.Update(rotationStart.AddMinutes(1).AddSeconds(2), safeLowPopulationInput)
+       == InstanceRotationAction.None,
+    "The exit command must not be emitted again while waiting to leave.");
+
+var outsideInput = monitoringInput with { TerritoryId = 0, CanStart = false, PopulationLow = false };
+var leftAt = rotationStart.AddMinutes(1).AddSeconds(3);
+Assert(rotation.Update(leftAt, outsideInput) == InstanceRotationAction.None
+       && rotation.State == InstanceRotationState.Cooldown,
+    "The 15-second re-entry delay must begin only after the original territory has been left.");
+Assert(rotation.Update(leftAt.AddSeconds(14.999), outsideInput) == InstanceRotationAction.None,
+    "Instance rotation must wait the full 15 seconds before requesting re-entry.");
+Assert(rotation.Update(leftAt.AddSeconds(15), outsideInput) == InstanceRotationAction.EnterSouthHorn
+       && rotation.State == InstanceRotationState.WaitingForEntry,
+    "South Horn rotation must select the ocs entry action after the full cooldown.");
+Assert(rotation.Update(leftAt.AddSeconds(16), outsideInput) == InstanceRotationAction.None,
+    "The entry command must not be emitted again while waiting for territory confirmation.");
+Assert(rotation.Update(leftAt.AddSeconds(20), monitoringInput) == InstanceRotationAction.None
+       && rotation.State == InstanceRotationState.Monitoring
+       && rotation.IslandEnteredAt == leftAt.AddSeconds(20),
+    "Returning to the original territory must reset the stay timer for the next cycle.");
+
+var northRotation = new InstanceRotationStateMachine();
+var northInput = new InstanceRotationInput(true, ZoneData.NORTHHORN, true, TimeSpan.FromMinutes(15), false);
+northRotation.Update(rotationStart, northInput);
+Assert(northRotation.Update(rotationStart.AddMinutes(15), northInput) == InstanceRotationAction.RequestExit
+       && northRotation.Reason == InstanceRotationReason.StayTimeElapsed,
+    "The configured stay duration must trigger a time-based rotation.");
+northRotation.Update(rotationStart.AddMinutes(15).AddSeconds(1), northInput with { TerritoryId = 0 });
+Assert(northRotation.Update(rotationStart.AddMinutes(15).AddSeconds(16), northInput with { TerritoryId = 0 })
+       == InstanceRotationAction.EnterNorthHorn,
+    "North Horn rotation must select the ocn entry action.");
+Assert(InstanceRotationController.LeaveCommand == "/pdr leaveduty"
+       && InstanceRotationController.SouthHornEntryCommand == "/pdrfe ocs"
+       && InstanceRotationController.NorthHornEntryCommand == "/pdrfe ocn",
+    "DailyRoutines rotation commands must remain aligned with the verified local command modules.");
+
+var cancelledRotation = new InstanceRotationStateMachine();
+cancelledRotation.Update(rotationStart, monitoringInput);
+cancelledRotation.Update(rotationStart.AddMinutes(90), monitoringInput);
+Assert(cancelledRotation.Update(rotationStart.AddMinutes(90).AddSeconds(1), monitoringInput with { Enabled = false })
+       == InstanceRotationAction.None
+       && cancelledRotation.State == InstanceRotationState.Idle,
+    "Disabling automation must cancel an in-progress instance rotation.");
+
+var timedOutRotation = new InstanceRotationStateMachine();
+timedOutRotation.Update(rotationStart, monitoringInput);
+timedOutRotation.Update(rotationStart.AddMinutes(90), monitoringInput);
+Assert(timedOutRotation.Update(rotationStart.AddMinutes(90) + InstanceRotationStateMachine.ExitTimeout,
+           monitoringInput) == InstanceRotationAction.None
+       && timedOutRotation.State == InstanceRotationState.Failed,
+    "An unconfirmed exit must stop after its timeout instead of retrying every frame.");
+Assert(timedOutRotation.Update(rotationStart.AddHours(3), monitoringInput) == InstanceRotationAction.None,
+    "A failed rotation must remain command-silent until explicitly reset.");
+
+var entryTimedOutRotation = new InstanceRotationStateMachine();
+entryTimedOutRotation.Update(rotationStart, monitoringInput);
+entryTimedOutRotation.Update(rotationStart.AddMinutes(90), monitoringInput);
+var entryTimeoutLeftAt = rotationStart.AddMinutes(90).AddSeconds(1);
+entryTimedOutRotation.Update(entryTimeoutLeftAt, outsideInput);
+entryTimedOutRotation.Update(entryTimeoutLeftAt + InstanceRotationStateMachine.ReentryCooldown, outsideInput);
+Assert(entryTimedOutRotation.Update(
+           entryTimeoutLeftAt + InstanceRotationStateMachine.ReentryCooldown + InstanceRotationStateMachine.EntryTimeout,
+           outsideInput) == InstanceRotationAction.None
+       && entryTimedOutRotation.State == InstanceRotationState.Failed,
+    "An unconfirmed re-entry must stop after its timeout without re-sending the entry command.");
+
 var translationRoot = Path.Combine(Directory.GetCurrentDirectory(), "Translations");
 Assert(Directory.Exists(translationRoot), $"Translation directory was not found: {translationRoot}");
 var translationFiles = Directory.EnumerateFiles(translationRoot, "*.json", SearchOption.AllDirectories).ToArray();
@@ -520,6 +616,15 @@ foreach (var language in new[] { "en", "fr", "jp", "zh" })
     Assert(!configKeys.TryGetProperty("do_north_horn_ce64", out _)
            && !configKeys.TryGetProperty("do_north_horn_ce65", out _),
         $"{language} Automator translation still exposes dead Forked Tower controls.");
+    foreach (var key in new[]
+             {
+                 "auto_rotate_instance", "instance_stay_minutes", "rotate_when_population_low",
+                 "minimum_instance_population",
+             })
+    {
+        Assert(configKeys.TryGetProperty(key, out _),
+            $"{language} Automator translation is missing instance rotation key {key}.");
+    }
 
     var criticalFile = Path.Combine(translationRoot, language, "modules.critical_encounters.json");
     using var criticalDocument = JsonDocument.Parse(File.ReadAllText(criticalFile));

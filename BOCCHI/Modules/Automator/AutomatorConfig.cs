@@ -48,6 +48,35 @@ public class AutomatorConfig : ModuleConfig
 
     [FloatRange(5f, 30f)] public float EngagementRange { get; set; } = 5f;
 
+    [Checkbox]
+    [RequiredPlugin("DailyRoutines")]
+    public bool AutoRotateInstance { get; set; } = false;
+
+    public bool ShouldAutoRotateInstance
+    {
+        get => IsPropertyEnabled(nameof(AutoRotateInstance));
+    }
+
+    [FloatRange(15f, 180f)]
+    [DependsOn(nameof(AutoRotateInstance))]
+    [Indent]
+    public float InstanceStayMinutes { get; set; } = 90f;
+
+    [Checkbox]
+    [DependsOn(nameof(AutoRotateInstance))]
+    [Indent]
+    public bool RotateWhenPopulationLow { get; set; } = false;
+
+    public bool ShouldRotateWhenPopulationLow
+    {
+        get => IsPropertyEnabled(nameof(RotateWhenPopulationLow));
+    }
+
+    [IntRange(1, 72)]
+    [DependsOn(nameof(RotateWhenPopulationLow))]
+    [Indent]
+    public int MinimumInstancePopulation { get; set; } = 10;
+
     // Critical Encounters
     [Checkbox] public bool DoCriticalEncounters { get; set; } = true;
 
