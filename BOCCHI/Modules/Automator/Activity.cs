@@ -2,6 +2,7 @@
 using BOCCHI.Chains;
 using BOCCHI.Data;
 using BOCCHI.Enums;
+using BOCCHI.Pathfinding;
 using BOCCHI.Modules.StateManager;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.Objects.Types;
@@ -102,7 +103,8 @@ public abstract class Activity
             var activityShard = GetAethernetData();
 
             var isFate = data.Type == EventType.Fate;
-            var navType = SmartNavigation.Decide(Player.Position, GetPosition(), activityShard);
+            var destination = GetPosition();
+            var navType = SmartNavigation.Decide(Player.Position, destination, activityShard);
 
             module.Debug("Selected navigation type: " + navType);
 
@@ -114,16 +116,12 @@ public abstract class Activity
             switch (navType)
             {
                 case NavigationType.Walk:
-                    chain
-                        .Then(new PathfindingChain(vnav, GetPosition(), data))
-                        .ConditionalThen(_ => ShouldMountToPathfindTo(GetPosition()), ChainHelper.MountChain());
+                    chain = AppendPathfinding(chain, destination);
                     break;
 
                 case NavigationType.ReturnWalk:
-                    chain
-                        .Then(ChainHelper.ReturnChain())
-                        .Then(new PathfindingChain(vnav, GetPosition(), data))
-                        .ConditionalThen(_ => ShouldMountToPathfindTo(GetPosition()), ChainHelper.MountChain());
+                    chain.Then(ChainHelper.ReturnChain());
+                    chain = AppendPathfinding(chain, destination);
                     break;
 
                 case NavigationType.ReturnTeleportWalk:
@@ -131,9 +129,8 @@ public abstract class Activity
                         .Then(ChainHelper.ReturnChain(new ReturnChainConfig { ApproachAetheryte = true }))
                         .Then(ChainHelper.TeleportChain(activityShard.Aethernet))
                         .Debug("Waiting for lifestream to not be 'busy'")
-                        .Then(new TaskManagerTask(() => !lifestream.IsBusy(), new TaskManagerConfiguration { TimeLimitMS = 30000 }))
-                        .Then(new PathfindingChain(vnav, GetPosition(), data))
-                        .ConditionalThen(_ => ShouldMountToPathfindTo(GetPosition()), ChainHelper.MountChain());
+                        .Then(new TaskManagerTask(() => !lifestream.IsBusy(), new TaskManagerConfiguration { TimeLimitMS = 30000 }));
+                    chain = AppendPathfinding(chain, destination);
                     break;
 
                 case NavigationType.WalkTeleportWalk:
@@ -143,9 +140,8 @@ public abstract class Activity
                         .Then(_ => vnav.Stop())
                         .Then(ChainHelper.TeleportChain(activityShard.Aethernet))
                         .Debug("Waiting for lifestream to not be 'busy'")
-                        .Then(new TaskManagerTask(() => !lifestream.IsBusy(), new TaskManagerConfiguration { TimeLimitMS = 30000 }))
-                        .Then(new PathfindingChain(vnav, GetPosition(), data))
-                        .ConditionalThen(_ => ShouldMountToPathfindTo(GetPosition()), ChainHelper.MountChain());
+                        .Then(new TaskManagerTask(() => !lifestream.IsBusy(), new TaskManagerConfiguration { TimeLimitMS = 30000 }));
+                    chain = AppendPathfinding(chain, destination);
                     break;
             }
 
@@ -162,6 +158,21 @@ public abstract class Activity
 
             return chain;
         };
+    }
+
+    private Chain AppendPathfinding(Chain chain, Vector3 destination)
+    {
+        var pathfinding = new PathfindingChain(vnav, destination, data);
+        var useSouthCrossing = false;
+
+        return chain
+            .ConditionalThen(_ =>
+            {
+                useSouthCrossing = NorthHornSouthCrossingRoute.ShouldUse(data, Player.Position);
+                return useSouthCrossing && ShouldMountToPathfindTo(destination);
+            }, ChainHelper.MountChain())
+            .Then(pathfinding)
+            .ConditionalThen(_ => !useSouthCrossing && ShouldMountToPathfindTo(destination), ChainHelper.MountChain());
     }
 
 

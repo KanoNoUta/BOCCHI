@@ -23,6 +23,26 @@ var northFates = EventData.GetFatesForTerritory(ZoneData.NORTHHORN).ToList();
 var southCriticalEncounters = EventData.GetCriticalEncountersForTerritory(ZoneData.SOUTHHORN).ToList();
 var northCriticalEncounters = EventData.GetCriticalEncountersForTerritory(ZoneData.NORTHHORN).ToList();
 
+var fate2075 = EventData.Fates[2075];
+var wispLanding = Aethernet.WillOWispVillage.GetData().Destination;
+Assert(NorthHornSouthCrossingRoute.TryCreate(fate2075, wispLanding, out var southCrossingRoute),
+    "FATE 2075 must use the South Crossing transit profile from Will-o'-the-Wisp Village.");
+Assert(southCrossingRoute.Count == 92,
+    "FATE 2075 South Crossing route must retain every verified land waypoint.");
+Assert(Vector3.Distance(southCrossingRoute[^1], new Vector3(510f, 15.65f, -30f)) < 0.01f,
+    "FATE 2075 South Crossing route must end on the east-bank approach.");
+Assert(Vector3.Distance(wispLanding, southCrossingRoute[0]) <= 15.01f
+       && southCrossingRoute.Zip(southCrossingRoute.Skip(1), Vector3.Distance).All(distance => distance <= 15.01f),
+    "Every FATE 2075 South Crossing leg must remain inside the verified direct-follow radius.");
+Assert(southCrossingRoute.All(point => point.Y > 1f),
+    "FATE 2075 South Crossing route must not include the river-water shortcut.");
+Assert(southCrossingRoute.Any(point => point.X is > 175f and < 256f && point.Z is > -470f and < -420f),
+    "FATE 2075 South Crossing route is missing the verified southern lowland transit segment.");
+Assert(!NorthHornSouthCrossingRoute.ShouldUse(fate2075, fate2075.StartPosition!.Value),
+    "The FATE 2075 South Crossing profile must not override an already-east-bank route.");
+Assert(!NorthHornSouthCrossingRoute.ShouldUse(EventData.Fates[2076], wispLanding),
+    "The South Crossing profile must not affect another North Horn FATE.");
+
 Assert(southFates.Count == 13, $"Expected 13 South Horn FATEs, got {southFates.Count}.");
 Assert(northFates.Count == 13, $"Expected 13 North Horn FATEs, got {northFates.Count}.");
 Assert(southCriticalEncounters.Count == 16, $"Expected 16 South Horn dynamic events, got {southCriticalEncounters.Count}.");
