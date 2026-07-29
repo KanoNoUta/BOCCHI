@@ -129,7 +129,7 @@ public abstract class Activity : IDisposable
             var chain = Chain.Create("Illegal:Pathfinding")
                 .ConditionalThen(_ => isFate && module.Config.ShouldStanceOnBeforeDoFates && Player.Job.IsTank(), new StanceChain(isFate))
                 .ConditionalThen(_ => !isFate && module.Config.ShouldStanceOffBeforeCriticalEncounters && Player.Job.IsTank(), new StanceChain(isFate))
-                .ConditionalWait(_ => !isFate && module.Config.ShouldDelayCriticalEncounters && lifestream.GetActiveCustomAetheryte() != 0, Random.Shared.Next((int)module.Config.MinDelay * 1000, (int)module.Config.MaxDelay * 1000));
+                .ConditionalWait(_ => !isFate && module.Config.ShouldDelayCriticalEncounters, Random.Shared.Next((int)module.Config.MinDelay * 1000, (int)module.Config.MaxDelay * 1000));
 
             switch (plan.Type)
             {
@@ -145,19 +145,15 @@ public abstract class Activity : IDisposable
                 case NavigationType.ReturnTeleportWalk:
                     chain
                         .Then(ChainHelper.ReturnChain(new ReturnChainConfig { ApproachAetheryte = true }))
-                        .Then(ChainHelper.TeleportChain(plan.DestinationAethernet))
+                        .Then(ChainHelper.TeleportChain(plan.DestinationAethernet, plan.SourceAethernet))
                         .Debug("Waiting for lifestream to not be 'busy'")
                         .Then(new TaskManagerTask(() => !lifestream.IsBusy(), new TaskManagerConfiguration { TimeLimitMS = 30000 }));
                     chain = AppendPathfinding(chain, destination, pathfinding);
                     break;
 
                 case NavigationType.WalkTeleportWalk:
-                    var playerShard = plan.SourceAethernet.GetData();
                     chain
-                        .ConditionalThen(_ => lifestream.GetActiveCustomAetheryte() == 0, new PathfindAndMoveToChain(vnav, playerShard.Position))
-                        .BreakIf(() => lifestream.GetActiveCustomAetheryte() == 0)
-                        .Then(_ => vnav.Stop())
-                        .Then(ChainHelper.TeleportChain(plan.DestinationAethernet))
+                        .Then(ChainHelper.TeleportChain(plan.DestinationAethernet, plan.SourceAethernet))
                         .Debug("Waiting for lifestream to not be 'busy'")
                         .Then(new TaskManagerTask(() => !lifestream.IsBusy(), new TaskManagerConfiguration { TimeLimitMS = 30000 }));
                     chain = AppendPathfinding(chain, destination, pathfinding);

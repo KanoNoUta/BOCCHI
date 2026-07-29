@@ -67,12 +67,13 @@ public class ChainHelper
         return new ReturnChain(Modules.GetModule<TeleporterModule>(), config);
     }
 
-    public static TeleportChain TeleportChain(Aethernet aethernet)
+    public static TeleportChain TeleportChain(Aethernet aethernet, Aethernet? sourceAethernet = null)
     {
         return new TeleportChain(
             aethernet,
             IPC.GetSubscriber<Lifestream>(),
-            Modules.GetModule<TeleporterModule>()
+            Modules.GetModule<TeleporterModule>(),
+            sourceAethernet
         );
     }
 

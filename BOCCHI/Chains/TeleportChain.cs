@@ -5,30 +5,32 @@ using Dalamud.Game.ClientState.Conditions;
 using Ocelot.Chain;
 using Ocelot.Chain.ChainEx;
 using Ocelot.IPC;
-using System.Linq;
 
 namespace BOCCHI.Chains;
 
-public class TeleportChain(Aethernet aethernet, Lifestream lifestream, TeleporterModule module) : ChainFactory
+public class TeleportChain(
+    Aethernet aethernet,
+    Lifestream lifestream,
+    TeleporterModule module,
+    Aethernet? sourceAethernet = null) : ChainFactory
 {
     protected override Chain Create(Chain chain)
     {
         var vnav = module.GetIPCSubscriber<VNavmesh>();
-        var nearby = ZoneData.GetNearbyAethernetShards(20);
-        if (nearby.Count <= 0)
-        {
-            return chain;
-        }
+        // Resolve the source from the navigation plan when available. Generic
+        // manual callers are already required to be near a shard, so their
+        // closest known shard is the correct fallback.
+        var source = sourceAethernet?.GetData() ?? AethernetData.GetClosestToPlayer();
 
         chain.Then(_ => lifestream.Abort());
-        chain.BreakIf(() => nearby.Count <= 0);
+        chain.ConditionalThen(
+            _ => source.DistanceToPlayer() > AethernetData.DISTANCE,
+            new PathfindAndMoveToChain(vnav, source.Position));
 
-        var nearest = nearby.First();
-        if (lifestream.GetActiveCustomAetheryte() == 0)
-        {
-            chain.Then(new PathfindAndMoveToChain(vnav, nearest.Position));
-            chain.Then(_ => lifestream.GetActiveCustomAetheryte() != 0);
-        }
+        // The active custom-aetheryte query is optional in some CN plugin load
+        // orders. Validate proximity from the live game object instead, then
+        // keep using Lifestream for the actual aethernet teleport.
+        chain.BreakIf(() => !ZoneData.IsNearAethernetShard(source.Aethernet, AethernetData.DISTANCE + 1f));
 
         chain.Then(_ => vnav.Stop());
         chain.Then(_ => lifestream.AethernetTeleportByPlaceNameId((uint)aethernet));

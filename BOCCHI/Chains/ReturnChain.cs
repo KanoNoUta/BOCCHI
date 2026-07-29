@@ -43,11 +43,9 @@ public class ReturnChain(TeleporterModule module, ReturnChainConfig config) : Ch
         if (config.ApproachAetheryte)
         {
             var vnav = module.GetIPCSubscriber<VNavmesh>();
-            var lifestream = module.GetIPCSubscriber<Lifestream>();
             var position = GetAetherytePosition();
 
             chain.Then(PathfindAndMoveToChain.RandomNearby(vnav, position, 3));
-            chain.Then(_ => lifestream.GetActiveCustomAetheryte() != 0);
             chain.Then(_ => Svc.Targets.Target = Svc.Objects.FirstOrDefault(o => o.BaseId == AethernetData.GetClosestToPlayer().BaseId));
             chain.Then(_ => vnav.Stop());
         }

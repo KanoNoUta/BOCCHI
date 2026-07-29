@@ -1,5 +1,6 @@
 ﻿using BOCCHI.ActionHelpers;
 using BOCCHI.Chains;
+using BOCCHI.Data;
 using BOCCHI.Enums;
 using Dalamud.Game.ClientState.Conditions;
 using ECommons.Automation.NeoTaskManager;
@@ -17,7 +18,7 @@ public class ReturnTeleportWalkChain(VNavmesh vnav, Lifestream lifestream, Vecto
     protected override Chain Create(Chain chain)
     {
         chain.Then(ChainHelper.ReturnChain(new ReturnChainConfig { ApproachAetheryte = true }));
-        chain.Then(ChainHelper.TeleportChain(activityShard.Aethernet));
+        chain.Then(ChainHelper.TeleportChain(activityShard.Aethernet, ZoneData.GetBaseCampAethernet()));
         chain.Debug("Waiting for lifestream to not be 'busy'");
         chain.Then(new TaskManagerTask(() => !lifestream.IsBusy(), new TaskManagerConfiguration { TimeLimitMS = 30000 }));
         chain.Then(new PathfindAndMoveToChain(vnav, destination));
