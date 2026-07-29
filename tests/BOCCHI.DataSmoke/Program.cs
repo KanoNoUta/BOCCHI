@@ -18,6 +18,163 @@ static void Assert(bool condition, string message)
     }
 }
 
+static AethernetData CreateShard(Aethernet aethernet, Vector3 position, Vector3 destination)
+{
+    return new AethernetData
+    {
+        Aethernet = aethernet,
+        Position = position,
+        Destination = destination,
+    };
+}
+
+static Task<List<Vector3>> StraightPath(Vector3 start, Vector3 destination, CancellationToken _)
+{
+    return Task.FromResult(new List<Vector3> { start, destination });
+}
+
+var navigationEvent = new EventData
+{
+    Id = 9000,
+    Type = EventType.Fate,
+    InternalName = "Smart navigation smoke test",
+};
+var navigationPlayer = Vector3.Zero;
+var navigationDestination = new Vector3(100f, 0f, 0f);
+var navigationBaseCamp = CreateShard(
+    Aethernet.NorthBaseCamp,
+    new Vector3(1000f, 0f, 0f),
+    new Vector3(1000f, 0f, 0f));
+var navigationSource = CreateShard(
+    Aethernet.WillOWispVillage,
+    new Vector3(45f, 0f, 0f),
+    new Vector3(1000f, 0f, 0f));
+var navigationTarget = CreateShard(
+    Aethernet.SunkenTempleFront,
+    new Vector3(900f, 0f, 0f),
+    new Vector3(60f, 0f, 0f));
+var navigationShards = new[] { navigationBaseCamp, navigationSource, navigationTarget };
+
+var detourPlan = await SmartNavigation.DecideAsync(
+    navigationPlayer,
+    navigationDestination,
+    navigationEvent,
+    navigationShards,
+    navigationBaseCamp,
+    (start, destination, _) => Task.FromResult(
+        start == navigationPlayer && destination == navigationDestination
+            ? new List<Vector3> { start, new(0f, 0f, 300f), destination }
+            : new List<Vector3> { start, destination }),
+    returnCost: 300f,
+    teleportCost: 20f,
+    destinationCandidateCount: 2,
+    sourceCandidateCount: 1,
+    segmentTimeout: TimeSpan.FromSeconds(1));
+var straightFallbackPlan = SmartNavigation.DecideFallback(
+    navigationPlayer,
+    navigationDestination,
+    navigationEvent,
+    navigationShards,
+    navigationBaseCamp,
+    returnCost: 300f,
+    teleportCost: 20f,
+    "test comparison");
+Assert(straightFallbackPlan.Type == NavigationType.Walk
+       && detourPlan.Type == NavigationType.WalkTeleportWalk
+       && detourPlan.SourceAethernet == navigationSource.Aethernet
+       && detourPlan.DestinationAethernet == navigationTarget.Aethernet,
+    "Measured vnavmesh detours must be able to change the route selected by straight-line costs.");
+
+var cheapTeleportPlan = await SmartNavigation.DecideAsync(
+    navigationPlayer,
+    navigationDestination,
+    navigationEvent,
+    navigationShards,
+    navigationBaseCamp,
+    StraightPath,
+    returnCost: 300f,
+    teleportCost: 5f,
+    destinationCandidateCount: 2,
+    sourceCandidateCount: 1,
+    segmentTimeout: TimeSpan.FromSeconds(1));
+var expensiveTeleportPlan = await SmartNavigation.DecideAsync(
+    navigationPlayer,
+    navigationDestination,
+    navigationEvent,
+    navigationShards,
+    navigationBaseCamp,
+    StraightPath,
+    returnCost: 300f,
+    teleportCost: 200f,
+    destinationCandidateCount: 2,
+    sourceCandidateCount: 1,
+    segmentTimeout: TimeSpan.FromSeconds(1));
+Assert(cheapTeleportPlan.Type == NavigationType.WalkTeleportWalk
+       && expensiveTeleportPlan.Type == NavigationType.Walk,
+    "TeleportCost must participate in smart-navigation route selection.");
+
+var preferredNavigationEvent = navigationEvent;
+preferredNavigationEvent.Aethernet = navigationTarget.Aethernet;
+var unreachableTargetPlan = await SmartNavigation.DecideAsync(
+    navigationPlayer,
+    navigationDestination,
+    preferredNavigationEvent,
+    navigationShards,
+    navigationBaseCamp,
+    (start, destination, token) =>
+    {
+        if (start == navigationTarget.Destination && destination == navigationDestination)
+        {
+            throw new InvalidOperationException("target is unreachable");
+        }
+
+        return StraightPath(start, destination, token);
+    },
+    returnCost: 300f,
+    teleportCost: 5f,
+    destinationCandidateCount: 1,
+    sourceCandidateCount: 1,
+    segmentTimeout: TimeSpan.FromSeconds(1));
+Assert(unreachableTargetPlan.Candidates.All(candidate =>
+        candidate.DestinationAethernet != navigationTarget.Aethernet),
+    "Candidates with an unreachable aethernet-to-event segment must be skipped.");
+
+var fallbackPlan = await SmartNavigation.DecideAsync(
+    navigationPlayer,
+    navigationDestination,
+    navigationEvent,
+    navigationShards,
+    navigationBaseCamp,
+    (_, _, _) => Task.FromResult(new List<Vector3>()),
+    returnCost: 300f,
+    teleportCost: 20f,
+    destinationCandidateCount: 2,
+    sourceCandidateCount: 1,
+    segmentTimeout: TimeSpan.FromSeconds(1));
+Assert(fallbackPlan.UsedFallback && fallbackPlan.FallbackReason != null,
+    "Smart navigation must fall back to straight-line costs when every vnavmesh segment fails.");
+
+var preferredPlan = await SmartNavigation.DecideAsync(
+    navigationPlayer,
+    navigationDestination,
+    preferredNavigationEvent,
+    navigationShards,
+    navigationBaseCamp,
+    StraightPath,
+    returnCost: 300f,
+    teleportCost: 20f,
+    destinationCandidateCount: 1,
+    sourceCandidateCount: 1,
+    segmentTimeout: TimeSpan.FromSeconds(1));
+Assert(preferredPlan.Candidates.Any(candidate =>
+        candidate.DestinationAethernet == navigationTarget.Aethernet),
+    "An event's preferred aethernet must survive destination-candidate prefiltering.");
+Assert(FateTravelTargetPolicy.ShouldPursue(2075, 2075),
+    "FATE travel must allow targets that belong to the selected FATE.");
+Assert(!FateTravelTargetPolicy.ShouldPursue(2075, 0)
+       && !FateTravelTargetPolicy.ShouldPursue(2075, 2076),
+    "Roadside enemies and enemies from another FATE must not override the selected activity route.");
+
 var southFates = EventData.GetFatesForTerritory(ZoneData.SOUTHHORN).ToList();
 var northFates = EventData.GetFatesForTerritory(ZoneData.NORTHHORN).ToList();
 var southCriticalEncounters = EventData.GetCriticalEncountersForTerritory(ZoneData.SOUTHHORN).ToList();
@@ -46,6 +203,29 @@ Assert(!NorthHornSouthCrossingRoute.ShouldUse(fate2075, fate2075.StartPosition!.
     "The FATE 2075 South Crossing profile must not override an already-east-bank route.");
 Assert(!NorthHornSouthCrossingRoute.ShouldUse(EventData.Fates[2076], wispLanding),
     "The South Crossing profile must not affect another North Horn FATE.");
+
+var southCrossingPathfindCalls = new List<(Vector3 Start, Vector3 Destination)>();
+var southCrossingPlan = await SmartNavigation.DecideAsync(
+    wispLanding,
+    fate2075.StartPosition!.Value,
+    fate2075,
+    new[] { Aethernet.WillOWispVillage.GetData() },
+    Aethernet.NorthBaseCamp.GetData(),
+    (start, destination, _) =>
+    {
+        southCrossingPathfindCalls.Add((start, destination));
+        throw new InvalidOperationException("No generic route");
+    },
+    returnCost: 300f,
+    teleportCost: 50f,
+    destinationCandidateCount: 1,
+    sourceCandidateCount: 1,
+    segmentTimeout: TimeSpan.FromSeconds(1));
+Assert(!southCrossingPlan.UsedFallback
+       && southCrossingPlan.Candidates.Any(candidate => candidate.Type == NavigationType.Walk)
+       && southCrossingPathfindCalls.All(call =>
+           call.Start != wispLanding || call.Destination != fate2075.StartPosition!.Value),
+    "FATE 2075 must price its fixed South Crossing route without requesting the known-bad generic vnavmesh segment.");
 
 Assert(southFates.Count == 13, $"Expected 13 South Horn FATEs, got {southFates.Count}.");
 Assert(northFates.Count == 13, $"Expected 13 North Horn FATEs, got {northFates.Count}.");

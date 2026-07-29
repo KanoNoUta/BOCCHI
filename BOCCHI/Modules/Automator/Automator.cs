@@ -82,7 +82,7 @@ public class Automator
         {
             Plugin.Chain.Abort();
             vnav.Stop();
-            Activity = null;
+            ClearActivity();
         }
 
         if (IsChainActive)
@@ -94,7 +94,7 @@ public class Automator
         {
             if (Activity.state == ActivityState.Done)
             {
-                Activity = null;
+                ClearActivity();
                 return;
             }
 
@@ -194,7 +194,13 @@ public class Automator
 
     public void Refresh()
     {
-        Activity = null;
+        ClearActivity();
         idleTime = 0;
+    }
+
+    private void ClearActivity()
+    {
+        Activity?.Dispose();
+        Activity = null;
     }
 }

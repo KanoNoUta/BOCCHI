@@ -15,28 +15,42 @@ using System.Numerics;
 
 namespace BOCCHI.Modules.Automator;
 
+public static class FateTravelTargetPolicy
+{
+    public static bool ShouldPursue(uint activityFateId, uint targetFateId)
+    {
+        return activityFateId != 0 && targetFateId == activityFateId;
+    }
+}
+
 public class FateActivity(EventData data, Lifestream lifestream, VNavmesh vnav, AutomatorModule module, Fate fate)
     : Activity(data, lifestream, vnav, module)
 {
     protected override TaskManagerTask GetPathfindingWatcher(StateManagerModule states)
     {
         var lastTargetPos = Vector3.Zero;
+        var followingActivityTarget = false;
 
         return new TaskManagerTask(() =>
         {
-            if (EzThrottler.Throttle("FatePathfindingWatcher.EnemyScan", 100))
-            {
-                if (Svc.Targets.Target == null)
+            var target = Svc.Targets.Target is IBattleNpc
                 {
-                    var enemy = GetEnemies().Centroid();
-                    if (enemy != null)
-                    {
-                        Svc.Targets.Target = enemy;
-                    }
+                    IsDead: false,
+                    IsTargetable: true,
+                    CurrentHp: > 0,
+                } currentTarget && IsActivityTarget(currentTarget)
+                ? currentTarget
+                : null;
+
+            if (target == null && EzThrottler.Throttle("FatePathfindingWatcher.EnemyScan", 100))
+            {
+                target = GetEnemies().Centroid();
+                if (target != null)
+                {
+                    Svc.Targets.Target = target;
                 }
             }
 
-            var target = Svc.Targets.Target;
             if (target != null)
             {
                 if (Vector3.Distance(target.Position, lastTargetPos) > 5f)
@@ -44,6 +58,8 @@ public class FateActivity(EventData data, Lifestream lifestream, VNavmesh vnav, 
                     vnav.PathfindAndMoveTo(target.Position, false);
                     lastTargetPos = target.Position;
                 }
+
+                followingActivityTarget = true;
 
                 if (states.GetState() == State.InFate)
                 {
@@ -57,6 +73,14 @@ public class FateActivity(EventData data, Lifestream lifestream, VNavmesh vnav, 
                         return true;
                     }
                 }
+            }
+            else if (followingActivityTarget)
+            {
+                // The FATE target died or left the object table. Resume the
+                // activity route; never substitute an unrelated aggro target.
+                vnav.PathfindAndMoveTo(GetPosition(), false);
+                lastTargetPos = Vector3.Zero;
+                followingActivityTarget = false;
             }
 
             if (!vnav.IsRunning())
@@ -94,7 +118,7 @@ public class FateActivity(EventData data, Lifestream lifestream, VNavmesh vnav, 
         {
             var battleChara = (BattleChara*)obj.Address;
 
-            return battleChara->FateId == data.Id;
+            return FateTravelTargetPolicy.ShouldPursue(data.Id, battleChara->FateId);
         }
         catch (Exception ex)
         {
