@@ -26,6 +26,22 @@
           "label": "交戦範囲",
           "tooltip": "F.A.T.E.モンスターからどのくらいの距離にいるとマウントを解除し、ローテーション/AIプラグインに任せるか"
         },
+        "auto_rotate_instance": {
+          "label": "インスタンスを自動更新",
+          "tooltip": "現在の蜃気楼の島を退出し、同じエリアへ自動的に再入場します"
+        },
+        "instance_stay_minutes": {
+          "label": "滞在時間（分）",
+          "tooltip": "指定時間後、FATE・CE・戦闘・自動移動がない時に更新します"
+        },
+        "rotate_when_population_low": {
+          "label": "人数が少ない時に更新",
+          "tooltip": "サーバー由来の人数が2回連続で設定値を下回った場合にも更新します"
+        },
+        "minimum_instance_population": {
+          "label": "最低人数",
+          "tooltip": "コンテンツメンバーリストの人数がこの値未満の場合に更新します"
+        },
         "do_critical_encounters": {
           "label": "クリティカルエンカウントを行う",
           "tooltip": "活動を選択する際にクリティカルエンカウントを考慮すべきか"
@@ -273,13 +289,31 @@
           "label": "アクティビティ状態",
           "none": "アクティビティを待機中"
         },
+        "rotation": {
+          "state": "インスタンス更新",
+          "remaining": "残り時間",
+          "population": "島内人数",
+          "states": {
+            "idle": "停止中",
+            "monitoring": "監視中",
+            "waitingforexit": "退出待ち",
+            "cooldown": "15秒の再入場待機",
+            "waitingforentry": "再入場待ち",
+            "failed": "エラー後に停止"
+          }
+        },
         "lens": {
           "title": "BOCCHI 不正レンズ"
         }
       },
       "messages": {
         "off": "[BOCCHI] 不正モード OFF",
-        "on": "[BOCCHI] 不正モード ON"
+        "on": "[BOCCHI] 不正モード ON",
+        "rotation": {
+          "exit": "[BOCCHI] インスタンス更新：現在のエリアから退出します。",
+          "entry": "[BOCCHI] インスタンス更新：前のエリアへ再入場します。",
+          "failed": "[BOCCHI] タイムアウトまたはDailyRoutinesコマンドが使用できないため、インスタンス更新を停止しました。"
+        }
       }
     }
   }

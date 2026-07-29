@@ -21,10 +21,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace BOCCHI.Modules.Automator;
 
-public abstract class Activity
+public abstract class Activity : IDisposable
 {
     public readonly EventData data;
 
@@ -33,6 +35,14 @@ public abstract class Activity
     protected readonly VNavmesh vnav;
 
     protected readonly AutomatorModule module;
+
+    private NavigationPlan? navigationPlan;
+
+    private Task<NavigationPlan>? navigationPlanTask;
+
+    private CancellationTokenSource? navigationPlanCancellation;
+
+    private bool disposed;
 
     public ActivityState state = ActivityState.Idle;
 
@@ -55,6 +65,7 @@ public abstract class Activity
         handlers = new Dictionary<ActivityState, Func<StateManagerModule, Func<Chain>?>>
         {
             { ActivityState.Idle, GetIdleChain },
+            { ActivityState.PlanningRoute, GetPlanningRouteChain },
             { ActivityState.Pathfinding, GetPathfindingChain },
             { ActivityState.Participating, GetParticipatingChain },
             { ActivityState.Done, GetDoneChain },
@@ -74,7 +85,19 @@ public abstract class Activity
 
     public Func<Chain>? GetChain(StateManagerModule states)
     {
-        return !IsValid() ? null : handlers[state](states);
+        if (disposed || !IsValid())
+        {
+            return null;
+        }
+
+        if (state == ActivityState.Pathfinding
+            && (navigationPlan == null || navigationPlan.IsStale(Player.Position, GetPosition())))
+        {
+            ResetNavigationPlan();
+            state = ActivityState.PlanningRoute;
+        }
+
+        return handlers[state](states);
     }
 
     private Func<Chain> GetIdleChain(StateManagerModule states)
@@ -95,6 +118,22 @@ public abstract class Activity
                     Chat.ExecuteCommand("/aepull off");
                 })
                 .Then(_ => vnav.Stop())
+                .Then(_ => state = ActivityState.PlanningRoute);
+        };
+    }
+
+    private Func<Chain> GetPlanningRouteChain(StateManagerModule states)
+    {
+        return () =>
+        {
+            var destination = GetPosition();
+
+            return Chain.Create("Illegal:PlanningRoute")
+                .Then(_ => StartNavigationPlanning(destination))
+                .Then(new TaskManagerTask(
+                    () => navigationPlanTask?.IsCompleted ?? false,
+                    new TaskManagerConfiguration { TimeLimitMS = 90000 }))
+                .Then(_ => CompleteNavigationPlanning(destination))
                 .Then(_ => state = ActivityState.Pathfinding);
         };
     }
@@ -103,22 +142,19 @@ public abstract class Activity
     {
         return () =>
         {
-            var playerShard = AethernetData.AllByDistance().First();
-            var activityShard = GetAethernetData();
-
             var isFate = data.Type == EventType.Fate;
             var destination = GetPosition();
-            var navType = SmartNavigation.Decide(Player.Position, destination, activityShard);
+            var plan = navigationPlan ?? throw new InvalidOperationException("Navigation plan is not ready.");
             var pathfinding = new PathfindingChain(vnav, destination, data);
 
-            module.Debug("Selected navigation type: " + navType);
+            module.Debug($"Using navigation plan: {plan.Type} ({plan.Cost:F2})");
 
             var chain = Chain.Create("Illegal:Pathfinding")
                 .ConditionalThen(_ => isFate && module.Config.ShouldStanceOnBeforeDoFates && Player.Job.IsTank(), new StanceChain(isFate))
                 .ConditionalThen(_ => !isFate && module.Config.ShouldStanceOffBeforeCriticalEncounters && Player.Job.IsTank(), new StanceChain(isFate))
                 .ConditionalWait(_ => !isFate && module.Config.ShouldDelayCriticalEncounters && lifestream.GetActiveCustomAetheryte() != 0, Random.Shared.Next((int)module.Config.MinDelay * 1000, (int)module.Config.MaxDelay * 1000));
 
-            switch (navType)
+            switch (plan.Type)
             {
                 case NavigationType.Walk:
                     chain = AppendPathfinding(chain, destination, pathfinding);
@@ -132,18 +168,19 @@ public abstract class Activity
                 case NavigationType.ReturnTeleportWalk:
                     chain
                         .Then(ChainHelper.ReturnChain(new ReturnChainConfig { ApproachAetheryte = true }))
-                        .Then(ChainHelper.TeleportChain(activityShard.Aethernet))
+                        .Then(ChainHelper.TeleportChain(plan.DestinationAethernet))
                         .Debug("Waiting for lifestream to not be 'busy'")
                         .Then(new TaskManagerTask(() => !lifestream.IsBusy(), new TaskManagerConfiguration { TimeLimitMS = 30000 }));
                     chain = AppendPathfinding(chain, destination, pathfinding);
                     break;
 
                 case NavigationType.WalkTeleportWalk:
+                    var playerShard = plan.SourceAethernet.GetData();
                     chain
                         .ConditionalThen(_ => lifestream.GetActiveCustomAetheryte() == 0, new PathfindAndMoveToChain(vnav, playerShard.Position))
                         .BreakIf(() => lifestream.GetActiveCustomAetheryte() == 0)
                         .Then(_ => vnav.Stop())
-                        .Then(ChainHelper.TeleportChain(activityShard.Aethernet))
+                        .Then(ChainHelper.TeleportChain(plan.DestinationAethernet))
                         .Debug("Waiting for lifestream to not be 'busy'")
                         .Then(new TaskManagerTask(() => !lifestream.IsBusy(), new TaskManagerConfiguration { TimeLimitMS = 30000 }));
                     chain = AppendPathfinding(chain, destination, pathfinding);
@@ -163,6 +200,81 @@ public abstract class Activity
 
             return chain;
         };
+    }
+
+    private void StartNavigationPlanning(Vector3 destination)
+    {
+        if (navigationPlan != null || navigationPlanTask is { IsCompleted: false })
+        {
+            return;
+        }
+
+        navigationPlanCancellation?.Dispose();
+        navigationPlanCancellation = new CancellationTokenSource();
+        var config = module.PluginConfig.PathfinderConfig;
+        navigationPlanTask = SmartNavigation.DecideAsync(
+            vnav,
+            Player.Position,
+            destination,
+            data,
+            config.ReturnCost,
+            config.TeleportCost,
+            message => module.Debug("Navigation planning: " + message),
+            navigationPlanCancellation.Token);
+    }
+
+    private void CompleteNavigationPlanning(Vector3 destination)
+    {
+        var task = navigationPlanTask ?? throw new InvalidOperationException("Navigation planning was not started.");
+        try
+        {
+            navigationPlan = task.GetAwaiter().GetResult();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !disposed)
+        {
+            var config = module.PluginConfig.PathfinderConfig;
+            var reason = $"Navigation planning failed unexpectedly: {ex.GetBaseException().Message}";
+            module.Debug(reason);
+            navigationPlan = SmartNavigation.DecideFallback(
+                Player.Position,
+                destination,
+                data,
+                AethernetData.All().ToArray(),
+                ZoneData.GetBaseCampAethernet().GetData(),
+                config.ReturnCost,
+                config.TeleportCost,
+                reason);
+        }
+        finally
+        {
+            navigationPlanTask = null;
+            navigationPlanCancellation?.Dispose();
+            navigationPlanCancellation = null;
+        }
+
+        if (navigationPlan == null)
+        {
+            throw new OperationCanceledException("Navigation planning was cancelled.");
+        }
+
+        module.Debug(
+            $"Selected navigation type: {navigationPlan.Type} - {navigationPlan.Cost:F2}"
+            + (navigationPlan.UsedFallback ? $" (fallback: {navigationPlan.FallbackReason})" : string.Empty));
+        foreach (var candidate in navigationPlan.Candidates)
+        {
+            module.Debug(
+                $"Navigation candidate: {candidate.Type} {candidate.SourceAethernet}->{candidate.DestinationAethernet} - {candidate.Cost:F2}");
+        }
+    }
+
+    private void ResetNavigationPlan()
+    {
+        navigationPlanCancellation?.Cancel();
+        navigationPlanCancellation?.Dispose();
+        navigationPlanCancellation = null;
+        ObserveDetachedTask(navigationPlanTask);
+        navigationPlanTask = null;
+        navigationPlan = null;
     }
 
     private Chain AppendPathfinding(Chain chain, Vector3 destination, PathfindingChain pathfinding)
@@ -229,11 +341,6 @@ public abstract class Activity
 
     protected abstract bool IsActivityTarget(IBattleNpc obj);
 
-    private AethernetData GetAethernetData()
-    {
-        return data.Aethernet?.GetData() ?? AethernetData.AllByDistance(GetPosition()).First();
-    }
-
     protected bool IsInZone()
     {
         var radius = data.Radius ?? GetRadius();
@@ -287,6 +394,38 @@ public abstract class Activity
     public abstract string GetName();
 
     protected abstract ActivityState GetPostPathfindingState();
+
+    public void Dispose()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        ResetNavigationPlan();
+        GC.SuppressFinalize(this);
+    }
+
+    private static void ObserveDetachedTask(Task? task)
+    {
+        if (task == null)
+        {
+            return;
+        }
+
+        _ = task.ContinueWith(
+            completed =>
+            {
+                if (completed.IsFaulted)
+                {
+                    _ = completed.Exception;
+                }
+            },
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+    }
 }
 
 public static class NavigationActivityState

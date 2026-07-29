@@ -19,6 +19,204 @@ static void Assert(bool condition, string message)
     }
 }
 
+static AethernetData CreateShard(Aethernet aethernet, Vector3 position, Vector3 destination)
+{
+    return new AethernetData
+    {
+        Aethernet = aethernet,
+        Position = position,
+        Destination = destination,
+    };
+}
+
+static Task<List<Vector3>> StraightPath(Vector3 start, Vector3 destination, CancellationToken _)
+{
+    return Task.FromResult(new List<Vector3> { start, destination });
+}
+
+var navigationEvent = new EventData
+{
+    Id = 9000,
+    Type = EventType.Fate,
+    InternalName = "Smart navigation smoke test",
+};
+var navigationPlayer = Vector3.Zero;
+var navigationDestination = new Vector3(100f, 0f, 0f);
+var navigationBaseCamp = CreateShard(
+    Aethernet.NorthBaseCamp,
+    new Vector3(1000f, 0f, 0f),
+    new Vector3(1000f, 0f, 0f));
+var navigationSource = CreateShard(
+    Aethernet.WillOWispVillage,
+    new Vector3(45f, 0f, 0f),
+    new Vector3(1000f, 0f, 0f));
+var navigationTarget = CreateShard(
+    Aethernet.SunkenTempleFront,
+    new Vector3(900f, 0f, 0f),
+    new Vector3(60f, 0f, 0f));
+var navigationShards = new[] { navigationBaseCamp, navigationSource, navigationTarget };
+
+var detourPlan = await SmartNavigation.DecideAsync(
+    navigationPlayer,
+    navigationDestination,
+    navigationEvent,
+    navigationShards,
+    navigationBaseCamp,
+    (start, destination, _) => Task.FromResult(
+        start == navigationPlayer && destination == navigationDestination
+            ? new List<Vector3> { start, new(0f, 0f, 300f), destination }
+            : new List<Vector3> { start, destination }),
+    returnCost: 300f,
+    teleportCost: 20f,
+    destinationCandidateCount: 2,
+    sourceCandidateCount: 1,
+    segmentTimeout: TimeSpan.FromSeconds(1));
+var straightFallbackPlan = SmartNavigation.DecideFallback(
+    navigationPlayer,
+    navigationDestination,
+    navigationEvent,
+    navigationShards,
+    navigationBaseCamp,
+    returnCost: 300f,
+    teleportCost: 20f,
+    "test comparison");
+Assert(straightFallbackPlan.Type == NavigationType.Walk
+       && detourPlan.Type == NavigationType.WalkTeleportWalk
+       && detourPlan.SourceAethernet == navigationSource.Aethernet
+       && detourPlan.DestinationAethernet == navigationTarget.Aethernet,
+    "Measured vnavmesh detours must be able to change the route selected by straight-line costs.");
+
+var cheapTeleportPlan = await SmartNavigation.DecideAsync(
+    navigationPlayer,
+    navigationDestination,
+    navigationEvent,
+    navigationShards,
+    navigationBaseCamp,
+    StraightPath,
+    returnCost: 300f,
+    teleportCost: 5f,
+    destinationCandidateCount: 2,
+    sourceCandidateCount: 1,
+    segmentTimeout: TimeSpan.FromSeconds(1));
+var expensiveTeleportPlan = await SmartNavigation.DecideAsync(
+    navigationPlayer,
+    navigationDestination,
+    navigationEvent,
+    navigationShards,
+    navigationBaseCamp,
+    StraightPath,
+    returnCost: 300f,
+    teleportCost: 200f,
+    destinationCandidateCount: 2,
+    sourceCandidateCount: 1,
+    segmentTimeout: TimeSpan.FromSeconds(1));
+Assert(cheapTeleportPlan.Type == NavigationType.WalkTeleportWalk
+       && expensiveTeleportPlan.Type == NavigationType.Walk,
+    "TeleportCost must participate in smart-navigation route selection.");
+
+var preferredNavigationEvent = navigationEvent;
+preferredNavigationEvent.Aethernet = navigationTarget.Aethernet;
+var unreachableTargetPlan = await SmartNavigation.DecideAsync(
+    navigationPlayer,
+    navigationDestination,
+    preferredNavigationEvent,
+    navigationShards,
+    navigationBaseCamp,
+    (start, destination, token) =>
+    {
+        if (start == navigationTarget.Destination && destination == navigationDestination)
+        {
+            throw new InvalidOperationException("target is unreachable");
+        }
+
+        return StraightPath(start, destination, token);
+    },
+    returnCost: 300f,
+    teleportCost: 5f,
+    destinationCandidateCount: 1,
+    sourceCandidateCount: 1,
+    segmentTimeout: TimeSpan.FromSeconds(1));
+Assert(unreachableTargetPlan.Candidates.All(candidate =>
+        candidate.DestinationAethernet != navigationTarget.Aethernet),
+    "Candidates with an unreachable aethernet-to-event segment must be skipped.");
+
+var fallbackPlan = await SmartNavigation.DecideAsync(
+    navigationPlayer,
+    navigationDestination,
+    navigationEvent,
+    navigationShards,
+    navigationBaseCamp,
+    (_, _, _) => Task.FromResult(new List<Vector3>()),
+    returnCost: 300f,
+    teleportCost: 20f,
+    destinationCandidateCount: 2,
+    sourceCandidateCount: 1,
+    segmentTimeout: TimeSpan.FromSeconds(1));
+Assert(fallbackPlan.UsedFallback && fallbackPlan.FallbackReason != null,
+    "Smart navigation must fall back to straight-line costs when every vnavmesh segment fails.");
+
+var preferredPlan = await SmartNavigation.DecideAsync(
+    navigationPlayer,
+    navigationDestination,
+    preferredNavigationEvent,
+    navigationShards,
+    navigationBaseCamp,
+    StraightPath,
+    returnCost: 300f,
+    teleportCost: 20f,
+    destinationCandidateCount: 1,
+    sourceCandidateCount: 1,
+    segmentTimeout: TimeSpan.FromSeconds(1));
+Assert(preferredPlan.Candidates.Any(candidate =>
+        candidate.DestinationAethernet == navigationTarget.Aethernet),
+    "An event's preferred aethernet must survive destination-candidate prefiltering.");
+
+var activePathfindRequests = 0;
+var maximumConcurrentPathfindRequests = 0;
+var pathfindConcurrencyLock = new object();
+await SmartNavigation.DecideAsync(
+    navigationPlayer,
+    navigationDestination,
+    navigationEvent,
+    navigationShards,
+    navigationBaseCamp,
+    async (start, destination, token) =>
+    {
+        lock (pathfindConcurrencyLock)
+        {
+            activePathfindRequests++;
+            maximumConcurrentPathfindRequests = Math.Max(
+                maximumConcurrentPathfindRequests,
+                activePathfindRequests);
+        }
+
+        try
+        {
+            await Task.Delay(5, token);
+            return new List<Vector3> { start, destination };
+        }
+        finally
+        {
+            lock (pathfindConcurrencyLock)
+            {
+                activePathfindRequests--;
+            }
+        }
+    },
+    returnCost: 300f,
+    teleportCost: 20f,
+    destinationCandidateCount: 2,
+    sourceCandidateCount: 1,
+    segmentTimeout: TimeSpan.FromSeconds(1));
+Assert(maximumConcurrentPathfindRequests == 1,
+    "Smart navigation must serialize candidate probes because vnavmesh supports only one pathfinding task.");
+
+Assert(FateTravelTargetPolicy.ShouldPursue(2075, 2075),
+    "FATE travel must allow targets that belong to the selected FATE.");
+Assert(!FateTravelTargetPolicy.ShouldPursue(2075, 0)
+       && !FateTravelTargetPolicy.ShouldPursue(2075, 2076),
+    "Roadside enemies and enemies from another FATE must not override the selected activity route.");
+
 var southFates = EventData.GetFatesForTerritory(ZoneData.SOUTHHORN).ToList();
 var northFates = EventData.GetFatesForTerritory(ZoneData.NORTHHORN).ToList();
 var southCriticalEncounters = EventData.GetCriticalEncountersForTerritory(ZoneData.SOUTHHORN).ToList();
@@ -47,6 +245,29 @@ Assert(!NorthHornSouthCrossingRoute.ShouldUse(fate2075, fate2075.StartPosition!.
     "The FATE 2075 South Crossing profile must not override an already-east-bank route.");
 Assert(!NorthHornSouthCrossingRoute.ShouldUse(EventData.Fates[2076], wispLanding),
     "The South Crossing profile must not affect another North Horn FATE.");
+
+var southCrossingPathfindCalls = new List<(Vector3 Start, Vector3 Destination)>();
+var southCrossingPlan = await SmartNavigation.DecideAsync(
+    wispLanding,
+    fate2075.StartPosition!.Value,
+    fate2075,
+    new[] { Aethernet.WillOWispVillage.GetData() },
+    Aethernet.NorthBaseCamp.GetData(),
+    (start, destination, _) =>
+    {
+        southCrossingPathfindCalls.Add((start, destination));
+        throw new InvalidOperationException("No generic route");
+    },
+    returnCost: 300f,
+    teleportCost: 50f,
+    destinationCandidateCount: 1,
+    sourceCandidateCount: 1,
+    segmentTimeout: TimeSpan.FromSeconds(1));
+Assert(!southCrossingPlan.UsedFallback
+       && southCrossingPlan.Candidates.Any(candidate => candidate.Type == NavigationType.Walk)
+       && southCrossingPathfindCalls.All(call =>
+           call.Start != wispLanding || call.Destination != fate2075.StartPosition!.Value),
+    "FATE 2075 must price its fixed South Crossing route without requesting the known-bad generic vnavmesh segment.");
 
 Assert(southFates.Count == 13, $"Expected 13 South Horn FATEs, got {southFates.Count}.");
 Assert(northFates.Count == 13, $"Expected 13 North Horn FATEs, got {northFates.Count}.");
@@ -337,6 +558,102 @@ Assert(northFateIds.All(id => !automatorConfig.FatesMap[id]),
 Assert(northCriticalEncounterIds.All(id => !automatorConfig.CriticalEncountersMap[id]),
     "The master CE switch must suppress all North Horn CE settings.");
 
+Assert(!automatorConfig.AutoRotateInstance && automatorConfig.InstanceStayMinutes == 90f
+       && !automatorConfig.RotateWhenPopulationLow && automatorConfig.MinimumInstancePopulation == 10,
+    "Unattended instance rotation must remain opt-in with conservative defaults.");
+foreach (var propertyName in new[]
+         {
+             nameof(AutomatorConfig.AutoRotateInstance), nameof(AutomatorConfig.InstanceStayMinutes),
+             nameof(AutomatorConfig.RotateWhenPopulationLow), nameof(AutomatorConfig.MinimumInstancePopulation),
+         })
+{
+    Assert(typeof(AutomatorConfig).GetProperty(propertyName)?.GetCustomAttributes().Any() == true,
+        $"Instance rotation setting {propertyName} must be rendered by the configuration UI.");
+}
+
+var rotationStart = new DateTimeOffset(2026, 7, 30, 0, 0, 0, TimeSpan.Zero);
+var rotation = new InstanceRotationStateMachine();
+var monitoringInput = new InstanceRotationInput(true, ZoneData.SOUTHHORN, true, TimeSpan.FromMinutes(90), false);
+Assert(rotation.Update(rotationStart, monitoringInput) == InstanceRotationAction.None
+       && rotation.State == InstanceRotationState.Monitoring,
+    "Instance rotation must begin by monitoring the current Occult Crescent territory.");
+
+var unsafeLowPopulationInput = monitoringInput with { CanStart = false, PopulationLow = true };
+Assert(rotation.Update(rotationStart.AddMinutes(1), unsafeLowPopulationInput) == InstanceRotationAction.None
+       && rotation.State == InstanceRotationState.Monitoring,
+    "Low population must not force an exit during a FATE, CE, combat, or active automation task.");
+
+var safeLowPopulationInput = monitoringInput with { PopulationLow = true };
+Assert(rotation.Update(rotationStart.AddMinutes(1).AddSeconds(1), safeLowPopulationInput)
+       == InstanceRotationAction.RequestExit,
+    "A confirmed low-population condition must request one safe exit.");
+Assert(rotation.Reason == InstanceRotationReason.PopulationLow
+       && rotation.Update(rotationStart.AddMinutes(1).AddSeconds(2), safeLowPopulationInput)
+       == InstanceRotationAction.None,
+    "The exit command must not be emitted again while waiting to leave.");
+
+var outsideInput = monitoringInput with { TerritoryId = 0, CanStart = false, PopulationLow = false };
+var leftAt = rotationStart.AddMinutes(1).AddSeconds(3);
+Assert(rotation.Update(leftAt, outsideInput) == InstanceRotationAction.None
+       && rotation.State == InstanceRotationState.Cooldown,
+    "The 15-second re-entry delay must begin only after the original territory has been left.");
+Assert(rotation.Update(leftAt.AddSeconds(14.999), outsideInput) == InstanceRotationAction.None,
+    "Instance rotation must wait the full 15 seconds before requesting re-entry.");
+Assert(rotation.Update(leftAt.AddSeconds(15), outsideInput) == InstanceRotationAction.EnterSouthHorn
+       && rotation.State == InstanceRotationState.WaitingForEntry,
+    "South Horn rotation must select the ocs entry action after the full cooldown.");
+Assert(rotation.Update(leftAt.AddSeconds(16), outsideInput) == InstanceRotationAction.None,
+    "The entry command must not be emitted again while waiting for territory confirmation.");
+Assert(rotation.Update(leftAt.AddSeconds(20), monitoringInput) == InstanceRotationAction.None
+       && rotation.State == InstanceRotationState.Monitoring
+       && rotation.IslandEnteredAt == leftAt.AddSeconds(20),
+    "Returning to the original territory must reset the stay timer for the next cycle.");
+
+var northRotation = new InstanceRotationStateMachine();
+var northInput = new InstanceRotationInput(true, ZoneData.NORTHHORN, true, TimeSpan.FromMinutes(15), false);
+northRotation.Update(rotationStart, northInput);
+Assert(northRotation.Update(rotationStart.AddMinutes(15), northInput) == InstanceRotationAction.RequestExit
+       && northRotation.Reason == InstanceRotationReason.StayTimeElapsed,
+    "The configured stay duration must trigger a time-based rotation.");
+northRotation.Update(rotationStart.AddMinutes(15).AddSeconds(1), northInput with { TerritoryId = 0 });
+Assert(northRotation.Update(rotationStart.AddMinutes(15).AddSeconds(16), northInput with { TerritoryId = 0 })
+       == InstanceRotationAction.EnterNorthHorn,
+    "North Horn rotation must select the ocn entry action.");
+Assert(InstanceRotationController.LeaveCommand == "/pdr leaveduty"
+       && InstanceRotationController.SouthHornEntryCommand == "/pdrfe ocs"
+       && InstanceRotationController.NorthHornEntryCommand == "/pdrfe ocn",
+    "DailyRoutines rotation commands must remain aligned with the verified local command modules.");
+
+var cancelledRotation = new InstanceRotationStateMachine();
+cancelledRotation.Update(rotationStart, monitoringInput);
+cancelledRotation.Update(rotationStart.AddMinutes(90), monitoringInput);
+Assert(cancelledRotation.Update(rotationStart.AddMinutes(90).AddSeconds(1), monitoringInput with { Enabled = false })
+       == InstanceRotationAction.None
+       && cancelledRotation.State == InstanceRotationState.Idle,
+    "Disabling automation must cancel an in-progress instance rotation.");
+
+var timedOutRotation = new InstanceRotationStateMachine();
+timedOutRotation.Update(rotationStart, monitoringInput);
+timedOutRotation.Update(rotationStart.AddMinutes(90), monitoringInput);
+Assert(timedOutRotation.Update(rotationStart.AddMinutes(90) + InstanceRotationStateMachine.ExitTimeout,
+           monitoringInput) == InstanceRotationAction.None
+       && timedOutRotation.State == InstanceRotationState.Failed,
+    "An unconfirmed exit must stop after its timeout instead of retrying every frame.");
+Assert(timedOutRotation.Update(rotationStart.AddHours(3), monitoringInput) == InstanceRotationAction.None,
+    "A failed rotation must remain command-silent until explicitly reset.");
+
+var entryTimedOutRotation = new InstanceRotationStateMachine();
+entryTimedOutRotation.Update(rotationStart, monitoringInput);
+entryTimedOutRotation.Update(rotationStart.AddMinutes(90), monitoringInput);
+var entryTimeoutLeftAt = rotationStart.AddMinutes(90).AddSeconds(1);
+entryTimedOutRotation.Update(entryTimeoutLeftAt, outsideInput);
+entryTimedOutRotation.Update(entryTimeoutLeftAt + InstanceRotationStateMachine.ReentryCooldown, outsideInput);
+Assert(entryTimedOutRotation.Update(
+           entryTimeoutLeftAt + InstanceRotationStateMachine.ReentryCooldown + InstanceRotationStateMachine.EntryTimeout,
+           outsideInput) == InstanceRotationAction.None
+       && entryTimedOutRotation.State == InstanceRotationState.Failed,
+    "An unconfirmed re-entry must stop after its timeout without re-sending the entry command.");
+
 var translationRoot = Path.Combine(Directory.GetCurrentDirectory(), "Translations");
 Assert(Directory.Exists(translationRoot), $"Translation directory was not found: {translationRoot}");
 var translationFiles = Directory.EnumerateFiles(translationRoot, "*.json", SearchOption.AllDirectories).ToArray();
@@ -361,6 +678,15 @@ foreach (var language in new[] { "en", "fr", "jp", "zh" })
     Assert(!configKeys.TryGetProperty("do_north_horn_ce64", out _)
            && !configKeys.TryGetProperty("do_north_horn_ce65", out _),
         $"{language} Automator translation still exposes dead Forked Tower controls.");
+    foreach (var key in new[]
+             {
+                 "auto_rotate_instance", "instance_stay_minutes", "rotate_when_population_low",
+                 "minimum_instance_population",
+             })
+    {
+        Assert(configKeys.TryGetProperty(key, out _),
+            $"{language} Automator translation is missing instance rotation key {key}.");
+    }
 
     var criticalFile = Path.Combine(translationRoot, language, "modules.critical_encounters.json");
     using var criticalDocument = JsonDocument.Parse(File.ReadAllText(criticalFile));

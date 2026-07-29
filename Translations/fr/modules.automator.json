@@ -137,6 +137,22 @@
           "label": "Portée d'engagement",
           "tooltip": "Portée à laquelle se trouver d'un monstre d'aléa avant de descendre de monture et de laisser votre rotation/plugin d'IA prendre le relais"
         },
+        "auto_rotate_instance": {
+          "label": "Changer automatiquement d'instance",
+          "tooltip": "Quitte l'instance du Croissant occulte puis retourne automatiquement dans la même zone"
+        },
+        "instance_stay_minutes": {
+          "label": "Temps dans l'instance (minutes)",
+          "tooltip": "Change d'instance après cette durée, dès qu'aucun aléa, CE, combat ou déplacement automatique n'est actif"
+        },
+        "rotate_when_population_low": {
+          "label": "Changer si la population est faible",
+          "tooltip": "Change aussi après deux relevés consécutifs sous le seuil configuré"
+        },
+        "minimum_instance_population": {
+          "label": "Population minimale",
+          "tooltip": "Change lorsque la liste native des membres indique moins de joueurs que cette valeur"
+        },
         "force_target": {
           "label": "Forcer la cible",
           "tooltip": "Maintient toujours une cible dans les aléas et les confrontations critiques."
@@ -272,6 +288,19 @@
           "label": "État",
           "none": "En attente"
         },
+        "rotation": {
+          "state": "Changement d'instance",
+          "remaining": "Temps restant",
+          "population": "Population de l'instance",
+          "states": {
+            "idle": "Inactif",
+            "monitoring": "Surveillance",
+            "waitingforexit": "Attente de sortie",
+            "cooldown": "Délai de retour de 15 secondes",
+            "waitingforentry": "Attente du retour",
+            "failed": "Arrêté après une erreur"
+          }
+        },
         "title": "Mode Illégal",
         "lens": {
           "title": null
@@ -279,7 +308,12 @@
       },
       "messages": {
         "off": null,
-        "on": null
+        "on": null,
+        "rotation": {
+          "exit": "[BOCCHI] Changement d'instance : sortie de la zone actuelle.",
+          "entry": "[BOCCHI] Changement d'instance : retour dans la zone précédente.",
+          "failed": "[BOCCHI] Changement d'instance arrêté après un délai dépassé ou une commande DailyRoutines indisponible."
+        }
       }
     }
   }

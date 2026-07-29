@@ -1,5 +1,6 @@
 ﻿using BOCCHI.Chains;
 using BOCCHI.Data;
+using BOCCHI.Modules.Automator;
 using Dalamud.Game;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Plugin;
@@ -77,7 +78,7 @@ public sealed class Plugin : OcelotPlugin
 
     protected override bool ShouldUpdate()
     {
-        return ZoneData.IsInOccultCrescent()
+        return (ZoneData.IsInOccultCrescent() || InstanceRotationController.IsTransitionActive)
                && !(
                    Svc.Condition[ConditionFlag.BetweenAreas] ||
                    Svc.Condition[ConditionFlag.BetweenAreas51] ||

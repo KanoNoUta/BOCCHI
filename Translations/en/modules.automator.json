@@ -26,6 +26,22 @@
           "label": "Engagement Range",
           "tooltip": "The range to be at from a fate monster before dismounting and letting your rotation/ai plugin take over"
         },
+        "auto_rotate_instance": {
+          "label": "Automatically rotate instance",
+          "tooltip": "Leave the current Occult Crescent instance and automatically return to the same area for unattended operation"
+        },
+        "instance_stay_minutes": {
+          "label": "Time in instance (minutes)",
+          "tooltip": "Rotate after this many minutes in the current instance; rotation waits until no FATE, CE, combat, or automation task is active"
+        },
+        "rotate_when_population_low": {
+          "label": "Rotate when population is low",
+          "tooltip": "Also rotate after two consecutive server-backed population samples are below the configured threshold"
+        },
+        "minimum_instance_population": {
+          "label": "Minimum instance population",
+          "tooltip": "Rotate when the native Content Member List reports fewer players than this value"
+        },
         "do_critical_encounters": {
           "label": "Do Critical Encounters",
           "tooltip": "Should consider critical encounters when choosing an activity"
@@ -273,13 +289,31 @@
           "label": "Activity State",
           "none": "Waiting for Activity"
         },
+        "rotation": {
+          "state": "Instance rotation",
+          "remaining": "Time remaining",
+          "population": "Instance population",
+          "states": {
+            "idle": "Idle",
+            "monitoring": "Monitoring",
+            "waitingforexit": "Waiting to leave",
+            "cooldown": "15-second re-entry delay",
+            "waitingforentry": "Waiting to re-enter",
+            "failed": "Stopped after an error"
+          }
+        },
         "lens": {
           "title": "BOCCHI Illegal Lens"
         }
       },
       "messages": {
         "on": "[BOCCHI] Illegal Mode On",
-        "off": "[BOCCHI] Illegal Mode Off"
+        "off": "[BOCCHI] Illegal Mode Off",
+        "rotation": {
+          "exit": "[BOCCHI] Instance rotation: leaving the current area.",
+          "entry": "[BOCCHI] Instance rotation: requesting entry to the previous area.",
+          "failed": "[BOCCHI] Instance rotation stopped after a timeout or unavailable DailyRoutines command. Toggle Illegal Mode off and on after correcting the problem."
+        }
       }
     }
   }
