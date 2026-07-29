@@ -21,8 +21,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace BOCCHI.Modules.Automator;
 
@@ -35,12 +33,6 @@ public abstract class Activity : IDisposable
     protected readonly VNavmesh vnav;
 
     protected readonly AutomatorModule module;
-
-    private NavigationPlan? navigationPlan;
-
-    private Task<NavigationPlan>? navigationPlanTask;
-
-    private CancellationTokenSource? navigationPlanCancellation;
 
     private bool disposed;
 
@@ -65,7 +57,6 @@ public abstract class Activity : IDisposable
         handlers = new Dictionary<ActivityState, Func<StateManagerModule, Func<Chain>?>>
         {
             { ActivityState.Idle, GetIdleChain },
-            { ActivityState.PlanningRoute, GetPlanningRouteChain },
             { ActivityState.Pathfinding, GetPathfindingChain },
             { ActivityState.Participating, GetParticipatingChain },
             { ActivityState.Done, GetDoneChain },
@@ -90,13 +81,6 @@ public abstract class Activity : IDisposable
             return null;
         }
 
-        if (state == ActivityState.Pathfinding
-            && (navigationPlan == null || navigationPlan.IsStale(Player.Position, GetPosition())))
-        {
-            ResetNavigationPlan();
-            state = ActivityState.PlanningRoute;
-        }
-
         return handlers[state](states);
     }
 
@@ -118,22 +102,6 @@ public abstract class Activity : IDisposable
                     Chat.ExecuteCommand("/aepull off");
                 })
                 .Then(_ => vnav.Stop())
-                .Then(_ => state = ActivityState.PlanningRoute);
-        };
-    }
-
-    private Func<Chain> GetPlanningRouteChain(StateManagerModule states)
-    {
-        return () =>
-        {
-            var destination = GetPosition();
-
-            return Chain.Create("Illegal:PlanningRoute")
-                .Then(_ => StartNavigationPlanning(destination))
-                .Then(new TaskManagerTask(
-                    () => navigationPlanTask?.IsCompleted ?? false,
-                    new TaskManagerConfiguration { TimeLimitMS = 90000 }))
-                .Then(_ => CompleteNavigationPlanning(destination))
                 .Then(_ => state = ActivityState.Pathfinding);
         };
     }
@@ -144,7 +112,16 @@ public abstract class Activity : IDisposable
         {
             var isFate = data.Type == EventType.Fate;
             var destination = GetPosition();
-            var plan = navigationPlan ?? throw new InvalidOperationException("Navigation plan is not ready.");
+            var pathfinderConfig = module.PluginConfig.PathfinderConfig;
+            var plan = SmartNavigation.DecideFallback(
+                Player.Position,
+                destination,
+                data,
+                AethernetData.All().ToArray(),
+                ZoneData.GetBaseCampAethernet().GetData(),
+                pathfinderConfig.ReturnCost,
+                pathfinderConfig.TeleportCost,
+                "Fast runtime selection; candidate precomputation is not allowed to block movement.");
             var pathfinding = new PathfindingChain(vnav, destination, data);
 
             module.Debug($"Using navigation plan: {plan.Type} ({plan.Cost:F2})");
@@ -200,81 +177,6 @@ public abstract class Activity : IDisposable
 
             return chain;
         };
-    }
-
-    private void StartNavigationPlanning(Vector3 destination)
-    {
-        if (navigationPlan != null || navigationPlanTask is { IsCompleted: false })
-        {
-            return;
-        }
-
-        navigationPlanCancellation?.Dispose();
-        navigationPlanCancellation = new CancellationTokenSource();
-        var config = module.PluginConfig.PathfinderConfig;
-        navigationPlanTask = SmartNavigation.DecideAsync(
-            vnav,
-            Player.Position,
-            destination,
-            data,
-            config.ReturnCost,
-            config.TeleportCost,
-            message => module.Debug("Navigation planning: " + message),
-            navigationPlanCancellation.Token);
-    }
-
-    private void CompleteNavigationPlanning(Vector3 destination)
-    {
-        var task = navigationPlanTask ?? throw new InvalidOperationException("Navigation planning was not started.");
-        try
-        {
-            navigationPlan = task.GetAwaiter().GetResult();
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException || !disposed)
-        {
-            var config = module.PluginConfig.PathfinderConfig;
-            var reason = $"Navigation planning failed unexpectedly: {ex.GetBaseException().Message}";
-            module.Debug(reason);
-            navigationPlan = SmartNavigation.DecideFallback(
-                Player.Position,
-                destination,
-                data,
-                AethernetData.All().ToArray(),
-                ZoneData.GetBaseCampAethernet().GetData(),
-                config.ReturnCost,
-                config.TeleportCost,
-                reason);
-        }
-        finally
-        {
-            navigationPlanTask = null;
-            navigationPlanCancellation?.Dispose();
-            navigationPlanCancellation = null;
-        }
-
-        if (navigationPlan == null)
-        {
-            throw new OperationCanceledException("Navigation planning was cancelled.");
-        }
-
-        module.Debug(
-            $"Selected navigation type: {navigationPlan.Type} - {navigationPlan.Cost:F2}"
-            + (navigationPlan.UsedFallback ? $" (fallback: {navigationPlan.FallbackReason})" : string.Empty));
-        foreach (var candidate in navigationPlan.Candidates)
-        {
-            module.Debug(
-                $"Navigation candidate: {candidate.Type} {candidate.SourceAethernet}->{candidate.DestinationAethernet} - {candidate.Cost:F2}");
-        }
-    }
-
-    private void ResetNavigationPlan()
-    {
-        navigationPlanCancellation?.Cancel();
-        navigationPlanCancellation?.Dispose();
-        navigationPlanCancellation = null;
-        ObserveDetachedTask(navigationPlanTask);
-        navigationPlanTask = null;
-        navigationPlan = null;
     }
 
     private Chain AppendPathfinding(Chain chain, Vector3 destination, PathfindingChain pathfinding)
@@ -403,28 +305,7 @@ public abstract class Activity : IDisposable
         }
 
         disposed = true;
-        ResetNavigationPlan();
         GC.SuppressFinalize(this);
-    }
-
-    private static void ObserveDetachedTask(Task? task)
-    {
-        if (task == null)
-        {
-            return;
-        }
-
-        _ = task.ContinueWith(
-            completed =>
-            {
-                if (completed.IsFaulted)
-                {
-                    _ = completed.Exception;
-                }
-            },
-            CancellationToken.None,
-            TaskContinuationOptions.ExecuteSynchronously,
-            TaskScheduler.Default);
     }
 }
 
