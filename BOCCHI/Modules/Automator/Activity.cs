@@ -166,12 +166,12 @@ public abstract class Activity : IDisposable
 
             chain
                 .ConditionalThen(_ => !pathfinding.TransitReachedEnd, _ => GetPathfindingWatcher(states))
-                .ConditionalThen(_ => !vnav.IsRunning(), _ =>
+                .Then(_ =>
                 {
-                    if (module.GetModule<AutomatorModule>().random.NextDouble() < 0.5)
-                    {
-                        Actions.TryUnmount();
-                    }
+                    // Reaching a FATE/CE is a deterministic transition into
+                    // combat/waiting state. Never leave it to a random chance:
+                    // mounted players cannot start combat rotations reliably.
+                    Actions.TryUnmount();
                 })
                 .Then(_ => state = GetPostPathfindingState());
 
@@ -200,6 +200,9 @@ public abstract class Activity : IDisposable
         return () =>
         {
             return Chain.Create("Illegal:Participating")
+                // Retry the transition safeguard here as well. The initial
+                // unmount action can still be animation-locked on arrival.
+                .Then(_ => Actions.TryUnmount())
                 .Then(_ => PromeRotationController.Start())
                 .ConditionalThen(_ => module.Config.ShouldToggleAiProvider, _ => module.Config.AiProvider.On())
                 .ConditionalThen(_ => Svc.PluginInterface.InstalledPlugins.Any(p => p.InternalName == "AEAssistV3" && p.IsLoaded), _ =>

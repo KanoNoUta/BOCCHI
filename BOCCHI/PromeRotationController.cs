@@ -1,4 +1,5 @@
 using ECommons.DalamudServices;
+using ECommons.Throttlers;
 using System;
 using System.Linq;
 
@@ -11,49 +12,56 @@ namespace BOCCHI;
 /// </summary>
 public static class PromeRotationController
 {
+    private const int FailureLogIntervalMs = 30_000;
+
     public const string PluginInternalName = "PromeRotation";
     public const string StartIpcName = "PromeRotation.IPC.Start";
     public const string StopIpcName = "PromeRotation.IPC.Stop";
     public const string IsRunningIpcName = "PromeRotation.IPC.IsRunning";
 
-    public static bool Start()
+    public static void Start()
     {
-        return Invoke(StartIpcName, "start");
+        Invoke(StartIpcName, "start");
     }
 
-    public static bool Stop()
+    public static void Stop()
     {
-        return Invoke(StopIpcName, "stop");
+        Invoke(StopIpcName, "stop");
     }
 
-    private static bool Invoke(string ipcName, string operation)
+    private static void Invoke(string ipcName, string operation)
     {
         try
         {
             if (!Svc.PluginInterface.InstalledPlugins.Any(plugin =>
                     plugin.InternalName == PluginInternalName && plugin.IsLoaded))
             {
-                return false;
+                return;
             }
 
             var succeeded = Svc.PluginInterface
                 .GetIpcSubscriber<bool>(ipcName)
                 .InvokeFunc();
 
-            if (!succeeded)
+            if (!succeeded && ShouldLogFailure(operation))
             {
                 Svc.Log.Warning($"PromeRotation IPC did not {operation} the automatic rotation.");
             }
-
-            return succeeded;
         }
         catch (Exception exception)
         {
             // IPC endpoints can briefly be unavailable while Dalamud is
             // loading/unloading PromeRotation. Optional integration must never
             // abort a BOCCHI chain or bubble into Dalamud's draw/update loop.
-            Svc.Log.Warning(exception, $"PromeRotation IPC failed to {operation} the automatic rotation.");
-            return false;
+            if (ShouldLogFailure(operation))
+            {
+                Svc.Log.Warning(exception, $"PromeRotation IPC failed to {operation} the automatic rotation.");
+            }
         }
+    }
+
+    private static bool ShouldLogFailure(string operation)
+    {
+        return EzThrottler.Throttle($"PromeRotationController.{operation}.Failure", FailureLogIntervalMs);
     }
 }

@@ -102,6 +102,21 @@ public class FateActivity(EventData data, Lifestream lifestream, VNavmesh vnav, 
                 }
             }
 
+            // Some FATEs have no targetable actor until after the player has
+            // entered their area. Arrival is still successful; let the
+            // participating chain take over instead of treating stopped
+            // navigation as a failure and recreating the activity forever.
+            if (target == null && IsInZone())
+            {
+                Actions.TryUnmount();
+                if (vnav.IsRunning())
+                {
+                    vnav.Stop();
+                }
+
+                return true;
+            }
+
             if (!IsNavigationActive())
             {
                 throw new VnavmeshStoppedException();

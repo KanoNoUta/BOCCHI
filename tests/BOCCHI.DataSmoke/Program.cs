@@ -469,6 +469,9 @@ Assert(PromeRotationController.PluginInternalName == "PromeRotation"
        && PromeRotationController.StopIpcName == "PromeRotation.IPC.Stop"
        && PromeRotationController.IsRunningIpcName == "PromeRotation.IPC.IsRunning",
     "PromeRotation automatic-rotation integration must retain the official plugin and IPC names.");
+Assert(typeof(PromeRotationController).GetMethod(nameof(PromeRotationController.Start))?.ReturnType == typeof(void)
+       && typeof(PromeRotationController).GetMethod(nameof(PromeRotationController.Stop))?.ReturnType == typeof(void),
+    "PromeRotation start/stop must be fire-and-forget so IPC false cannot block an Ocelot chain.");
 
 Assert(NavigationActivityState.IsActive(false, true, false)
        && NavigationActivityState.IsActive(false, false, true),
