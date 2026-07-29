@@ -25,6 +25,8 @@ var northCriticalEncounters = EventData.GetCriticalEncountersForTerritory(ZoneDa
 
 var fate2075 = EventData.Fates[2075];
 var wispLanding = Aethernet.WillOWispVillage.GetData().Destination;
+Assert(fate2075.Aethernet == Aethernet.SunkenTempleFront,
+    "FATE 2075 must teleport to the north-shore aethernet instead of Will-o'-the-Wisp Village.");
 Assert(NorthHornSouthCrossingRoute.TryCreate(fate2075, wispLanding, out var southCrossingRoute),
     "FATE 2075 must use the South Crossing transit profile from Will-o'-the-Wisp Village.");
 Assert(southCrossingRoute.Count == 92,

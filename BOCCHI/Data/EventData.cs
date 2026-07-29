@@ -264,6 +264,7 @@ public struct EventData
                 TerritoryId = ZoneData.NORTHHORN,
                 Type = EventType.Fate,
                 InternalName = "诅咒宝珠——邪瞳",
+                Aethernet = Enums.Aethernet.SunkenTempleFront,
                 StartPosition = new Vector3(510f, 16.76658f, -30f),
             }
         },
