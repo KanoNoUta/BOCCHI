@@ -83,6 +83,8 @@ Assert(northAethernets.Count == 6, $"Expected 6 North Horn aethernet entries, go
 Assert(northAethernets.Distinct().Count() == northAethernets.Count, "North Horn aethernet IDs must be unique.");
 Assert(Aethernet.NorthBaseCamp.GetData().BaseId == 2015429, "North Horn base-camp EObj ID is incorrect.");
 Assert(Aethernet.KarnakCitadel.GetData().BaseId == 2015434, "Karnak Citadel EObj ID is incorrect.");
+Assert(EventData.CriticalEncounters[63].Aethernet == Aethernet.SunkenTempleFront,
+    "Morphing Mage must teleport to the north-shore aethernet instead of Will-o'-the-Wisp Village.");
 
 Assert((int)JobId.Ninja == 16 && (int)JobId.Necromancer == 23, "North Horn support-job IDs are incorrect.");
 Assert((uint)PlayerStatus.PhantomNinja == 5328 && (uint)PlayerStatus.PhantomNecromancer == 5335,

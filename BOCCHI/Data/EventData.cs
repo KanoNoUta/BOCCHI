@@ -725,6 +725,7 @@ public struct EventData
                 Type = EventType.CriticalEncounter,
                 InternalName = "拟态使魔——变形法师",
                 Note = MonsterNote.MorphingMage,
+                Aethernet = Enums.Aethernet.SunkenTempleFront,
                 StartPosition = new Vector3(500f, 56f, -310f),
             }
         },
