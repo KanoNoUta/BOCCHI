@@ -31,6 +31,8 @@ Assert(southCrossingRoute.Count == 92,
     "FATE 2075 South Crossing route must retain every verified land waypoint.");
 Assert(Vector3.Distance(southCrossingRoute[^1], new Vector3(510f, 15.65f, -30f)) < 0.01f,
     "FATE 2075 South Crossing route must end on the east-bank approach.");
+Assert(Vector3.Distance(southCrossingRoute[^1], fate2075.StartPosition!.Value) <= NorthHornSouthCrossingRoute.ArrivalDistance,
+    "FATE 2075 South Crossing route must finish inside the event-arrival radius without a fallback pathfind.");
 Assert(Vector3.Distance(wispLanding, southCrossingRoute[0]) <= 15.01f
        && southCrossingRoute.Zip(southCrossingRoute.Skip(1), Vector3.Distance).All(distance => distance <= 15.01f),
     "Every FATE 2075 South Crossing leg must remain inside the verified direct-follow radius.");

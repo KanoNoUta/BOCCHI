@@ -105,6 +105,7 @@ public abstract class Activity
             var isFate = data.Type == EventType.Fate;
             var destination = GetPosition();
             var navType = SmartNavigation.Decide(Player.Position, destination, activityShard);
+            var pathfinding = new PathfindingChain(vnav, destination, data);
 
             module.Debug("Selected navigation type: " + navType);
 
@@ -116,12 +117,12 @@ public abstract class Activity
             switch (navType)
             {
                 case NavigationType.Walk:
-                    chain = AppendPathfinding(chain, destination);
+                    chain = AppendPathfinding(chain, destination, pathfinding);
                     break;
 
                 case NavigationType.ReturnWalk:
                     chain.Then(ChainHelper.ReturnChain());
-                    chain = AppendPathfinding(chain, destination);
+                    chain = AppendPathfinding(chain, destination, pathfinding);
                     break;
 
                 case NavigationType.ReturnTeleportWalk:
@@ -130,7 +131,7 @@ public abstract class Activity
                         .Then(ChainHelper.TeleportChain(activityShard.Aethernet))
                         .Debug("Waiting for lifestream to not be 'busy'")
                         .Then(new TaskManagerTask(() => !lifestream.IsBusy(), new TaskManagerConfiguration { TimeLimitMS = 30000 }));
-                    chain = AppendPathfinding(chain, destination);
+                    chain = AppendPathfinding(chain, destination, pathfinding);
                     break;
 
                 case NavigationType.WalkTeleportWalk:
@@ -141,12 +142,12 @@ public abstract class Activity
                         .Then(ChainHelper.TeleportChain(activityShard.Aethernet))
                         .Debug("Waiting for lifestream to not be 'busy'")
                         .Then(new TaskManagerTask(() => !lifestream.IsBusy(), new TaskManagerConfiguration { TimeLimitMS = 30000 }));
-                    chain = AppendPathfinding(chain, destination);
+                    chain = AppendPathfinding(chain, destination, pathfinding);
                     break;
             }
 
             chain
-                .Then(GetPathfindingWatcher(states))
+                .ConditionalThen(_ => !pathfinding.TransitReachedEnd, _ => GetPathfindingWatcher(states))
                 .ConditionalThen(_ => !vnav.IsRunning(), _ =>
                 {
                     if (module.GetModule<AutomatorModule>().random.NextDouble() < 0.5)
@@ -160,9 +161,8 @@ public abstract class Activity
         };
     }
 
-    private Chain AppendPathfinding(Chain chain, Vector3 destination)
+    private Chain AppendPathfinding(Chain chain, Vector3 destination, PathfindingChain pathfinding)
     {
-        var pathfinding = new PathfindingChain(vnav, destination, data);
         var useSouthCrossing = false;
 
         return chain
@@ -172,6 +172,7 @@ public abstract class Activity
                 return useSouthCrossing && ShouldMountToPathfindTo(destination);
             }, ChainHelper.MountChain())
             .Then(pathfinding)
+            .BreakIf(() => pathfinding.TransitAttempted && !pathfinding.TransitReachedEnd)
             .ConditionalThen(_ => !useSouthCrossing && ShouldMountToPathfindTo(destination), ChainHelper.MountChain());
     }
 

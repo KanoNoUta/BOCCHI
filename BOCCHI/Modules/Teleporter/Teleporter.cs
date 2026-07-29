@@ -53,13 +53,15 @@ public class Teleporter(TeleporterModule module)
             Plugin.Chain.Submit(() =>
             {
                 var useSouthCrossing = false;
+                var pathfinding = new PathfindingChain(vnav, destination, ev, 20f);
                 return Chain.Create("寻路中")
                     .ConditionalThen(_ =>
                     {
                         useSouthCrossing = NorthHornSouthCrossingRoute.ShouldUse(ev, ECommons.GameHelpers.Player.Position);
                         return useSouthCrossing && module.Config.ShouldMount;
                     }, ChainHelper.MountChain())
-                    .Then(new PathfindingChain(vnav, destination, ev, 20f))
+                    .Then(pathfinding)
+                    .BreakIf(() => pathfinding.TransitAttempted && !pathfinding.TransitReachedEnd)
                     .ConditionalThen(_ => !useSouthCrossing && module.Config.ShouldMount, ChainHelper.MountChain())
                     .WaitUntilNear(vnav, destination, 205f);
             });
@@ -100,13 +102,15 @@ public class Teleporter(TeleporterModule module)
                 if (module.TryGetIPCSubscriber<VNavmesh>(out var vnav) && vnav != null && vnav.IsReady())
                 {
                     var useSouthCrossing = false;
+                    var pathfinding = new PathfindingChain(vnav, destination, ev, 20f);
                     chain.RunIf(() => module.Config.PathToDestination)
                         .ConditionalThen(_ =>
                         {
                             useSouthCrossing = NorthHornSouthCrossingRoute.ShouldUse(ev, ECommons.GameHelpers.Player.Position);
                             return useSouthCrossing && module.Config.ShouldMount;
                         }, ChainHelper.MountChain())
-                        .Then(new PathfindingChain(vnav, destination, ev, 20f))
+                        .Then(pathfinding)
+                        .BreakIf(() => pathfinding.TransitAttempted && !pathfinding.TransitReachedEnd)
                         .ConditionalThen(_ => !useSouthCrossing && module.Config.ShouldMount, ChainHelper.MountChain())
                         .WaitUntilNear(vnav, destination, 20f);
                 }
