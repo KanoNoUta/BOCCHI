@@ -1150,4 +1150,17 @@ finally
     Directory.Delete(atomicDirectory, true);
 }
 
-Console.WriteLine("BOCCHI 7.55 North Horn data, lifecycle, config, translation, routing, and precompute smoke tests passed.");
+var requiredVnavmeshVersion = new Version(0, 7, 6, 0);
+Assert(VnavmeshVersionPolicy.RequiredVersion == requiredVnavmeshVersion,
+    "Automator must pin the verified North Horn LAYERS vnavmesh build exactly.");
+Assert(VnavmeshVersionPolicy.Evaluate(true, true, requiredVnavmeshVersion).IsCompatible,
+    "The exact verified vnavmesh build must be accepted.");
+Assert(!VnavmeshVersionPolicy.Evaluate(true, true, new Version(0, 7, 6)).IsCompatible
+       && !VnavmeshVersionPolicy.Evaluate(true, true, new Version(0, 7, 6, 1)).IsCompatible
+       && !VnavmeshVersionPolicy.Evaluate(true, true, new Version(0, 7, 7, 0)).IsCompatible,
+    "vnavmesh validation must be exact, including the revision component.");
+Assert(VnavmeshVersionPolicy.Evaluate(false, false, null).Status == VnavmeshVersionStatus.Missing
+       && VnavmeshVersionPolicy.Evaluate(true, false, requiredVnavmeshVersion).Status == VnavmeshVersionStatus.NotLoaded,
+    "Missing and unloaded vnavmesh installations must fail closed.");
+
+Console.WriteLine("BOCCHI 7.55 North Horn data, lifecycle, config, translation, routing, precompute, and vnavmesh version smoke tests passed.");
