@@ -4,10 +4,17 @@
       "enabled": "Enabled",
       "start": "Start",
       "stop": "Stop",
-      "not_in_zone": "Not in an Occult Crescent zone."
+      "not_in_zone": "Not in an Occult Crescent zone.",
+      "needed": "Needed",
+      "not_needed": "Not needed"
     },
     "tooltip": {
       "illegal_mode_compatible": "This option is compatible with Illegal Mode, It will use it while it runs."
+    },
+    "message": {
+      "language_set": "Language set",
+      "unknown_language": "Unknown language code",
+      "language_usage": "Usage: /bocchi language <code> (en/de/fr/jp/zh/uwu)"
     }
   }
 }

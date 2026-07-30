@@ -23,6 +23,12 @@
           "label": "返回后接近以太水晶",
           "tooltip": "返回后自动行走至以太之光位置\n* 仅在通过插件完成FATE或CE后返回时生效"
         }
+      },
+      "messages": {
+        "not_near_shard": "附近没有可用的以太水晶。",
+        "lifestream_busy": "Lifestream 正忙，请稍后重试。",
+        "no_shard_found": "没有找到适合传送的以太水晶。",
+        "already_at_closest_shard": "你已经位于最近的以太水晶旁。"
       }
     }
   }

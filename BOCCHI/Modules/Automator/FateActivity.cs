@@ -27,9 +27,46 @@ public static class FateNavigationPolicy
 {
     public const float RepathDistance = 5f;
 
+    public const float ArrivalRadiusWithoutTarget = 5f;
+
+    public const float MaximumReliableHitboxRadius = 20f;
+
+    public const int NavigationStartGraceMs = 2000;
+
     public static bool ShouldRepath(bool navigationActive, float targetMovement)
     {
         return !navigationActive && targetMovement > RepathDistance;
+    }
+
+    public static bool IsTargetInEngagementRange(float centerDistance, float hitboxRadius, float engagementRange)
+    {
+        if (!float.IsFinite(centerDistance) || !float.IsFinite(hitboxRadius) || !float.IsFinite(engagementRange))
+        {
+            return false;
+        }
+
+        var reliableHitboxRadius = Math.Clamp(hitboxRadius, 0f, MaximumReliableHitboxRadius);
+        return centerDistance - reliableHitboxRadius <= Math.Max(0f, engagementRange);
+    }
+
+    public static bool IsTargetlessArrival(float distanceToCenter, float fateRadius)
+    {
+        if (!float.IsFinite(distanceToCenter) || !float.IsFinite(fateRadius))
+        {
+            return false;
+        }
+
+        return distanceToCenter <= Math.Min(Math.Max(0f, fateRadius), ArrivalRadiusWithoutTarget);
+    }
+
+    public static bool IsInsideNavigationStartGrace(bool hasObservedNavigation, long elapsedMs)
+    {
+        return !hasObservedNavigation && elapsedMs < NavigationStartGraceMs;
+    }
+
+    public static long StartAtFirstTick(long? startedAt, long now)
+    {
+        return startedAt ?? now;
     }
 }
 
@@ -40,9 +77,15 @@ public class FateActivity(EventData data, Lifestream lifestream, VNavmesh vnav, 
     {
         var lastTargetPos = Vector3.Zero;
         var followingActivityTarget = false;
+        long? watcherStartedAt = null;
+        var hasObservedNavigation = false;
 
         return new TaskManagerTask(() =>
         {
+            var now = Environment.TickCount64;
+            watcherStartedAt = FateNavigationPolicy.StartAtFirstTick(watcherStartedAt, now);
+            hasObservedNavigation |= IsNavigationActive();
+
             var target = Svc.Targets.Target is IBattleNpc
                 {
                     IsDead: false,
@@ -63,6 +106,29 @@ public class FateActivity(EventData data, Lifestream lifestream, VNavmesh vnav, 
 
             if (target != null)
             {
+                var centerDistance = Vector3.Distance(Player.Position, target.Position);
+                var inEngagementRange = states.GetState() == State.InFate
+                    && FateNavigationPolicy.IsTargetInEngagementRange(
+                        centerDistance,
+                        target.HitboxRadius,
+                        module.Config.EngagementRange);
+
+                // Check arrival before submitting a new route.  A target can
+                // enter the engagement range on the same tick that the last
+                // route finishes; queueing another SimpleMove first can
+                // restart movement after the dismount request.
+                if (inEngagementRange)
+                {
+                    StopAtArrivalAndTryDismount("Fate.ArrivalDismount");
+
+                    Svc.Log.Info(
+                        $"FATE arrival confirmed at target: {GetName()}, " +
+                        $"distance={centerDistance:F1}, hitbox={target.HitboxRadius:F1}, " +
+                        $"engagement={module.Config.EngagementRange:F1}");
+
+                    return true;
+                }
+
                 // Target selectors can switch targets several times per second.
                 // Let the active route finish before repathing; replacing a
                 // running SimpleMove every second causes visible stop/start.
@@ -76,19 +142,6 @@ public class FateActivity(EventData data, Lifestream lifestream, VNavmesh vnav, 
                 }
 
                 followingActivityTarget = true;
-
-                if (states.GetState() == State.InFate)
-                {
-                    var distance = Vector3.Distance(Player.Position, target.Position) - target.HitboxRadius;
-                    if (distance <= module.Config.EngagementRange)
-                    {
-                        Actions.TryUnmount();
-
-                        vnav.Stop();
-
-                        return true;
-                    }
-                }
             }
             else if (followingActivityTarget)
             {
@@ -112,23 +165,33 @@ public class FateActivity(EventData data, Lifestream lifestream, VNavmesh vnav, 
                 }
             }
 
-            // Some FATEs have no targetable actor until after the player has
-            // entered their area. Arrival is still successful; let the
-            // participating chain take over instead of treating stopped
-            // navigation as a failure and recreating the activity forever.
-            if (target == null && IsInZone())
+            // A FATE radius can cover most of the route from an aethernet.
+            // Only the small center approach counts as a targetless arrival;
+            // otherwise teleporting into the outer FATE circle dismounts the
+            // player after only a couple of steps.
+            var distanceToCenter = Player.DistanceTo(GetPosition());
+            if (target == null && FateNavigationPolicy.IsTargetlessArrival(distanceToCenter, GetRadius()))
             {
-                Actions.TryUnmount();
-                if (vnav.IsRunning())
-                {
-                    vnav.Stop();
-                }
+                StopAtArrivalAndTryDismount("Fate.ArrivalDismount");
+
+                Svc.Log.Info(
+                    $"FATE arrival confirmed at center: {GetName()}, " +
+                    $"distance={distanceToCenter:F1}, radius={GetRadius():F1}");
 
                 return true;
             }
 
             if (!IsNavigationActive())
             {
+                // vnavmesh briefly reports neither calculating nor running
+                // after accepting a SimpleMove and before movement begins.
+                // Do not tear down the activity during that startup window.
+                var elapsedMs = now - watcherStartedAt.Value;
+                if (FateNavigationPolicy.IsInsideNavigationStartGrace(hasObservedNavigation, elapsedMs))
+                {
+                    return false;
+                }
+
                 throw new VnavmeshStoppedException();
             }
 

@@ -23,6 +23,12 @@
           "label": "デミデジョン後、エーテライトに接近",
           "tooltip": "ベースキャンプに戻った後、エーテライトまで歩きます。\n* F.A.T.E.またはクリティカルエンカウント後にプラグイン経由で戻る場合にのみ機能します。"
         }
+      },
+      "messages": {
+        "not_near_shard": "近くに転送網がありません。",
+        "lifestream_busy": "Lifestreamが処理中です。",
+        "no_shard_found": "適切な転送網が見つかりませんでした。",
+        "already_at_closest_shard": "すでに最寄りの転送網の近くにいます。"
       }
     }
   }

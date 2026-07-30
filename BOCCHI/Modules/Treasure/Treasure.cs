@@ -20,6 +20,11 @@ public class Treasure(IGameObject obj)
 
     public unsafe bool CheckOpened()
     {
+        if (!obj.IsValid() || obj.Address == nint.Zero)
+        {
+            return false;
+        }
+
         var gameObject = (GameObject*)(void*)obj.Address;
         if (gameObject == null)
         {

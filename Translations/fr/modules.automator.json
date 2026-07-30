@@ -286,7 +286,15 @@
         },
         "activity_state": {
           "label": "État",
-          "none": "En attente"
+          "none": "En attente",
+          "states": {
+            "idle": "Inactif",
+            "pathfinding": "En déplacement",
+            "waiting_to_start_ce": "En attente du début de la CC",
+            "participating": "En cours de participation",
+            "done": "Terminé",
+            "unknown": "État inconnu"
+          }
         },
         "rotation": {
           "state": "Changement d'instance",
@@ -303,7 +311,9 @@
         },
         "title": "Mode Illégal",
         "lens": {
-          "title": null
+          "title": "Mode illégal BOCCHI",
+          "toggle_illegal_mode": "Activer ou désactiver le mode illégal",
+          "disabled": "Le mode illégal n'est pas activé."
         }
       },
       "messages": {

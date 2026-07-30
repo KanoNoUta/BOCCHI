@@ -39,6 +39,15 @@
           "label": "停止显示已被探出的陷阱",
           "tooltip": "停止绘制已被探出的陷阱位置（此功能正在开发中）"
         }
+      },
+      "panel": {
+        "title": "两歧塔",
+        "tower": "当前塔",
+        "dynamic_event_id": "动态事件 ID",
+        "tower_id": "本次塔 ID",
+        "tower_id_tooltip": "该标识只对应你当前这一轮两歧塔。",
+        "discovered_traps": "已发现陷阱",
+        "unmapped_traps": "未建模陷阱"
       }
     }
   }

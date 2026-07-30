@@ -11,16 +11,16 @@ public enum ActivityState
 
 public static class ActivityStateExtensions
 {
-    public static string ToLabel(this ActivityState state)
+    public static string ToTranslationKey(this ActivityState state)
     {
         return state switch
         {
-            ActivityState.Idle => "Idle",
-            ActivityState.Pathfinding => "Pathfinding",
-            ActivityState.WaitingToStartCriticalEncounter => "Waiting to Start (CE)",
-            ActivityState.Participating => "Participating",
-            ActivityState.Done => "Done",
-            _ => "Unknown",
+            ActivityState.Idle => "idle",
+            ActivityState.Pathfinding => "pathfinding",
+            ActivityState.WaitingToStartCriticalEncounter => "waiting_to_start_ce",
+            ActivityState.Participating => "participating",
+            ActivityState.Done => "done",
+            _ => "unknown",
         };
     }
 }

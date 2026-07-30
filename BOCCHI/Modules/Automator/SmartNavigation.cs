@@ -270,7 +270,31 @@ public static class SmartNavigation
         AethernetData baseCamp,
         float returnCost,
         float teleportCost,
-        string reason)
+        string reason,
+        bool includeWalkTeleportCandidate = true)
+    {
+        return DecideFallback(
+            playerPosition,
+            destination,
+            eventData.Aethernet,
+            aethernets,
+            baseCamp,
+            returnCost,
+            teleportCost,
+            reason,
+            includeWalkTeleportCandidate);
+    }
+
+    public static NavigationPlan DecideFallback(
+        Vector3 playerPosition,
+        Vector3 destination,
+        Aethernet? preferredAethernet,
+        IReadOnlyCollection<AethernetData> aethernets,
+        AethernetData baseCamp,
+        float returnCost,
+        float teleportCost,
+        string reason,
+        bool includeWalkTeleportCandidate = true)
     {
         var shards = aethernets
             .Where(shard => shard.Aethernet != Aethernet.Unknown)
@@ -284,7 +308,7 @@ public static class SmartNavigation
         }
 
         var source = shards.OrderBy(shard => Vector3.DistanceSquared(playerPosition, shard.Position)).First();
-        var target = eventData.Aethernet is { } preferred
+        var target = preferredAethernet is { } preferred
             ? shards.FirstOrDefault(shard => shard.Aethernet == preferred)
               ?? shards.OrderBy(shard => Vector3.DistanceSquared(shard.Destination, destination)).First()
             : shards.OrderBy(shard => Vector3.DistanceSquared(shard.Destination, destination)).First();
@@ -308,7 +332,7 @@ public static class SmartNavigation
                 returnCost + teleportCost + targetDistance));
         }
 
-        if (source.Aethernet != target.Aethernet)
+        if (includeWalkTeleportCandidate && source.Aethernet != target.Aethernet)
         {
             candidates.Add(new NavigationCandidate(
                 NavigationType.WalkTeleportWalk,
@@ -374,9 +398,9 @@ public static class SmartNavigation
             pathTask = pathfind(start, destination, segmentCancellation.Token);
             var path = await pathTask.WaitAsync(timeout, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            if (path == null || path.Count <= 1)
+            if (path == null || !HuntNavigationPlanner.ReachesDestination(path, destination))
             {
-                failure?.Invoke($"No vnavmesh path from {start} to {destination}.");
+                failure?.Invoke($"No complete vnavmesh path from {start} to {destination}.");
                 return null;
             }
 

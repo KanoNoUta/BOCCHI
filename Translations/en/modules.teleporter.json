@@ -23,6 +23,12 @@
           "label": "Approach aetheryte after returning",
           "tooltip": "Walk to the aetheryte after returning to base camp.\n* Only works when returning via the plugin after a FATE or Critical Encounter."
         }
+      },
+      "messages": {
+        "not_near_shard": "You are not near an aethernet shard.",
+        "lifestream_busy": "Lifestream is busy.",
+        "no_shard_found": "No suitable aethernet shard was found.",
+        "already_at_closest_shard": "You are already at the closest shard."
       }
     }
   }

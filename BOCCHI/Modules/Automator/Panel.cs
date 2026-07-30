@@ -25,7 +25,10 @@ public class Panel
 
             OcelotUi.Title($"{module.T("panel.activity_state.label")}:");
             ImGui.SameLine();
-            ImGui.TextUnformatted(module.automator.Activity?.state.ToLabel() ?? module.T("panel.activity_state.none"));
+            var activityState = module.automator.Activity?.state;
+            ImGui.TextUnformatted(activityState is { } state
+                ? module.T($"panel.activity_state.states.{state.ToTranslationKey()}")
+                : module.T("panel.activity_state.none"));
 
             if (!module.Config.ShouldAutoRotateInstance)
             {

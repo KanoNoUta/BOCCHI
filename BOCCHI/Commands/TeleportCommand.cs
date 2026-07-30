@@ -3,6 +3,7 @@ using BOCCHI.Data;
 using BOCCHI.Enums;
 using BOCCHI.Modules.CriticalEncounters;
 using BOCCHI.Modules.Fates;
+using BOCCHI.Modules.Teleporter;
 using ECommons.DalamudServices;
 using FFXIVClientStructs.FFXIV.Client.Game.InstanceContent;
 using Ocelot.Commands;
@@ -27,16 +28,18 @@ public class TeleportCommand(Plugin plugin) : OcelotCommand
 
     public override void Execute(string command, string arguments)
     {
-        if (ZoneData.GetNearbyAethernetShards().Count <= 0)
+        var module = plugin.Modules.GetModule<TeleporterModule>();
+
+        if (!ZoneData.IsNearAnyAethernetShard())
         {
-            Svc.Chat.Print("You are not near a aethernet shards.");
+            Svc.Chat.Print(module.T("messages.not_near_shard"));
             return;
         }
 
         var lifestream = plugin.IPC.GetSubscriber<Lifestream>();
         if (!lifestream.IsReady() || lifestream.IsBusy())
         {
-            Svc.Chat.Print("Lifestream is busy");
+            Svc.Chat.Print(module.T("messages.lifestream_busy"));
             return;
         }
 
@@ -65,13 +68,13 @@ public class TeleportCommand(Plugin plugin) : OcelotCommand
 
         if (shard == null)
         {
-            Svc.Chat.Print("No aethernet shard found");
+            Svc.Chat.Print(module.T("messages.no_shard_found"));
             return;
         }
 
         if (ZoneData.IsNearAethernetShard((Aethernet)shard))
         {
-            Svc.Chat.Print("You are already at the closest shard");
+            Svc.Chat.Print(module.T("messages.already_at_closest_shard"));
             return;
         }
 

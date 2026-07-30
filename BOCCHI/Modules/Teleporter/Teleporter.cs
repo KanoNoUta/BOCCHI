@@ -87,15 +87,26 @@ public class Teleporter(TeleporterModule module)
             return;
         }
 
-        var isNearShards = ZoneData.GetNearbyAethernetShards().Any();
+        var isNearShards = ZoneData.IsNearAnyAethernetShard();
         var isNearCurrentShard = ZoneData.IsNearAethernetShard(aethernet);
 
         if (ImGuiEx.IconButton(FontAwesomeIcon.LocationArrow, $"{name}##{id}", enabled: isNearShards && !isNearCurrentShard))
         {
             Chain Factory()
             {
+                var teleport = ChainHelper.TeleportChain(aethernet);
                 var chain = Chain.Create("Teleport Sequence")
-                    .Then(ChainHelper.TeleportChain(aethernet))
+                    .Then(teleport)
+                    .Then(_ =>
+                    {
+                        if (!teleport.Succeeded)
+                        {
+                            Svc.Log.Error(
+                                $"Stopping manual teleport route because teleport to {aethernet} did not complete; " +
+                                $"reason={teleport.FailureReason ?? "teleport chain timed out or was aborted"}");
+                        }
+                    })
+                    .BreakIf(() => !teleport.Succeeded)
                     .Debug("等待Lifestream不再“忙碌”")
                     .Then(new TaskManagerTask(() => !lifestream.IsBusy(), new TaskManagerConfiguration { TimeLimitMS = 30000 }));
 

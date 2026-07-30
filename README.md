@@ -21,6 +21,7 @@ https://raw.githubusercontent.com/KanoNoUta/DalamudPlugins/main/pluginmaster.jso
 - Treasure radar & hunter
     - Lists nearby treasure and draws a line to them
     - Automatically make your way around the map looting chests
+    - North Horn dynamically selects safe return/aethernet routes, rejects partial paths, unmounts, and verifies each chest before advancing
 - Carrot radar
     - Lists nearby carrots and draws a line to them
 - Silver/Gold per hour tracker
@@ -45,9 +46,9 @@ dotnet run --project tests\BOCCHI.DataSmoke\BOCCHI.DataSmoke.csproj -c Release_C
 
 ## Known issues
 
-- North Horn treasure and carrot automation can run with direct-distance fallback routes. Runtime coordinates are cached
-  after discovery, and the debug panels can precompute persistent vnavmesh routes. A cold start with no trustworthy
-  coordinates will ask you to collect nearby nodes in game first.
+- North Horn treasure automation reads live layout nodes and can recover through forced return/aethernet routes without a
+  precomputed file. Carrot coordinates are cached after discovery; a cold start with no trustworthy carrot coordinates
+  will ask you to collect nearby nodes in game first.
 - North Horn Forked Tower supports independent event tracking and safe live capture. Exact platform centers, radii,
   and complete trap layouts still require in-game samples; South Horn trap coordinates are never reused there.
 - Soul-crystal items `51967`–`51974` are supported by the UI, but their exact source events remain marked as pending

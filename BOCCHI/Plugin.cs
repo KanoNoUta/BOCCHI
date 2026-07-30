@@ -16,7 +16,7 @@ public sealed class Plugin : OcelotPlugin
 {
     public override string Name
     {
-        get => "Occult Crescent Helper";
+        get => "BOCCHI 新月岛综合辅助";
     }
 
     public Config Config { get; }

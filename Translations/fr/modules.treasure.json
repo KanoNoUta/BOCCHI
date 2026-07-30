@@ -13,6 +13,10 @@
         "show_hunt_button": {
           "label": "Afficher le bouton de chasse au coffres"
         },
+        "cast_treasure_sight_before_hunt": {
+          "label": "Utiliser Détection de trésors avant la chasse",
+          "tooltip": "Descend de monture, passe en Freelancer, utilise Détection de trésors puis restaure le job précédent"
+        },
         "title": "Configuration des Coffres",
         "cast_treasure_sight_upon_return": {
           "label": null,

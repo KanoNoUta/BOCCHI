@@ -315,7 +315,15 @@
         },
         "activity_state": {
           "label": "运行状态",
-          "none": "等待运行"
+          "none": "等待运行",
+          "states": {
+            "idle": "待机",
+            "pathfinding": "正在前往目标",
+            "waiting_to_start_ce": "等待CE开始",
+            "participating": "正在参战",
+            "done": "已完成",
+            "unknown": "未知状态"
+          }
         },
         "rotation": {
           "state": "副本轮换",
@@ -331,7 +339,9 @@
           }
         },
         "lens": {
-          "title": "BOCCHI 非法模式"
+          "title": "BOCCHI 非法模式",
+          "toggle_illegal_mode": "开启或关闭非法模式",
+          "disabled": "非法模式尚未启用。"
         }
       },
       "messages": {

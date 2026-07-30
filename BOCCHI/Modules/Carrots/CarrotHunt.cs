@@ -5,6 +5,7 @@ using BOCCHI.ItemHelpers;
 using BOCCHI.Pathfinding;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.ClientState.Objects.Types;
+using ECommons.Automation.NeoTaskManager;
 using ECommons.DalamudServices;
 using ECommons.GameHelpers;
 using FFXIVClientStructs.FFXIV.Client.Game.Control;
@@ -21,6 +22,14 @@ namespace BOCCHI.Modules.Carrots;
 
 public class CarrotHunt(CarrotsModule module) : Hunter(module)
 {
+    private const int BunnyChestSpawnTimeoutMs = 8000;
+
+    private const int BunnyChestApproachTimeoutMs = 10000;
+
+    private const int BunnyChestInteractionTimeoutMs = 10000;
+
+    private const float BunnyChestSearchRadius = 10f;
+
     private readonly Dictionary<uint, Vector3> knownNodePositions = [];
 
     private uint nodeTerritory;
@@ -59,31 +68,208 @@ public class CarrotHunt(CarrotsModule module) : Hunter(module)
             module.PluginConfig.PathfinderConfig.TeleportCost);
     }
 
-    protected override unsafe Func<Chain> GetInteractionChain(IGameObject obj)
+    protected override unsafe Func<Chain> GetInteractionChain(
+        uint nodeId,
+        Vector3 expectedPosition,
+        ulong gameObjectId,
+        Action<HuntInteractionOutcome> complete)
     {
-        return () => Chain.Create()
-            .BreakIf(() => !GetValidObjects().Any(o => Vector3.Distance(o.Position, obj.Position) <= DISTANCE_TO_NODE_TO_USE))
-            .ConditionalThen(_ => Player.Mounted, _ => Actions.Unmount.Cast())
-            .Wait(500)
-            .BreakIf(() => Items.FortuneCarrot.Count() <= 0)
-            .Then(_ => Items.FortuneCarrot.Use())
-            .WaitToCast()
-            .Then(_ => GetBunnyChests().Any())
-            .Then(_ =>
-            {
-                var chest = GetBunnyChests().FirstOrDefault();
-                if (chest == null)
+        return () =>
+        {
+            var outcome = HuntInteractionOutcome.None;
+            var existingChestIds = new HashSet<ulong>();
+            ulong spawnedChestId = 0;
+            var chestInteractionAttempts = 0;
+            var lastChestInteractionAt = long.MinValue;
+            var lastUnmountAttemptAt = Environment.TickCount64 - 1000;
+            var chain = Chain.Create($"Carrot.Interact({nodeId})")
+                .Then(_ =>
                 {
+                    var target = ResolveCarrot(expectedPosition, gameObjectId);
+                    if (target == null)
+                    {
+                        outcome = HuntInteractionOutcome.TargetGone;
+                    }
+                    else if (Player.DistanceTo(target) > DISTANCE_TO_NODE_TO_USE + 0.75f)
+                    {
+                        outcome = HuntInteractionOutcome.OutOfRange;
+                    }
+                })
+                .BreakIf(() => outcome != HuntInteractionOutcome.None)
+                .Then(new TaskManagerTask((Func<bool?>)(() =>
+                {
+                    if (!Player.Mounted)
+                    {
+                        return true;
+                    }
+
+                    var now = Environment.TickCount64;
+                    if (now - lastUnmountAttemptAt >= 1000)
+                    {
+                        Actions.TryUnmount();
+                        lastUnmountAttemptAt = now;
+                    }
+
+                    return false;
+                }), new TaskManagerConfiguration
+                {
+                    TimeLimitMS = 8000,
+                    AbortOnTimeout = true,
+                    OnTaskTimeout = (TaskManagerTask _, ref long _) =>
+                        outcome = HuntInteractionOutcome.Failed,
+                }))
+                .BreakIf(() => Items.FortuneCarrot.Count() <= 0)
+                .Then(_ => existingChestIds = GetBunnyChests()
+                    .Where(chest => chest.IsValid() && chest.IsTargetable)
+                    .Select(chest => chest.GameObjectId)
+                    .ToHashSet())
+                .Then(_ => Items.FortuneCarrot.Use())
+                .WaitToCast()
+                .Then(new TaskManagerTask(() =>
+                {
+                    var chest = GetBunnyChests()
+                        .Where(candidate => !existingChestIds.Contains(candidate.GameObjectId)
+                                            && candidate.IsValid()
+                                            && candidate.IsTargetable
+                                            && Vector3.DistanceSquared(candidate.Position, expectedPosition)
+                                            <= BunnyChestSearchRadius * BunnyChestSearchRadius)
+                        .OrderBy(candidate => Vector3.DistanceSquared(candidate.Position, expectedPosition))
+                        .FirstOrDefault();
+                    if (chest == null)
+                    {
+                        return false;
+                    }
+
+                    spawnedChestId = chest.GameObjectId;
                     return true;
-                }
+                }, new TaskManagerConfiguration
+                {
+                    TimeLimitMS = BunnyChestSpawnTimeoutMs,
+                    AbortOnTimeout = true,
+                    OnTaskTimeout = (TaskManagerTask _, ref long _) =>
+                        outcome = HuntInteractionOutcome.Failed,
+                }))
+                .Then(new TaskManagerTask((Func<bool?>)(() =>
+                {
+                    var chest = GetBunnyChests()
+                        .FirstOrDefault(candidate => candidate.GameObjectId == spawnedChestId
+                                                     && candidate.IsValid());
+                    if (chest == null)
+                    {
+                        return false;
+                    }
 
-                Svc.Targets.Target = chest;
+                    if (Player.DistanceTo(chest) <= DISTANCE_TO_NODE_TO_USE + 0.75f)
+                    {
+                        if (vnav.IsRunning())
+                        {
+                            vnav.Stop();
+                        }
 
-                var gameObject = (GameObject*)(void*)chest.Address;
-                TargetSystem.Instance()->InteractWithObject(gameObject);
-                return Svc.Objects.LocalPlayer?.IsCasting == true;
-            })
-            .WaitToCast();
+                        return true;
+                    }
+
+                    if (!vnav.IsRunning())
+                    {
+                        vnav.PathfindAndMoveTo(chest.Position, false);
+                    }
+
+                    return false;
+                }), new TaskManagerConfiguration
+                {
+                    TimeLimitMS = BunnyChestApproachTimeoutMs,
+                    AbortOnTimeout = true,
+                    OnTaskTimeout = (TaskManagerTask _, ref long _) =>
+                    {
+                        if (vnav.IsRunning())
+                        {
+                            vnav.Stop();
+                        }
+
+                        outcome = HuntInteractionOutcome.Failed;
+                    },
+                }))
+                .Then(new TaskManagerTask((Func<bool?>)(() =>
+                {
+                    if (Svc.Objects.LocalPlayer?.IsCasting == true)
+                    {
+                        return true;
+                    }
+
+                    var chest = GetBunnyChests()
+                        .FirstOrDefault(candidate => candidate.GameObjectId == spawnedChestId);
+                    if (chest == null
+                        || !chest.IsValid()
+                        || !chest.IsTargetable
+                        || chest.Address == nint.Zero)
+                    {
+                        if (chestInteractionAttempts > 0)
+                        {
+                            outcome = HuntInteractionOutcome.Succeeded;
+                            return null;
+                        }
+
+                        return false;
+                    }
+
+                    var now = Environment.TickCount64;
+                    if (chestInteractionAttempts > 0 && now - lastChestInteractionAt < 1000)
+                    {
+                        return false;
+                    }
+
+                    if (chestInteractionAttempts >= 3)
+                    {
+                        outcome = HuntInteractionOutcome.Failed;
+                        return null;
+                    }
+
+                    Svc.Targets.Target = chest;
+
+                    var gameObject = (GameObject*)(void*)chest.Address;
+                    var targetSystem = TargetSystem.Instance();
+                    if (targetSystem == null)
+                    {
+                        return false;
+                    }
+
+                    targetSystem->InteractWithObject(gameObject);
+                    chestInteractionAttempts++;
+                    lastChestInteractionAt = now;
+                    return Svc.Objects.LocalPlayer?.IsCasting == true;
+                }), new TaskManagerConfiguration
+                {
+                    TimeLimitMS = BunnyChestInteractionTimeoutMs,
+                    AbortOnTimeout = true,
+                    OnTaskTimeout = (TaskManagerTask _, ref long _) =>
+                        outcome = HuntInteractionOutcome.Failed,
+                }))
+                .WaitToCast()
+                .Then(_ => outcome = HuntInteractionOutcome.Succeeded)
+                .OnFinally(() =>
+                {
+                    if (vnav.IsRunning())
+                    {
+                        vnav.Stop();
+                    }
+
+                    complete(
+                        outcome == HuntInteractionOutcome.None
+                            ? HuntInteractionOutcome.Failed
+                            : outcome);
+                });
+
+            return chain;
+        };
+    }
+
+    private IGameObject? ResolveCarrot(Vector3 expectedPosition, ulong gameObjectId)
+    {
+        var candidates = GetValidObjects()
+            .Where(candidate => Vector3.DistanceSquared(candidate.Position, expectedPosition) <= 25f)
+            .ToList();
+        return candidates.FirstOrDefault(candidate => candidate.GameObjectId == gameObjectId)
+               ?? candidates.OrderBy(candidate => Vector3.DistanceSquared(candidate.Position, expectedPosition)).FirstOrDefault();
     }
 
     protected override List<uint> GetValidNodes(int max)
@@ -107,27 +293,14 @@ public class CarrotHunt(CarrotsModule module) : Hunter(module)
         return nodes.ToList();
     }
 
-    protected override void Teardown()
+    protected override bool ShouldRepeatAfterCompletion()
     {
-        if (!module.Config.RepeatCarrotHunt)
-        {
-            stopwatch.Stop();
-            running = false;
-        }
+        return module.Config.RepeatCarrotHunt && Items.FortuneCarrot.Count() > 0;
+    }
 
-        stepIndex = 0;
-        Steps.Clear();
-        if (module.TryGetIPCSubscriber<Ocelot.IPC.VNavmesh>(out var navigation)
-            && navigation != null
-            && navigation.IsReady())
-        {
-            navigation.Stop();
-        }
-        Plugin.Chain.Abort();
-        StepProcessor.Abort();
-        pathfinder = null;
-        ResetNodeNavigation();
-        ResetTransitNavigation();
+    protected override bool ShouldStopEarly()
+    {
+        return Items.FortuneCarrot.Count() <= 0;
     }
 
     public void ObserveRuntimeNodes()

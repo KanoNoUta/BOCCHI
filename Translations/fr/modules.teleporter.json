@@ -23,6 +23,12 @@
           "tooltip": "Monte sur votre monture automatiquement après une téléportation."
         },
         "title": "Configuration des Téléportations"
+      },
+      "messages": {
+        "not_near_shard": "Vous n'êtes pas près d'un réseau éthéré.",
+        "lifestream_busy": "Lifestream est occupé.",
+        "no_shard_found": "Aucun réseau éthéré approprié n'a été trouvé.",
+        "already_at_closest_shard": "Vous êtes déjà près du réseau éthéré le plus proche."
       }
     }
   }

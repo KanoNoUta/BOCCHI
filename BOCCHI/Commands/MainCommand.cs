@@ -35,7 +35,7 @@ public class MainCommand(Plugin plugin) : OcelotCommand
 
     private readonly IReadOnlyList<string> languageCodes =
     [
-        "en", "de", "fr", "jp", "uwu",
+        "en", "de", "fr", "jp", "zh", "uwu",
     ];
 
     public override void Execute(string command, string arguments)
@@ -75,15 +75,15 @@ public class MainCommand(Plugin plugin) : OcelotCommand
                 if (languageCodes.Contains(code))
                 {
                     I18N.SetLanguage(code);
-                    Svc.Chat.Print($"Language set to: {code}");
+                    Svc.Chat.Print($"{I18N.T("generic.message.language_set")}: {code}");
                     return;
                 }
 
-                Svc.Log.Error($"Unknown language code: {code}");
+                Svc.Chat.PrintError($"{I18N.T("generic.message.unknown_language")}: {code}");
                 return;
             }
 
-            Svc.Chat.Print("Usage: /bocchi language <code>");
+            Svc.Chat.Print(I18N.T("generic.message.language_usage"));
             return;
         }
 

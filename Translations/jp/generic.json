@@ -4,10 +4,17 @@
       "enabled": "有効",
       "start": "開始",
       "stop": "停止",
-      "not_in_zone": "現在クレセントアイルのゾーン外です"
+      "not_in_zone": "現在クレセントアイルのゾーン外です",
+      "needed": "必要",
+      "not_needed": "不要"
     },
     "tooltip": {
       "illegal_mode_compatible": "このオプションは不正モードと互換性があり、実行中に使用されます。"
+    },
+    "message": {
+      "language_set": "言語を変更しました",
+      "unknown_language": "不明な言語コード",
+      "language_usage": "使用方法: /bocchi language <code> (en/de/fr/jp/zh/uwu)"
     }
   }
 }

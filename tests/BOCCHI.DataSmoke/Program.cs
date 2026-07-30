@@ -2,6 +2,7 @@ using BOCCHI;
 using BOCCHI.Data;
 using BOCCHI.Enums;
 using BOCCHI.Modules.Automator;
+using BOCCHI.Modules.Carrots;
 using BOCCHI.Modules.CriticalEncounters;
 using BOCCHI.Modules.StateManager;
 using BOCCHI.Pathfinding;
@@ -86,6 +87,103 @@ Assert(straightFallbackPlan.Type == NavigationType.Walk
        && detourPlan.DestinationAethernet == navigationTarget.Aethernet,
     "Measured vnavmesh detours must be able to change the route selected by straight-line costs.");
 
+var huntFallbackPlan = SmartNavigation.DecideFallback(
+    navigationPlayer,
+    navigationDestination,
+    (Aethernet?)null,
+    navigationShards,
+    navigationBaseCamp,
+    returnCost: 300f,
+    teleportCost: 5f,
+    "North Horn hunt smoke test");
+var huntTransitSteps = HuntNavigationPlanner.BuildTransitSteps(huntFallbackPlan);
+Assert(huntFallbackPlan.Type == NavigationType.WalkTeleportWalk
+       && huntTransitSteps.Count == 2
+       && huntTransitSteps[0].Type == PathfinderStepType.WalkToAethernet
+       && huntTransitSteps[0].Aethernet == navigationSource.Aethernet
+       && huntTransitSteps[1].Type == PathfinderStepType.TeleportToAethernet
+       && huntTransitSteps[1].Aethernet == navigationTarget.Aethernet,
+    "Generic fallback routing must retain its source-shard/teleport option for callers that explicitly allow it.");
+var safeHuntFallbackPlan = SmartNavigation.DecideFallback(
+    navigationPlayer,
+    navigationDestination,
+    (Aethernet?)null,
+    navigationShards,
+    navigationBaseCamp,
+    returnCost: 300f,
+    teleportCost: 5f,
+    "North Horn safe hunt fallback",
+    includeWalkTeleportCandidate: false);
+Assert(safeHuntFallbackPlan.Type != NavigationType.WalkTeleportWalk
+       && safeHuntFallbackPlan.Candidates.All(candidate =>
+           candidate.Type != NavigationType.WalkTeleportWalk),
+    "An unmeasured hunt fallback must not walk toward an unverified source shard.");
+var forcedHuntRecovery = HuntNavigationPlanner.BuildForcedRecoverySteps(
+    navigationTarget.Aethernet,
+    navigationBaseCamp.Aethernet);
+Assert(forcedHuntRecovery.Count == 2
+       && forcedHuntRecovery[0].Type == PathfinderStepType.ReturnToBaseCamp
+       && forcedHuntRecovery[1].Type == PathfinderStepType.TeleportToAethernet
+       && forcedHuntRecovery.All(step => step.Type != PathfinderStepType.WalkToAethernet),
+    "An unreachable North Horn hunt node must recover through return and its closest aethernet.");
+var sameCampRecovery = HuntNavigationPlanner.BuildForcedRecoverySteps(
+    navigationBaseCamp.Aethernet,
+    navigationBaseCamp.Aethernet);
+Assert(sameCampRecovery.Count == 1
+       && sameCampRecovery[0].Type == PathfinderStepType.ReturnToBaseCamp,
+    "Forced recovery to base camp must not add a redundant teleport.");
+Assert(HuntNavigationPlanner.ReachesDestination(
+           [Vector3.Zero, navigationDestination],
+           navigationDestination)
+       && !HuntNavigationPlanner.ReachesDestination(
+           [Vector3.Zero, new Vector3(50f, 0f, 0f)],
+           navigationDestination)
+       && !HuntNavigationPlanner.ReachesDestination([], navigationDestination)
+       && !HuntNavigationPlanner.ReachesDestination([navigationDestination], navigationDestination)
+       && HuntNavigationPlanner.ReachesDestination(
+           [Vector3.Zero, navigationDestination + new Vector3(5f, 0f, 0f)],
+           navigationDestination)
+       && !HuntNavigationPlanner.ReachesDestination(
+           [Vector3.Zero, navigationDestination + new Vector3(5.01f, 0f, 0f)],
+           navigationDestination),
+    "Hunt routing must reject partial vnavmesh paths before following them across an unreachable boundary.");
+
+var routeWithCurrentNode = new List<PathfinderStep>
+{
+    PathfinderStep.WalkToDestination(1),
+    PathfinderStep.WalkToDestination(2),
+    PathfinderStep.WalkToDestination(3),
+};
+HuntNavigationPlanner.InsertBeforeCurrentNode(routeWithCurrentNode, 1, forcedHuntRecovery);
+Assert(routeWithCurrentNode.Count == 5
+       && routeWithCurrentNode[0].NodeId == 1
+       && routeWithCurrentNode[1].Type == PathfinderStepType.ReturnToBaseCamp
+       && routeWithCurrentNode[2].Type == PathfinderStepType.TeleportToAethernet
+       && routeWithCurrentNode[3].Type == PathfinderStepType.WalkToNode
+       && routeWithCurrentNode[3].NodeId == 2
+       && routeWithCurrentNode[4].NodeId == 3,
+    "Transit insertion must preserve the current hunt node behind return/teleport without pre-advancing it.");
+
+var partialSourcePlan = await SmartNavigation.DecideAsync(
+    navigationPlayer,
+    navigationDestination,
+    navigationEvent,
+    navigationShards,
+    navigationBaseCamp,
+    (start, destination, _) => Task.FromResult(
+        start == navigationPlayer && destination == navigationSource.Position
+            ? new List<Vector3> { start, start + Vector3.UnitX }
+            : new List<Vector3> { start, destination }),
+    returnCost: 300f,
+    teleportCost: 5f,
+    destinationCandidateCount: 2,
+    sourceCandidateCount: 1,
+    segmentTimeout: TimeSpan.FromSeconds(1));
+Assert(partialSourcePlan.Candidates.All(candidate =>
+        candidate.Type != NavigationType.WalkTeleportWalk
+        || candidate.SourceAethernet != navigationSource.Aethernet),
+    "A partial route to the source shard must never produce a WalkTeleportWalk candidate.");
+
 var cheapTeleportPlan = await SmartNavigation.DecideAsync(
     navigationPlayer,
     navigationDestination,
@@ -122,15 +220,10 @@ var unreachableTargetPlan = await SmartNavigation.DecideAsync(
     preferredNavigationEvent,
     navigationShards,
     navigationBaseCamp,
-    (start, destination, token) =>
-    {
-        if (start == navigationTarget.Destination && destination == navigationDestination)
-        {
-            throw new InvalidOperationException("target is unreachable");
-        }
-
-        return StraightPath(start, destination, token);
-    },
+    (start, destination, _) => Task.FromResult(
+        start == navigationTarget.Destination && destination == navigationDestination
+            ? new List<Vector3> { start, start + Vector3.UnitX }
+            : new List<Vector3> { start, destination }),
     returnCost: 300f,
     teleportCost: 5f,
     destinationCandidateCount: 1,
@@ -221,6 +314,100 @@ Assert(!FateNavigationPolicy.ShouldRepath(navigationActive: true, targetMovement
 Assert(FateNavigationPolicy.ShouldRepath(navigationActive: false, targetMovement: 6f)
        && !FateNavigationPolicy.ShouldRepath(navigationActive: false, targetMovement: 5f),
     "FATE target repathing must wait for navigation to stop and enforce its movement threshold.");
+Assert(FateNavigationPolicy.IsTargetlessArrival(distanceToCenter: 4.9f, fateRadius: 100f)
+       && !FateNavigationPolicy.IsTargetlessArrival(distanceToCenter: 5.1f, fateRadius: 100f),
+    "A broad FATE radius must not end travel until the player reaches the center approach.");
+Assert(FateNavigationPolicy.IsTargetInEngagementRange(centerDistance: 25f, hitboxRadius: 20f, engagementRange: 5f)
+       && !FateNavigationPolicy.IsTargetInEngagementRange(centerDistance: 100f, hitboxRadius: 500f, engagementRange: 5f),
+    "FATE arrival must honor normal hitboxes without trusting corrupt or oversized radii.");
+Assert(FateNavigationPolicy.IsInsideNavigationStartGrace(hasObservedNavigation: false, elapsedMs: 1000)
+       && !FateNavigationPolicy.IsInsideNavigationStartGrace(hasObservedNavigation: true, elapsedMs: 1000)
+       && !FateNavigationPolicy.IsInsideNavigationStartGrace(hasObservedNavigation: false, elapsedMs: 2000),
+    "FATE travel must tolerate only the initial vnavmesh SimpleMove startup gap.");
+var fateWatcherStartedAt = FateNavigationPolicy.StartAtFirstTick(null, 100000);
+Assert(fateWatcherStartedAt == 100000
+       && FateNavigationPolicy.StartAtFirstTick(fateWatcherStartedAt, 101999) == 100000,
+    "FATE startup grace must begin when its watcher first executes, not while an earlier return/teleport chain is running.");
+
+var ceFinalTarget = new Vector3(20f, 0f, 0f);
+Assert(CriticalEncounterNavigationPolicy.IsInsideNavigationStartGrace(false, 1999)
+       && !CriticalEncounterNavigationPolicy.IsInsideNavigationStartGrace(true, 1999)
+       && !CriticalEncounterNavigationPolicy.IsInsideNavigationStartGrace(false, 2000),
+    "CE initial travel must tolerate only the vnavmesh SimpleMove startup gap.");
+var ceWatcherStartedAt = CriticalEncounterNavigationPolicy.StartAtFirstTick(null, 200000);
+Assert(ceWatcherStartedAt == 200000
+       && CriticalEncounterNavigationPolicy.StartAtFirstTick(ceWatcherStartedAt, 201999) == 200000,
+    "CE startup grace must begin when its watcher first executes, not while an earlier return/teleport chain is running.");
+Assert(CriticalEncounterNavigationPolicy.EvaluateFinalApproach(
+           Vector3.Zero, ceFinalTarget, false, false, 1999) == FinalApproachDecision.Waiting
+       && CriticalEncounterNavigationPolicy.EvaluateFinalApproach(
+           Vector3.Zero, ceFinalTarget, true, false, 2000) == FinalApproachDecision.Waiting
+       && CriticalEncounterNavigationPolicy.EvaluateFinalApproach(
+           Vector3.Zero, ceFinalTarget, false, false, 2000) == FinalApproachDecision.StoppedBeforeArrival
+       && CriticalEncounterNavigationPolicy.EvaluateFinalApproach(
+           Vector3.Zero, ceFinalTarget, false, true, 1) == FinalApproachDecision.StoppedBeforeArrival
+       && CriticalEncounterNavigationPolicy.EvaluateFinalApproach(
+           new Vector3(15f, 0f, 0f), ceFinalTarget, false, true, 2000) == FinalApproachDecision.Arrived
+       && CriticalEncounterNavigationPolicy.EvaluateFinalApproach(
+           new Vector3(14.99f, 0f, 0f), ceFinalTarget, false, true, 2000) == FinalApproachDecision.StoppedBeforeArrival,
+    "CE final approach must survive vnavmesh's startup gap and confirm the saved random target within five yalms.");
+
+Assert(TransitCompletionPolicy.HasVerifiedArrival(true, true)
+       && !TransitCompletionPolicy.HasVerifiedArrival(true, false)
+       && !TransitCompletionPolicy.HasVerifiedArrival(false, true)
+       && !TransitCompletionPolicy.HasVerifiedArrival(false, false)
+       && TransitCompletionPolicy.CanContinueAfterReturn(true)
+       && !TransitCompletionPolicy.CanContinueAfterReturn(false),
+    "Return/teleport chains must not advance until both child success and destination validation are true.");
+
+Assert(ActivityParticipationState.GetCombatStartupDecision(false, 0) == CombatStartupDecision.Ready
+       && ActivityParticipationState.GetCombatStartupDecision(true, 0) == CombatStartupDecision.WaitingForUnmount
+       && ActivityParticipationState.GetCombatStartupDecision(true, 7999) == CombatStartupDecision.WaitingForUnmount
+       && ActivityParticipationState.GetCombatStartupDecision(true, 8000) == CombatStartupDecision.TimedOut,
+    "Combat automation must wait for a confirmed dismount and fail closed after the bounded retry window.");
+
+Assert(SupportJobLevelingPolicy.ShouldKeepCurrent(JobId.Freelancer, 1, 24)
+       && SupportJobLevelingPolicy.ShouldKeepCurrent(JobId.Ninja, 1, 10)
+       && !SupportJobLevelingPolicy.ShouldKeepCurrent(JobId.Ninja, 10, 10),
+    "An unfinished Freelancer must remain eligible for automatic leveling like every other unlocked support job.");
+var lowestSupportJob = SupportJobLevelingPolicy.SelectLowestIncomplete([
+    new SupportJobLevelCandidate((byte)JobId.Freelancer, 5, 24),
+    new SupportJobLevelCandidate((byte)JobId.Ninja, 3, 10),
+    new SupportJobLevelCandidate((byte)JobId.WhiteMage, 2, 10),
+    new SupportJobLevelCandidate((byte)JobId.BlackMage, 0, 10),
+    new SupportJobLevelCandidate((byte)JobId.Dragoon, 10, 10),
+]);
+Assert(lowestSupportJob == (byte)JobId.WhiteMage,
+    "Automatic leveling must compare actual levels instead of treating row-zero Freelancer as automatically lowest.");
+var unfinishedFreelancer = SupportJobLevelingPolicy.SelectLowestIncomplete([
+    new SupportJobLevelCandidate((byte)JobId.Freelancer, 1, 24),
+    new SupportJobLevelCandidate((byte)JobId.WhiteMage, 2, 10),
+]);
+Assert(unfinishedFreelancer == (byte)JobId.Freelancer,
+    "Freelancer must still be selected when its real level is the lowest unfinished level.");
+var northCampShard = Aethernet.NorthBaseCamp.GetData();
+Assert(ZoneData.IsWithinKnownAethernetRange(
+           new Vector3(881.836f, 258.5f, 881.894f),
+           northCampShard.Position,
+           AethernetData.DISTANCE + 1f)
+       && !ZoneData.IsWithinKnownAethernetRange(
+           new Vector3(900f, 258.5f, 900f),
+           northCampShard.Position,
+           AethernetData.DISTANCE + 1f),
+    "North Horn teleport validation must fall back to maintained shard coordinates when EventObj lookup is unavailable.");
+Assert(!AutomatorChainPolicy.IsActive([])
+       && !AutomatorChainPolicy.IsActive([(false, 0), (false, 0)])
+       && AutomatorChainPolicy.IsActive([(true, 0)])
+       && AutomatorChainPolicy.IsActive([(false, 1)]),
+    "Only running or queued chains may block the automator; retained empty queues must not stall navigation.");
+Assert(typeof(CarrotHunt).GetMethod(
+           "Teardown",
+           BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly) == null,
+    "Repeating carrot routes must use Hunter's centralized teardown so route-generation and interaction state are reset.");
+Assert(typeof(CarrotHunt).GetMethod(
+           "ShouldStopEarly",
+           BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly) != null,
+    "Carrot hunting must stop immediately when Fortune Carrots run out instead of repeating an empty route.");
 
 var southFates = EventData.GetFatesForTerritory(ZoneData.SOUTHHORN).ToList();
 var northFates = EventData.GetFatesForTerritory(ZoneData.NORTHHORN).ToList();

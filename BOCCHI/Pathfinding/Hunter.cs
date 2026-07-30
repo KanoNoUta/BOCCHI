@@ -1,6 +1,8 @@
 ﻿using BOCCHI.Chains;
 using BOCCHI.Enums;
+using BOCCHI.Data;
 using BOCCHI.Modules;
+using BOCCHI.Modules.Automator;
 using BOCCHI.Modules.Pathfinder;
 using BOCCHI.Modules.StateManager;
 using Dalamud.Bindings.ImGui;
@@ -30,7 +32,13 @@ public abstract class Hunter
     protected Module m;
     protected const float DISTANCE_TO_NODE_TO_USE = 2f;
 
+    private const float NODE_ABSENCE_CONFIRMATION_DISTANCE = 4f;
+
     private const int MAX_NODE_PATH_ATTEMPTS = 3;
+
+    private const int MAX_NODE_INTERACTION_ATTEMPTS = 1;
+
+    private const int MAX_NODE_RECOVERY_ROUTES = 3;
 
     private static readonly TimeSpan NodePathCalculationTimeout = TimeSpan.FromSeconds(20);
 
@@ -68,6 +76,10 @@ public abstract class Hunter
 
     private DateTime nodePathStartedAt = DateTime.MinValue;
 
+    private Task? retiringNodePathTask;
+
+    private DateTime retiringNodePathStartedAt = DateTime.MinValue;
+
     private uint? navigationNodeId;
 
     private int nodePathAttempts;
@@ -75,6 +87,24 @@ public abstract class Hunter
     private float bestNodeDistance = float.MaxValue;
 
     private DateTime lastNodeProgress = DateTime.MinValue;
+
+    private DateTime nodeFollowSubmittedAt = DateTime.MinValue;
+
+    private bool nodeFollowObserved;
+
+    private readonly HashSet<uint> dynamicallyPlannedNodes = [];
+
+    private readonly Dictionary<uint, HashSet<Aethernet>> recoveredNodeAethernets = [];
+
+    private bool interactionPending;
+
+    private uint? interactionNodeId;
+
+    private int interactionStepIndex = -1;
+
+    private int interactionAttempts;
+
+    private long routeGeneration;
 
     private int transitStepIndex = -1;
 
@@ -88,12 +118,24 @@ public abstract class Hunter
 
     private DateTime lastTransitAttempt = DateTime.MinValue;
 
+    private int transitChildAttempts;
+
+    private DateTime lastTransitChildAttempt = DateTime.MinValue;
+
+    private bool transitChildPending;
+
+    private string? transitChildFailureReason;
+
+    private Chain? activeTransitChild;
+
     protected PathfinderStep CurrentStep
     {
         get => Steps[stepIndex];
     }
 
     protected string JSON = "";
+
+    public bool IsRunning => running;
 
     protected ChainQueue StepProcessor
     {
@@ -119,6 +161,14 @@ public abstract class Hunter
 
     protected abstract IEnumerable<IGameObject> GetValidObjects();
 
+    protected virtual IGameObject? ResolveLiveObjectForNode(uint nodeId, Vector3 expectedPosition)
+    {
+        return GetValidObjects()
+            .Where(candidate => Vector3.DistanceSquared(expectedPosition, candidate.Position) <= 25f)
+            .OrderBy(candidate => Vector3.DistanceSquared(expectedPosition, candidate.Position))
+            .FirstOrDefault();
+    }
+
     protected abstract bool TryGetDestinationForCurrentStep(out Vector3 destination);
 
     protected float GetDetectionRange()
@@ -128,14 +178,39 @@ public abstract class Hunter
 
     protected abstract IPathfinder CreatePathfinder();
 
-    protected abstract Func<Chain> GetInteractionChain(IGameObject obj);
+    protected abstract Func<Chain> GetInteractionChain(
+        uint nodeId,
+        Vector3 expectedPosition,
+        ulong gameObjectId,
+        Action<HuntInteractionOutcome> complete);
 
     protected abstract List<uint> GetValidNodes(int max);
+
+    protected virtual void OnStarted()
+    {
+    }
+
+    protected virtual bool ShouldStopEarly()
+    {
+        return false;
+    }
+
+    protected virtual bool ShouldRepeatAfterCompletion()
+    {
+        return false;
+    }
 
     public void Update()
     {
         if (!running || Plugin.Chain.IsRunning)
         {
+            return;
+        }
+
+        if (ShouldStopEarly())
+        {
+            Svc.Log.Info("Hunt completed because no requested targets remain.");
+            Teardown();
             return;
         }
 
@@ -194,14 +269,14 @@ public abstract class Hunter
             return;
         }
 
-        if (StepProcessor.IsRunning)
+        if (StepProcessor.IsRunning || StepProcessor.QueueCount > 0)
         {
             return;
         }
 
         if (stepIndex >= Steps.Count)
         {
-            Teardown();
+            CompleteRoute();
             return;
         }
 
@@ -218,11 +293,24 @@ public abstract class Hunter
                 .Wait(1000 / 60)
         );
 
-        var obj = GetValidObjects().FirstOrDefault(o => Vector3.Distance(Player.Position, o.Position) <= 5f);
-        if (obj != null)
+    }
+
+    private void CompleteRoute()
+    {
+        // Capture this before Teardown clears the running flag. Repeating a
+        // route still has to pass through the base cleanup so stale async
+        // callbacks, interaction state, and runtime recovery decisions cannot
+        // leak into the next cycle.
+        var repeat = running && ShouldRepeatAfterCompletion();
+        Teardown();
+        if (!repeat)
         {
-            StepProcessor.Submit(GetInteractionChain(obj));
+            return;
         }
+
+        running = true;
+        stopwatch.Start();
+        OnStarted();
     }
 
     public void Draw(Module<Plugin, Config> module)
@@ -235,20 +323,14 @@ public abstract class Hunter
                 running = !running;
                 if (running == false)
                 {
-                    stopwatch.Stop();
-                    running = false;
-                    stepIndex = 0;
-                    Steps.Clear();
-                    vnav.Stop();
-                    Plugin.Chain.Abort();
-                    StepProcessor.Abort();
-                    pathfinder = null;
-                    ResetNodeNavigation();
-                    ResetTransitNavigation();
+                    Teardown();
                 }
                 else
                 {
+                    routeGeneration++;
+                    ResetHuntRouteState();
                     stopwatch.Restart();
+                    OnStarted();
                 }
             }
 
@@ -286,12 +368,18 @@ public abstract class Hunter
         });
     }
 
-    protected virtual void Teardown()
+    protected void ResetHunter(bool keepRunning)
     {
-        stopwatch.Stop();
-        running = false;
+        routeGeneration++;
+        if (!keepRunning)
+        {
+            stopwatch.Stop();
+            running = false;
+        }
+
         stepIndex = 0;
         Steps.Clear();
+        AbortActiveTransitChild();
         if (m.TryGetIPCSubscriber<VNavmesh>(out var navigation) && navigation != null && navigation.IsReady())
         {
             navigation.Stop();
@@ -301,6 +389,12 @@ public abstract class Hunter
         pathfinder = null;
         ResetNodeNavigation();
         ResetTransitNavigation();
+        ResetHuntRouteState();
+    }
+
+    protected virtual void Teardown()
+    {
+        ResetHunter(keepRunning: false);
     }
 
     public void Stop()
@@ -318,16 +412,37 @@ public abstract class Hunter
 
     protected bool WalkToNodeHandler()
     {
-        if (navigationNodeId != CurrentStep.NodeId)
+        var nodeId = CurrentStep.NodeId;
+        if (navigationNodeId != nodeId)
         {
             ResetNodeNavigation();
-            navigationNodeId = CurrentStep.NodeId;
+            navigationNodeId = nodeId;
             lastNodeProgress = DateTime.UtcNow;
+        }
+
+        if (interactionPending)
+        {
+            return false;
         }
 
         if (!TryGetDestinationForCurrentStep(out var destination))
         {
             return SkipCurrentNode("no position is known for this node");
+        }
+
+        var expectedPosition = destination;
+        if (TryInsertDynamicTransit(nodeId, destination))
+        {
+            return false;
+        }
+
+        // Layout positions can differ from the live object by several yalms.
+        // Once the object is loaded, navigate and range-check against its real
+        // position instead of consuming the node at the layout coordinate.
+        var obj = ResolveLiveObjectForNode(nodeId, expectedPosition);
+        if (obj != null)
+        {
+            destination = obj.Position;
         }
 
         distance = Player.DistanceTo(destination);
@@ -339,25 +454,29 @@ public abstract class Hunter
 
         if (distance <= GetDetectionRange())
         {
-            var obj = GetValidObjects().FirstOrDefault(o => Vector3.Distance(destination, o.Position) <= 5f);
-
-            if (obj == null)
+            if (obj == null && distance <= NODE_ABSENCE_CONFIRMATION_DISTANCE)
             {
                 vnav.Stop();
                 ResetNodeNavigation();
                 return true;
             }
 
-            if (distance <= DISTANCE_TO_NODE_TO_USE)
+            if (obj != null && distance <= DISTANCE_TO_NODE_TO_USE)
             {
-                StepProcessor.SubmitFront(GetInteractionChain(obj));
-                ResetNodeNavigation();
-                return true;
+                if (vnav.IsRunning())
+                {
+                    vnav.Stop();
+                }
+
+                ReleaseNodePathTask(cancel: true);
+                BeginNodeInteraction(nodeId, expectedPosition, obj);
+                return false;
             }
         }
 
         if (vnav.IsRunning())
         {
+            nodeFollowObserved |= nodeFollowSubmittedAt != DateTime.MinValue;
             if (DateTime.UtcNow - lastNodeProgress >= NodeProgressTimeout)
             {
                 vnav.Stop();
@@ -365,18 +484,44 @@ public abstract class Hunter
                 lastNodeProgress = DateTime.UtcNow;
             }
 
-            if (!Player.Mounted)
+            return false;
+        }
+
+        if (nodeFollowSubmittedAt != DateTime.MinValue)
+        {
+            if (!nodeFollowObserved
+                && DateTime.UtcNow - nodeFollowSubmittedAt < TimeSpan.FromSeconds(2))
             {
-                StepProcessor.SubmitFront(ChainHelper.MountChain());
+                return false;
             }
 
-            return false;
+            nodeFollowSubmittedAt = DateTime.MinValue;
+            nodeFollowObserved = false;
         }
 
         if (nodePathTask == null)
         {
+            if (!IsNodePathWorkerAvailable())
+            {
+                return false;
+            }
+
+            // Mount before calculating/submitting the walking segment. A
+            // mount action issued after FollowPath interrupts vnavmesh and is
+            // the main source of the visible run-stop-run cycle.
+            if (ShouldMountForTravel())
+            {
+                StepProcessor.SubmitFront(ChainHelper.MountChain());
+                return false;
+            }
+
             if (nodePathAttempts >= MAX_NODE_PATH_ATTEMPTS)
             {
+                if (TryInsertForcedRecovery(nodeId, expectedPosition))
+                {
+                    return false;
+                }
+
                 return SkipCurrentNode($"vnavmesh could not reach it after {nodePathAttempts} attempts");
             }
 
@@ -421,11 +566,24 @@ public abstract class Hunter
             return false;
         }
 
+        if (ShouldMountForTravel())
+        {
+            StepProcessor.SubmitFront(ChainHelper.MountChain());
+            return false;
+        }
+
         var path = nodePathTask.Result;
         ReleaseNodePathTask(cancel: false);
-        if (path.Count <= 1)
+        if (!HuntNavigationPlanner.ReachesDestination(path, destination))
         {
-            Svc.Log.Warning($"vnavmesh returned no route to hunt node {CurrentStep.NodeId} (attempt {nodePathAttempts}/{MAX_NODE_PATH_ATTEMPTS}).");
+            Svc.Log.Warning(
+                $"vnavmesh returned an empty or partial route to hunt node {CurrentStep.NodeId} " +
+                $"(attempt {nodePathAttempts}/{MAX_NODE_PATH_ATTEMPTS}).");
+            if (TryInsertForcedRecovery(nodeId, expectedPosition))
+            {
+                return false;
+            }
+
             return false;
         }
 
@@ -436,8 +594,161 @@ public abstract class Hunter
         }
 
         vnav.FollowPath(route, false);
+        nodeFollowSubmittedAt = DateTime.UtcNow;
+        nodeFollowObserved = false;
         lastNodeProgress = DateTime.UtcNow;
         return false;
+    }
+
+    private void BeginNodeInteraction(uint nodeId, Vector3 expectedPosition, IGameObject obj)
+    {
+        var scheduledGeneration = routeGeneration;
+        var scheduledStepIndex = stepIndex;
+        interactionPending = true;
+        interactionNodeId = nodeId;
+        interactionStepIndex = scheduledStepIndex;
+
+        StepProcessor.SubmitFront(GetInteractionChain(
+            nodeId,
+            expectedPosition,
+            obj.GameObjectId,
+            outcome => CompleteNodeInteraction(
+                scheduledGeneration,
+                scheduledStepIndex,
+                nodeId,
+                outcome)));
+    }
+
+    private void CompleteNodeInteraction(
+        long scheduledGeneration,
+        int scheduledStepIndex,
+        uint nodeId,
+        HuntInteractionOutcome outcome)
+    {
+        if (!running
+            || routeGeneration != scheduledGeneration
+            || !interactionPending
+            || interactionNodeId != nodeId
+            || interactionStepIndex != scheduledStepIndex
+            || stepIndex != scheduledStepIndex
+            || stepIndex >= Steps.Count
+            || CurrentStep.Type != PathfinderStepType.WalkToNode
+            || CurrentStep.NodeId != nodeId)
+        {
+            return;
+        }
+
+        interactionPending = false;
+        interactionNodeId = null;
+        interactionStepIndex = -1;
+
+        if (outcome is HuntInteractionOutcome.Succeeded or HuntInteractionOutcome.TargetGone)
+        {
+            Svc.Log.Info($"Hunt node {nodeId} interaction completed with outcome {outcome}.");
+            ResetNodeNavigation();
+            stepIndex++;
+            return;
+        }
+
+        if (outcome == HuntInteractionOutcome.OutOfRange)
+        {
+            Svc.Log.Warning($"Hunt node {nodeId} moved out of interaction range; approaching it again.");
+            ResetNodePathState(keepCurrentNode: true);
+            return;
+        }
+
+        interactionAttempts++;
+        if (interactionAttempts >= MAX_NODE_INTERACTION_ATTEMPTS)
+        {
+            Svc.Log.Error(
+                $"Skipping hunt node {nodeId}: interaction failed " +
+                $"{interactionAttempts}/{MAX_NODE_INTERACTION_ATTEMPTS} times.");
+            ResetNodeNavigation();
+            stepIndex++;
+            return;
+        }
+
+        Svc.Log.Warning(
+            $"Retrying hunt node {nodeId} interaction " +
+            $"({interactionAttempts}/{MAX_NODE_INTERACTION_ATTEMPTS}).");
+        ResetNodePathState(keepCurrentNode: true);
+    }
+
+    private bool TryInsertDynamicTransit(uint nodeId, Vector3 destination)
+    {
+        if (!ZoneData.IsInNorthHorn() || !dynamicallyPlannedNodes.Add(nodeId))
+        {
+            return false;
+        }
+
+        var aethernets = AethernetData.All().ToArray();
+        if (aethernets.Length == 0)
+        {
+            return false;
+        }
+
+        var plan = SmartNavigation.DecideFallback(
+            Player.Position,
+            destination,
+            (Aethernet?)null,
+            aethernets,
+            ZoneData.GetBaseCampAethernet().GetData(),
+            config.ReturnCost,
+            config.TeleportCost,
+            "North Horn hunt runtime routing",
+            includeWalkTeleportCandidate: false);
+        var transitSteps = HuntNavigationPlanner.BuildTransitSteps(plan);
+        if (transitSteps.Count == 0)
+        {
+            return false;
+        }
+
+        Svc.Log.Info(
+            $"Hunt node {nodeId} selected navigation plan {plan.Type}: " +
+            $"{plan.SourceAethernet} -> {plan.DestinationAethernet} (cost={plan.Cost:F2}).");
+        HuntNavigationPlanner.InsertBeforeCurrentNode(Steps, stepIndex, transitSteps);
+        ResetNodePathState();
+        return true;
+    }
+
+    private bool TryInsertForcedRecovery(uint nodeId, Vector3 destination)
+    {
+        if (!ZoneData.IsInNorthHorn())
+        {
+            return false;
+        }
+
+        if (!recoveredNodeAethernets.TryGetValue(nodeId, out var attemptedAethernets))
+        {
+            attemptedAethernets = [];
+            recoveredNodeAethernets[nodeId] = attemptedAethernets;
+        }
+
+        if (attemptedAethernets.Count >= MAX_NODE_RECOVERY_ROUTES)
+        {
+            return false;
+        }
+
+        var target = AethernetData.All()
+            .Where(shard => !attemptedAethernets.Contains(shard.Aethernet))
+            .OrderBy(shard => Vector3.DistanceSquared(shard.Destination, destination))
+            .FirstOrDefault();
+        if (target == null)
+        {
+            return false;
+        }
+
+        attemptedAethernets.Add(target.Aethernet);
+
+        var recoverySteps = HuntNavigationPlanner.BuildForcedRecoverySteps(
+            target.Aethernet,
+            ZoneData.GetBaseCampAethernet());
+        Svc.Log.Warning(
+            $"Hunt node {nodeId} was not reachable directly; inserting verified " +
+            $"return/aethernet recovery through {target.Aethernet}.");
+        HuntNavigationPlanner.InsertBeforeCurrentNode(Steps, stepIndex, recoverySteps);
+        ResetNodePathState();
+        return true;
     }
 
     private bool SkipCurrentNode(string reason)
@@ -454,11 +765,37 @@ public abstract class Hunter
 
     protected void ResetNodeNavigation()
     {
+        ResetNodePathState();
+        ResetInteractionState();
+    }
+
+    private void ResetNodePathState(bool keepCurrentNode = false)
+    {
         ReleaseNodePathTask(cancel: true);
-        navigationNodeId = null;
+        if (!keepCurrentNode)
+        {
+            navigationNodeId = null;
+        }
         nodePathAttempts = 0;
         bestNodeDistance = float.MaxValue;
         lastNodeProgress = DateTime.MinValue;
+        nodeFollowSubmittedAt = DateTime.MinValue;
+        nodeFollowObserved = false;
+    }
+
+    private void ResetInteractionState()
+    {
+        interactionPending = false;
+        interactionNodeId = null;
+        interactionStepIndex = -1;
+        interactionAttempts = 0;
+    }
+
+    private void ResetHuntRouteState()
+    {
+        dynamicallyPlannedNodes.Clear();
+        recoveredNodeAethernets.Clear();
+        ResetInteractionState();
     }
 
     private void ReleaseNodePathTask(bool cancel)
@@ -480,7 +817,45 @@ public abstract class Hunter
             return;
         }
 
+        if (cancel && !task.IsCompleted)
+        {
+            retiringNodePathTask = task;
+            retiringNodePathStartedAt = DateTime.UtcNow;
+        }
+
         ObserveDetachedTask(task, cancellation);
+    }
+
+    private bool IsNodePathWorkerAvailable()
+    {
+        var retiring = retiringNodePathTask;
+        if (retiring == null)
+        {
+            return true;
+        }
+
+        if (!retiring.IsCompleted)
+        {
+            if (DateTime.UtcNow - retiringNodePathStartedAt < TimeSpan.FromSeconds(10))
+            {
+                return false;
+            }
+
+            Svc.Log.Error(
+                "Stopping hunt route because a cancelled vnavmesh pathfinding worker " +
+                "did not exit within 10 seconds.");
+            Stop();
+            return false;
+        }
+
+        if (retiring.IsFaulted)
+        {
+            _ = retiring.Exception;
+        }
+
+        retiringNodePathTask = null;
+        retiringNodePathStartedAt = DateTime.MinValue;
+        return true;
     }
 
     private static void ObserveDetachedTask(Task task, CancellationTokenSource? cancellation = null)
@@ -503,7 +878,8 @@ public abstract class Hunter
     private bool ReturnToBaseCampHandler()
     {
         BeginTransitStep();
-        var destination = BOCCHI.Data.ZoneData.GetBaseCampAethernet().GetData().Position;
+        var baseCamp = ZoneData.GetBaseCampAethernet();
+        var destination = baseCamp.GetData().Position;
         distance = Player.DistanceTo(destination);
         ObserveTransitProgress(distance);
         var inCombat = states.GetState() == State.InCombat;
@@ -515,14 +891,73 @@ public abstract class Hunter
                 vnav.Stop();
             }
 
-            ResetTransitNavigation();
+            if (ZoneData.IsNearAethernetShard(baseCamp, AethernetData.DISTANCE + 1f))
+            {
+                ResetTransitNavigation();
+                return true;
+            }
 
-            StepProcessor.SubmitFront(ChainHelper.ReturnChain(new ReturnChainConfig
+            if (transitChildPending)
+            {
+                return false;
+            }
+
+            var now = DateTime.UtcNow;
+            if (transitChildAttempts > 0 && now - lastTransitChildAttempt < TransitRetryDelay)
+            {
+                return false;
+            }
+
+            if (transitChildAttempts >= MAX_TRANSIT_ATTEMPTS)
+            {
+                return FailTransit(
+                    transitChildFailureReason
+                    ?? $"return chain did not reach base-camp aethernet {baseCamp} after {transitChildAttempts} attempts");
+            }
+
+            var scheduledGeneration = routeGeneration;
+            var scheduledStepIndex = stepIndex;
+            var returnChain = ChainHelper.ReturnChain(new ReturnChainConfig
             {
                 ApproachAetheryte = true,
-            }));
+                ForceReturn = true,
+            });
 
-            return true;
+            transitChildAttempts++;
+            lastTransitChildAttempt = now;
+            ScheduleTransitChild(
+                "Hunter.ReturnToBaseCamp",
+                returnChain,
+                TimeSpan.FromSeconds(310),
+                _ =>
+                {
+                    if (!IsCurrentTransitStep(
+                            scheduledGeneration,
+                            scheduledStepIndex,
+                            PathfinderStepType.ReturnToBaseCamp))
+                    {
+                        return;
+                    }
+
+                    if (returnChain.Succeeded
+                        && ZoneData.IsNearAethernetShard(baseCamp, AethernetData.DISTANCE + 1f))
+                    {
+                        ResetTransitNavigation();
+                        stepIndex++;
+                        return;
+                    }
+
+                    transitChildFailureReason =
+                        $"return chain did not reach base-camp aethernet {baseCamp}; " +
+                        $"reason={returnChain.FailureReason ?? "chain timed out or was aborted"}";
+                    lastTransitChildAttempt = DateTime.UtcNow;
+                    Svc.Log.Warning(
+                        $"{transitChildFailureReason} " +
+                        $"({transitChildAttempts}/{MAX_TRANSIT_ATTEMPTS}).");
+                });
+
+            // The managed child advances this step only after verified arrival.
+            return false;
         }
 
         if (DateTime.UtcNow - transitStartedAt >= CombatReturnTimeout)
@@ -564,18 +999,28 @@ public abstract class Hunter
             return true;
         }
 
-        if (!Player.Mounted)
+        if (ShouldMountForTravel())
         {
             StepProcessor.SubmitFront(ChainHelper.MountChain());
+            return false;
         }
 
-        return MaintainTransit(destination, $"aethernet {CurrentStep.Aethernet}");
+        return MaintainTransit(
+            destination,
+            $"aethernet {CurrentStep.Aethernet}",
+            TryReplaceUnreachableWalkTransit);
     }
 
-    private bool MaintainTransit(Vector3 destination, string label)
+    private bool MaintainTransit(
+        Vector3 destination,
+        string label,
+        Func<bool>? recover = null)
     {
         var now = DateTime.UtcNow;
-        if (vnav.IsRunning())
+        if (NavigationActivityState.IsActive(
+                vnav.IsRunning(),
+                vnav.IsSimpleMoveInProgress(),
+                vnav.IsPathfinding()))
         {
             if (now - lastTransitProgress < TransitProgressTimeout)
             {
@@ -595,6 +1040,11 @@ public abstract class Hunter
 
         if (transitAttempts >= MAX_TRANSIT_ATTEMPTS)
         {
+            if (recover?.Invoke() == true)
+            {
+                return false;
+            }
+
             return FailTransit($"vnavmesh could not reach {label} after {transitAttempts} attempts");
         }
 
@@ -603,6 +1053,31 @@ public abstract class Hunter
         lastTransitProgress = now;
         vnav.PathfindAndMoveTo(destination, false);
         return false;
+    }
+
+    private bool TryReplaceUnreachableWalkTransit()
+    {
+        if (!ZoneData.IsInNorthHorn()
+            || stepIndex + 1 >= Steps.Count
+            || CurrentStep.Type != PathfinderStepType.WalkToAethernet
+            || Steps[stepIndex + 1].Type != PathfinderStepType.TeleportToAethernet)
+        {
+            return false;
+        }
+
+        var source = CurrentStep.Aethernet;
+        var destination = Steps[stepIndex + 1].Aethernet;
+        if (vnav.IsRunning())
+        {
+            vnav.Stop();
+        }
+
+        Steps[stepIndex] = PathfinderStep.ReturnToBaseCamp();
+        ResetTransitNavigation();
+        Svc.Log.Warning(
+            $"Aethernet {source} was not reachable from the current side of North Horn; " +
+            $"replacing the walk with a forced return before teleporting to {destination}.");
+        return true;
     }
 
     private void BeginTransitStep()
@@ -636,18 +1111,238 @@ public abstract class Hunter
 
     protected void ResetTransitNavigation()
     {
+        AbortActiveTransitChild();
         transitStepIndex = -1;
         transitAttempts = 0;
         bestTransitDistance = float.MaxValue;
         transitStartedAt = DateTime.MinValue;
         lastTransitProgress = DateTime.MinValue;
         lastTransitAttempt = DateTime.MinValue;
+        transitChildAttempts = 0;
+        lastTransitChildAttempt = DateTime.MinValue;
+        transitChildPending = false;
+        transitChildFailureReason = null;
     }
 
     private bool TeleportToAethernetHandler()
     {
-        distance = 0;
-        StepProcessor.SubmitFront(ChainHelper.TeleportChain(CurrentStep.Aethernet));
-        return true;
+        BeginTransitStep();
+        var destinationAethernet = CurrentStep.Aethernet;
+        var destinationReached = ZoneData.IsNearAethernetShard(
+            destinationAethernet,
+            AethernetData.DISTANCE + 1f);
+        distance = destinationAethernet.GetData().DistanceToPlayer();
+
+        // A successful teleport can finish before an optional trailing child
+        // task reports completion. Trust only the verified landing position,
+        // abort any stale child, and never walk back toward the old source.
+        if (destinationReached)
+        {
+            ResetTransitNavigation();
+            stepIndex++;
+            return false;
+        }
+
+        if (transitChildPending)
+        {
+            return false;
+        }
+
+        var now = DateTime.UtcNow;
+        if (transitChildAttempts > 0 && now - lastTransitChildAttempt < TransitRetryDelay)
+        {
+            return false;
+        }
+
+        if (transitChildAttempts >= MAX_TRANSIT_ATTEMPTS)
+        {
+            return FailTransit(
+                transitChildFailureReason
+                ?? $"aethernet teleport to {destinationAethernet} failed after {transitChildAttempts} attempts");
+        }
+
+        var scheduledGeneration = routeGeneration;
+        var scheduledStepIndex = stepIndex;
+        var teleport = ChainHelper.TeleportChain(
+            destinationAethernet,
+            ResolveTeleportSourceAethernet(),
+            mountAfterTeleport: false);
+
+        transitChildAttempts++;
+        lastTransitChildAttempt = now;
+        ScheduleTransitChild(
+            "Hunter.TeleportToAethernet",
+            teleport,
+            TimeSpan.FromSeconds(250),
+            _ =>
+            {
+                if (!IsCurrentTransitStep(
+                        scheduledGeneration,
+                        scheduledStepIndex,
+                        PathfinderStepType.TeleportToAethernet,
+                        destinationAethernet))
+                {
+                    return;
+                }
+
+                if (TransitCompletionPolicy.HasVerifiedArrival(
+                        teleport.Succeeded,
+                        ZoneData.IsNearAethernetShard(
+                            destinationAethernet,
+                            AethernetData.DISTANCE + 1f)))
+                {
+                    ResetTransitNavigation();
+                    stepIndex++;
+                    return;
+                }
+
+                transitChildFailureReason =
+                    $"aethernet teleport to {destinationAethernet} did not complete; " +
+                    $"reason={teleport.FailureReason ?? "teleport chain timed out or was aborted"}";
+                lastTransitChildAttempt = DateTime.UtcNow;
+                Svc.Log.Warning(
+                    $"{transitChildFailureReason} " +
+                    $"({transitChildAttempts}/{MAX_TRANSIT_ATTEMPTS}).");
+            });
+
+        // This step is advanced only by the managed, verified teleport child.
+        return false;
+    }
+
+    private bool ShouldMountForTravel()
+    {
+        return m.PluginConfig.TeleporterConfig.ShouldMount
+               && !Player.Mounted
+               && states.GetState() != State.InCombat
+               && !Player.IsCasting
+               && !Player.IsDead;
+    }
+
+    private Aethernet? ResolveTeleportSourceAethernet()
+    {
+        if (stepIndex <= 0)
+        {
+            return null;
+        }
+
+        var previous = Steps[stepIndex - 1];
+        return previous.Type switch
+        {
+            PathfinderStepType.WalkToAethernet => previous.Aethernet,
+            PathfinderStepType.ReturnToBaseCamp => ZoneData.GetBaseCampAethernet(),
+            _ => null,
+        };
+    }
+
+    private void ScheduleTransitChild(
+        string name,
+        ChainFactory childFactory,
+        TimeSpan timeout,
+        Action<bool> complete)
+    {
+        if (transitChildPending)
+        {
+            throw new InvalidOperationException("A hunt transit child is already pending.");
+        }
+
+        var factory = childFactory.Factory();
+        transitChildPending = true;
+        StepProcessor.SubmitFront(() =>
+        {
+            Chain? child = null;
+            var childCompleted = false;
+            var timedOut = false;
+
+            void CloseChild(bool abort)
+            {
+                var current = child;
+                child = null;
+                if (ReferenceEquals(activeTransitChild, current))
+                {
+                    activeTransitChild = null;
+                }
+
+                if (current == null)
+                {
+                    return;
+                }
+
+                if (abort)
+                {
+                    current.Abort();
+                }
+                else
+                {
+                    current.Dispose();
+                }
+            }
+
+            var configuration = new TaskManagerConfiguration
+            {
+                TimeLimitMS = checked((int)timeout.TotalMilliseconds),
+                AbortOnTimeout = true,
+                AbortOnError = true,
+                OnTaskTimeout = (TaskManagerTask _, ref long _) =>
+                {
+                    timedOut = true;
+                    CloseChild(abort: true);
+                },
+            };
+
+            return Chain.Create(name)
+                .Then(new TaskManagerTask(() =>
+                {
+                    if (child == null)
+                    {
+                        child = factory();
+                        activeTransitChild = child;
+                    }
+
+                    if (!child.IsComplete())
+                    {
+                        return false;
+                    }
+
+                    childCompleted = true;
+                    return true;
+                }, configuration))
+                .OnFinally(() =>
+                {
+                    var completedNormally = childCompleted && !timedOut;
+                    CloseChild(abort: !childCompleted);
+                    transitChildPending = false;
+                    complete(completedNormally);
+                });
+        });
+    }
+
+    private void AbortActiveTransitChild()
+    {
+        var child = activeTransitChild;
+        activeTransitChild = null;
+        transitChildPending = false;
+        if (child != null)
+        {
+            child.Abort();
+        }
+    }
+
+    private bool IsCurrentTransitStep(
+        long scheduledGeneration,
+        int scheduledStepIndex,
+        PathfinderStepType expectedType,
+        Aethernet expectedAethernet = Aethernet.Unknown)
+    {
+        if (!running
+            || routeGeneration != scheduledGeneration
+            || stepIndex != scheduledStepIndex
+            || stepIndex >= Steps.Count
+            || CurrentStep.Type != expectedType)
+        {
+            return false;
+        }
+
+        return expectedAethernet == Aethernet.Unknown
+               || CurrentStep.Aethernet == expectedAethernet;
     }
 }

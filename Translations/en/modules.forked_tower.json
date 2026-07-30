@@ -39,6 +39,15 @@
           "label": "Stop rendering discovered groups",
           "tooltip": "Stop rendering trap locations for fully discovered groups. This feature is a work in progress."
         }
+      },
+      "panel": {
+        "title": "Forked Tower",
+        "tower": "Tower",
+        "dynamic_event_id": "Dynamic event ID",
+        "tower_id": "Tower ID",
+        "tower_id_tooltip": "This identifier is unique to your run.",
+        "discovered_traps": "Discovered traps",
+        "unmapped_traps": "Unmapped traps"
       }
     }
   }

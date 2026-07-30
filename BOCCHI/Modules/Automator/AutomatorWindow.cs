@@ -28,7 +28,7 @@ public class AutomatorWindow(Plugin _plugin, Config _config) : OcelotWindow(_plu
             },
             Icon = FontAwesomeIcon.Skull,
             IconOffset = new Vector2(2, 2),
-            ShowTooltip = () => ImGui.SetTooltip("Toggle Illegal Mode"),
+            ShowTooltip = () => ImGui.SetTooltip(Plugin.Modules.GetModule<AutomatorModule>().T("panel.lens.toggle_illegal_mode")),
         });
     }
 
@@ -43,7 +43,7 @@ public class AutomatorWindow(Plugin _plugin, Config _config) : OcelotWindow(_plu
         var automator = Plugin.Modules.GetModule<AutomatorModule>();
         if (!automator.IsEnabled)
         {
-            ImGui.TextUnformatted("Illegal Mode is not enabled.");
+            ImGui.TextUnformatted(automator.T("panel.lens.disabled"));
             return;
         }
 

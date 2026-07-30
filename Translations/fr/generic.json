@@ -4,10 +4,17 @@
       "enabled": "Activé",
       "not_in_zone": null,
       "start": "Démarrer",
-      "stop": "Arrêter"
+      "stop": "Arrêter",
+      "needed": "Nécessaire",
+      "not_needed": "Non nécessaire"
     },
     "tooltip": {
       "illegal_mode_compatible": "Option compatible avec le mode illégal, elle sera utilisée pendant son exécution."
+    },
+    "message": {
+      "language_set": "Langue définie",
+      "unknown_language": "Code de langue inconnu",
+      "language_usage": "Utilisation : /bocchi language <code> (en/de/fr/jp/zh/uwu)"
     }
   }
 }

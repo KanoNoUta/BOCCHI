@@ -287,7 +287,15 @@
         },
         "activity_state": {
           "label": "Activity State",
-          "none": "Waiting for Activity"
+          "none": "Waiting for Activity",
+          "states": {
+            "idle": "Idle",
+            "pathfinding": "Travelling",
+            "waiting_to_start_ce": "Waiting for CE to start",
+            "participating": "Participating",
+            "done": "Finished",
+            "unknown": "Unknown"
+          }
         },
         "rotation": {
           "state": "Instance rotation",
@@ -303,7 +311,9 @@
           }
         },
         "lens": {
-          "title": "BOCCHI Illegal Lens"
+          "title": "BOCCHI Illegal Lens",
+          "toggle_illegal_mode": "Toggle Illegal Mode",
+          "disabled": "Illegal Mode is not enabled."
         }
       },
       "messages": {

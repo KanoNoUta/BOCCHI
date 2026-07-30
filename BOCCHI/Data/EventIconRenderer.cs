@@ -5,6 +5,7 @@ using Dalamud.Interface.Textures.TextureWraps;
 using ECommons.DalamudServices;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using Lumina.Excel.Sheets;
+using Ocelot;
 using System;
 using System.Numerics;
 
@@ -62,11 +63,10 @@ public struct EventIconRenderer
         {
             ImGui.BeginTooltip();
 
-            var label = $"Needed ({needed})";
-            ;
+            var label = $"{I18N.T("generic.label.needed")} ({needed})";
             if (needed <= 0)
             {
-                label = $"Not Needed ({count})";
+                label = $"{I18N.T("generic.label.not_needed")} ({count})";
             }
 
             ImGui.TextUnformatted($"{itemData.Name}: {label}");

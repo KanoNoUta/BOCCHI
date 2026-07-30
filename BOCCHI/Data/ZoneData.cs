@@ -198,7 +198,38 @@ public static class ZoneData
 
     public static bool IsNearAethernetShard(Aethernet aethernet, float range = 4.3f)
     {
-        return GetNearbyAethernetShards(range).Any(o => o.BaseId == aethernet.GetData().BaseId);
+        var data = aethernet.GetData();
+        if (GetNearbyAethernetShards(range).Any(o => o.BaseId == data.BaseId))
+        {
+            return true;
+        }
+
+        // North Horn's custom aethernet EventObj can be absent from the
+        // Dalamud object table (or expose a different runtime BaseId) even
+        // while the player is standing at the shard. The maintained shard
+        // coordinates remain a reliable fallback for initiating Lifestream.
+        var player = Svc.Objects.LocalPlayer;
+        return player != null && IsWithinKnownAethernetRange(player.Position, data.Position, range);
+    }
+
+    public static bool IsNearAnyAethernetShard(float range = 4.3f)
+    {
+        if (GetNearbyAethernetShards(range).Any())
+        {
+            return true;
+        }
+
+        var player = Svc.Objects.LocalPlayer;
+        return player != null
+               && AethernetData.All().Any(data =>
+                   IsWithinKnownAethernetRange(player.Position, data.Position, range));
+    }
+
+    public static bool IsWithinKnownAethernetRange(Vector3 playerPosition, Vector3 shardPosition, float range)
+    {
+        return float.IsFinite(range)
+               && range >= 0f
+               && Vector3.DistanceSquared(playerPosition, shardPosition) <= range * range;
     }
 
     public static IList<IGameObject> GetNearbyKnowledgeCrystal(float range = 4.5f)

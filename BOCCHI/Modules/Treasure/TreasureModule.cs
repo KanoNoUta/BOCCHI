@@ -82,6 +82,7 @@ public class TreasureModule(Plugin _plugin, Config config) : Module(_plugin, con
     public override void Dispose()
     {
         hunter?.Stop();
+        Tracker.Dispose();
         base.Dispose();
     }
 }

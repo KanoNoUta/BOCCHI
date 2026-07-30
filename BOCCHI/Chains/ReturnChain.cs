@@ -16,6 +16,7 @@ using Ocelot.Chain;
 using Ocelot.Chain.ChainEx;
 using Ocelot.IPC;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 
@@ -23,17 +24,31 @@ namespace BOCCHI.Chains;
 
 public class ReturnChain(TeleporterModule module, ReturnChainConfig config) : ChainFactory
 {
+    public bool Succeeded { get; private set; }
+
+    public string? FailureReason { get; private set; }
+
     protected override unsafe Chain Create(Chain chain)
     {
+        Succeeded = false;
+        FailureReason = "Return chain did not reach the base-camp aethernet.";
         chain.BreakIf(() => Player.IsDead);
 
-        var shouldReturn = GetCostToReturn() < GetCostToWalk();
+        var shouldReturn = config.ForceReturn || GetCostToReturn() < GetCostToWalk();
 
         if (shouldReturn)
         {
-            chain.Then(_ => ActionManager.Instance()->GetActionStatus(ActionType.GeneralAction, 8) == 0);
+            chain.Then(new TaskManagerTask(
+                () => ActionManager.Instance()->GetActionStatus(ActionType.GeneralAction, 8) == 0,
+                new TaskManagerConfiguration
+                {
+                    TimeLimitMS = 30000,
+                    AbortOnTimeout = true,
+                }));
             chain = Actions.Return.CastOnChain(chain);
-            chain.WaitToCast().WaitToCycleCondition(ConditionFlag.BetweenAreas);
+            chain
+                .WaitToCast(timeout: 10000)
+                .WaitToCycleCondition(ConditionFlag.BetweenAreas, timeout: 60000);
         }
 
         chain.Then(ChainHelper.TreasureSightChain());
@@ -44,11 +59,78 @@ public class ReturnChain(TeleporterModule module, ReturnChainConfig config) : Ch
         {
             var vnav = module.GetIPCSubscriber<VNavmesh>();
             var position = GetAetherytePosition();
+            var approachStartedAt = 0L;
+            var navigationObserved = false;
 
             chain.Then(PathfindAndMoveToChain.RandomNearby(vnav, position, 3));
-            chain.Then(_ => Svc.Targets.Target = Svc.Objects.FirstOrDefault(o => o.BaseId == AethernetData.GetClosestToPlayer().BaseId));
+            chain.Then(new TaskManagerTask(() =>
+            {
+                var range = AethernetData.DISTANCE + 1f;
+                if (ZoneData.IsNearAethernetShard(ZoneData.GetBaseCampAethernet(), range))
+                {
+                    return true;
+                }
+
+                var now = Environment.TickCount64;
+                if (approachStartedAt == 0)
+                {
+                    approachStartedAt = now;
+                }
+
+                var navigationActive = vnav.IsRunning()
+                                       || vnav.IsSimpleMoveInProgress()
+                                       || vnav.IsPathfinding();
+                navigationObserved |= navigationActive;
+                if (navigationActive
+                    || (!navigationObserved && now - approachStartedAt < 2000))
+                {
+                    return false;
+                }
+
+                FailureReason = "vnavmesh stopped before reaching the base-camp aethernet.";
+                return true;
+            }, new TaskManagerConfiguration
+            {
+                TimeLimitMS = 60000,
+                AbortOnTimeout = true,
+                ShowError = false,
+                OnTaskTimeout = (TaskManagerTask _, ref long _) =>
+                {
+                    FailureReason = "Timed out approaching the base-camp aethernet.";
+                    vnav.Stop();
+                },
+            }));
+            chain.Then(_ =>
+            {
+                if (!ZoneData.IsNearAethernetShard(
+                        ZoneData.GetBaseCampAethernet(),
+                        AethernetData.DISTANCE + 1f))
+                {
+                    vnav.Stop();
+                    throw new InvalidOperationException(
+                        FailureReason ?? "Return did not reach the base-camp aethernet.");
+                }
+
+                Svc.Targets.Target = Svc.Objects.FirstOrDefault(
+                    o => o.BaseId == AethernetData.GetClosestToPlayer().BaseId);
+            });
             chain.Then(_ => vnav.Stop());
         }
+
+        chain.Then(_ =>
+        {
+            if (config.ApproachAetheryte
+                && !ZoneData.IsNearAethernetShard(
+                    ZoneData.GetBaseCampAethernet(),
+                    AethernetData.DISTANCE + 1f))
+            {
+                FailureReason = "Return chain finished outside the base-camp aethernet range.";
+                throw new InvalidOperationException(FailureReason);
+            }
+
+            Succeeded = true;
+            FailureReason = null;
+        });
 
 
         return chain;
@@ -59,22 +141,63 @@ public class ReturnChain(TeleporterModule module, ReturnChainConfig config) : Ch
         var auto = module.GetModule<AutomatorModule>();
         var state = PublicContentOccultCrescent.GetState();
         var currentJob = Job.Current;
+        var supportJobs = Svc.Data.GetExcelSheet<MKDSupportJob>();
+        var currentJobData = supportJobs.GetRow(currentJob.ByteId);
         var chain = Chain.Create();
 
         if (!auto.Config.ShouldChangeLowLevelJob
-            || state->SupportJobLevels[currentJob.ByteId] < Svc.Data.GetExcelSheet<MKDSupportJob>().GetRow(currentJob.ByteId).LevelMax)
+            || SupportJobLevelingPolicy.ShouldKeepCurrent(
+                currentJob.id,
+                state->SupportJobLevels[currentJob.ByteId],
+                currentJobData.LevelMax))
             return chain;
 
-        foreach (var job in Svc.Data.GetExcelSheet<MKDSupportJob>())
+        var candidates = new List<SupportJobLevelCandidate>();
+        foreach (var job in supportJobs)
         {
-            var level = state->SupportJobLevels[(byte)job.RowId];
-            if (level == 0 || level >= job.LevelMax)
-            {
-                continue;
-            }
+            var rowId = (byte)job.RowId;
+            candidates.Add(new SupportJobLevelCandidate(
+                rowId,
+                state->SupportJobLevels[rowId],
+                job.LevelMax));
+        }
 
-            chain.Then(_ => PublicContentOccultCrescent.ChangeSupportJob((byte)job.RowId));
-            return chain;
+        var nextJob = SupportJobLevelingPolicy.SelectLowestIncomplete(candidates);
+        if (nextJob.HasValue)
+        {
+            var nextJobId = nextJob.Value;
+            var lastAttemptAt = 0L;
+            chain.Then(new TaskManagerTask(() =>
+            {
+                if (PublicContentOccultCrescent.GetState()->CurrentSupportJob == nextJobId)
+                {
+                    return true;
+                }
+
+                var now = Environment.TickCount64;
+                if (lastAttemptAt == 0 || now - lastAttemptAt >= 1000)
+                {
+                    PublicContentOccultCrescent.ChangeSupportJob(nextJobId);
+                    lastAttemptAt = now;
+                }
+
+                return false;
+            }, new TaskManagerConfiguration
+            {
+                TimeLimitMS = 10000,
+                AbortOnTimeout = true,
+                ShowError = false,
+            }));
+            chain.Then(_ =>
+            {
+                if (PublicContentOccultCrescent.GetState()->CurrentSupportJob == nextJobId)
+                {
+                    return;
+                }
+
+                FailureReason = $"Failed to switch to support job row {nextJobId}.";
+                throw new InvalidOperationException(FailureReason);
+            });
         }
 
         return chain;
@@ -102,7 +225,11 @@ public class ReturnChain(TeleporterModule module, ReturnChainConfig config) : Ch
 
     public override TaskManagerConfiguration? Config()
     {
-        return new TaskManagerConfiguration { TimeLimitMS = 60000 };
+        return new TaskManagerConfiguration
+        {
+            TimeLimitMS = 300000,
+            AbortOnTimeout = true,
+        };
     }
 
     private Vector3 GetAetherytePosition()

@@ -41,13 +41,39 @@ public class TreasureTracker : IDisposable
         LastParseWideText = DateTime.MinValue;
     }
 
+    public void InvalidateCount()
+    {
+        CountInitialised = false;
+    }
+
     public void Tick(Plugin plugin)
     {
         var treasures = Svc.Objects
             .Where(o => o is { ObjectKind: ObjectKind.Treasure })
-            .ToDictionary(o => o.BaseId, o => o);
+            .GroupBy(o => o.BaseId)
+            .ToDictionary(group => group.Key, group => group.First());
 
         var knownIds = Treasures.Select(t => t.Id).ToHashSet();
+
+        // Observe the Opened transition before removing a now untargetable or
+        // disappearing object, otherwise the remaining-count display misses
+        // the exact frame in which the chest was consumed.
+        foreach (var treasure in Treasures)
+        {
+            if (!treasure.CheckOpened())
+            {
+                continue;
+            }
+
+            if (treasure.GetTreasureType() == TreasureType.Bronze)
+            {
+                BronzeChests = Math.Max(0, BronzeChests - 1);
+            }
+            else if (treasure.GetTreasureType() == TreasureType.Silver)
+            {
+                SilverChests = Math.Max(0, SilverChests - 1);
+            }
+        }
 
         // Removed
         for (var i = Treasures.Count - 1; i >= 0; i--)
@@ -76,20 +102,6 @@ public class TreasureTracker : IDisposable
 
         Treasures = Treasures.OrderBy(t => Player.DistanceTo(t.GetPosition())).ToList();
 
-        foreach (var treasure in Treasures)
-        {
-            if (treasure.CheckOpened())
-            {
-                if (treasure.GetTreasureType() == TreasureType.Bronze)
-                {
-                    BronzeChests = Math.Max(0, BronzeChests - 1);
-                }
-                else if (treasure.GetTreasureType() == TreasureType.Silver)
-                {
-                    SilverChests = Math.Max(0, SilverChests - 1);
-                }
-            }
-        }
     }
 
     private unsafe void OnWideTextPostDraw(AddonEvent type, AddonArgs args)
@@ -111,8 +123,6 @@ public class TreasureTracker : IDisposable
             return;
         }
 
-        LastParseWideText = DateTime.Now;
-
         var pattern = LogMessageHelper.GetLogMessagePattern(10965);
         var text = addon->GetNodeById(3)->GetAsAtkTextNode()->NodeText.ToString();
         var match = Regex.Match(text, pattern);
@@ -122,6 +132,7 @@ public class TreasureTracker : IDisposable
             return;
         }
 
+        LastParseWideText = DateTime.Now;
         SilverChests = int.Parse(match.Groups["lnum1"].Value);
         BronzeChests = int.Parse(match.Groups["lnum2"].Value);
         CountInitialised = true;

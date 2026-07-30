@@ -9,6 +9,7 @@ using ECommons.DalamudServices;
 using FFXIVClientStructs.FFXIV.Client.Game.InstanceContent;
 using Ocelot.Chain;
 using Ocelot.IPC;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace BOCCHI.Modules.Automator;
@@ -17,7 +18,8 @@ public class Automator
 {
     private static bool IsChainActive
     {
-        get => ChainManager.Queues.Count > 0;
+        get => AutomatorChainPolicy.IsActive(
+            ChainManager.Queues.Values.Select(queue => (queue.IsRunning, queue.QueueCount)));
     }
 
     public Activity? Activity { get; private set; } = null;
@@ -216,5 +218,16 @@ public class Automator
     {
         Activity?.Dispose();
         Activity = null;
+    }
+}
+
+public static class AutomatorChainPolicy
+{
+    public static bool IsActive(IEnumerable<(bool IsRunning, int QueueCount)> queues)
+    {
+        // ChainManager keeps completed/empty queues alive briefly before its
+        // cleanup tick removes them. Counting dictionary entries therefore
+        // stalls the automator even though no work is actually running.
+        return queues.Any(queue => queue.IsRunning || queue.QueueCount > 0);
     }
 }

@@ -40,6 +40,15 @@
           "label": null,
           "tooltip": null
         }
+      },
+      "panel": {
+        "title": "フォークタワー",
+        "tower": "塔",
+        "dynamic_event_id": "ダイナミックイベントID",
+        "tower_id": "塔ID",
+        "tower_id_tooltip": "この識別子は今回の塔に固有です。",
+        "discovered_traps": "発見済みの罠",
+        "unmapped_traps": "未登録の罠"
       }
     }
   }

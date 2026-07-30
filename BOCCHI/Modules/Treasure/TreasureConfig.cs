@@ -40,6 +40,11 @@ public class TreasureConfig : ModuleConfig
         get => IsPropertyEnabled(nameof(EnableTreasureHunt));
     }
 
+    [Checkbox]
+    [Experimental]
+    [DependsOn(nameof(Enabled), nameof(EnableTreasureHunt))]
+    public bool CastTreasureSightBeforeHunt { get; set; } = true;
+
     [Checkbox] public bool CastTreasureSightUponReturn { get; set; } = false;
 
     [Checkbox] public bool ShowPercentageActiveTreasureCount { get; set; } = false;

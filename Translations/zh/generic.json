@@ -4,10 +4,17 @@
       "enabled": "启用",
       "start": "开始",
       "stop": "停止",
-      "not_in_zone": "当前位于新月岛区域外"
+      "not_in_zone": "当前位于新月岛区域外",
+      "needed": "还需要",
+      "not_needed": "已满足"
     },
     "tooltip": {
       "illegal_mode_compatible": "此选项与非法模式兼容，运行时将使用它。"
+    },
+    "message": {
+      "language_set": "语言已切换",
+      "unknown_language": "未知语言代码",
+      "language_usage": "用法：/bocchi language <代码>（en/de/fr/jp/zh/uwu）"
     }
   }
 }

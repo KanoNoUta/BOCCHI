@@ -18,7 +18,7 @@ public class Panel
             return;
         }
 
-        OcelotUi.Title("Forked Tower:");
+        OcelotUi.Title($"{module.T("panel.title")}:");
         OcelotUi.Indent(() =>
         {
             var eventId = module.TowerRun.DynamicEventId != 0
@@ -26,18 +26,18 @@ public class Panel
                 : ZoneData.GetCurrentForkedTowerEventId();
             if (TowerHelper.TryGetDefinitionByEventId(eventId, out var definition))
             {
-                OcelotUi.LabelledValue("塔", definition.DisplayName);
+                OcelotUi.LabelledValue(module.T("panel.tower"), definition.DisplayName);
             }
 
-            OcelotUi.LabelledValue("动态事件 ID", eventId);
-            var state = OcelotUi.LabelledValue("Tower ID", module.TowerRun.Hash);
+            OcelotUi.LabelledValue(module.T("panel.dynamic_event_id"), eventId);
+            var state = OcelotUi.LabelledValue(module.T("panel.tower_id"), module.TowerRun.Hash);
             if (state == UiState.Hovered)
             {
-                ImGui.SetTooltip("This is unique to you.");
+                ImGui.SetTooltip(module.T("panel.tower_id_tooltip"));
             }
 
-            OcelotUi.LabelledValue("已发现陷阱", module.TowerRun.DiscoveredTrapCount);
-            OcelotUi.LabelledValue("未建模陷阱", module.TowerRun.DiscoveredUnmappedTrapCount);
+            OcelotUi.LabelledValue(module.T("panel.discovered_traps"), module.TowerRun.DiscoveredTrapCount);
+            OcelotUi.LabelledValue(module.T("panel.unmapped_traps"), module.TowerRun.DiscoveredUnmappedTrapCount);
 
             if (eventId != 0 && ImGui.Button($"保存并复制当前塔采集数据##tower-run-capture-{eventId}"))
             {

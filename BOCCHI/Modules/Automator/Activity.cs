@@ -124,7 +124,10 @@ public abstract class Activity : IDisposable
                 "Fast runtime selection; candidate precomputation is not allowed to block movement.");
             var pathfinding = new PathfindingChain(vnav, destination, data);
 
-            module.Debug($"Using navigation plan: {plan.Type} ({plan.Cost:F2})");
+            Svc.Log.Info(
+                $"Using navigation plan: {plan.Type} ({plan.Cost:F2}), " +
+                $"source={plan.SourceAethernet}, destination={plan.DestinationAethernet}, " +
+                $"fallback={plan.UsedFallback}");
 
             var chain = Chain.Create("Illegal:Pathfinding")
                 .ConditionalThen(_ => isFate && module.Config.ShouldStanceOnBeforeDoFates && Player.Job.IsTank(), new StanceChain(isFate))
@@ -138,47 +141,95 @@ public abstract class Activity : IDisposable
                     break;
 
                 case NavigationType.ReturnWalk:
-                    chain.Then(ChainHelper.ReturnChain());
+                {
+                    var returnChain = ChainHelper.ReturnChain(new ReturnChainConfig
+                    {
+                        ApproachAetheryte = true,
+                        ForceReturn = true,
+                    });
+                    chain
+                        .Then(returnChain)
+                        .Then(_ => LogReturnFailure(returnChain, plan))
+                        .BreakIf(() => !TransitCompletionPolicy.CanContinueAfterReturn(returnChain.Succeeded));
                     chain = AppendPathfinding(chain, destination, pathfinding);
                     break;
+                }
 
                 case NavigationType.ReturnTeleportWalk:
+                {
+                    var returnChain = ChainHelper.ReturnChain(new ReturnChainConfig
+                    {
+                        ApproachAetheryte = true,
+                        ForceReturn = true,
+                    });
+                    var teleport = ChainHelper.TeleportChain(
+                        plan.DestinationAethernet,
+                        plan.SourceAethernet,
+                        mountAfterTeleport: false);
                     chain
-                        .Then(ChainHelper.ReturnChain(new ReturnChainConfig { ApproachAetheryte = true }))
-                        .Then(ChainHelper.TeleportChain(
-                            plan.DestinationAethernet,
-                            plan.SourceAethernet,
-                            mountAfterTeleport: false))
+                        .Then(returnChain)
+                        .Then(_ => LogReturnFailure(returnChain, plan))
+                        .BreakIf(() => !TransitCompletionPolicy.CanContinueAfterReturn(returnChain.Succeeded))
+                        .Then(teleport)
+                        .Then(_ => LogTeleportFailure(teleport, plan))
+                        .BreakIf(() => !teleport.Succeeded)
                         .Debug("Waiting for lifestream to not be 'busy'")
                         .Then(new TaskManagerTask(() => !lifestream.IsBusy(), new TaskManagerConfiguration { TimeLimitMS = 30000 }));
                     chain = AppendPathfinding(chain, destination, pathfinding);
                     break;
+                }
 
                 case NavigationType.WalkTeleportWalk:
+                {
+                    var teleport = ChainHelper.TeleportChain(
+                        plan.DestinationAethernet,
+                        plan.SourceAethernet,
+                        mountAfterTeleport: false);
                     chain
-                        .Then(ChainHelper.TeleportChain(
-                            plan.DestinationAethernet,
-                            plan.SourceAethernet,
-                            mountAfterTeleport: false))
+                        .Then(teleport)
+                        .Then(_ => LogTeleportFailure(teleport, plan))
+                        .BreakIf(() => !teleport.Succeeded)
                         .Debug("Waiting for lifestream to not be 'busy'")
                         .Then(new TaskManagerTask(() => !lifestream.IsBusy(), new TaskManagerConfiguration { TimeLimitMS = 30000 }));
                     chain = AppendPathfinding(chain, destination, pathfinding);
                     break;
+                }
             }
 
             chain
-                .ConditionalThen(_ => !pathfinding.TransitReachedEnd, _ => GetPathfindingWatcher(states))
-                .Then(_ =>
-                {
-                    // Reaching a FATE/CE is a deterministic transition into
-                    // combat/waiting state. Never leave it to a random chance:
-                    // mounted players cannot start combat rotations reliably.
-                    Actions.TryUnmount();
-                })
+                .ConditionalThen(_ => !pathfinding.TransitReachedEnd, GetPathfindingWatcher(states))
+                // Each activity owns its precise arrival and dismount timing;
+                // this avoids treating the outer edge of a large event radius
+                // as arrival while still guaranteeing a combat-ready handoff.
                 .Then(_ => state = GetPostPathfindingState());
 
             return chain;
         };
+    }
+
+    private static void LogReturnFailure(ReturnChain returnChain, NavigationPlan plan)
+    {
+        if (returnChain.Succeeded)
+        {
+            return;
+        }
+
+        Svc.Log.Error(
+            $"Stopping navigation because Return did not complete for {plan.Type}; " +
+            $"reason={returnChain.FailureReason ?? "return chain timed out or was aborted"}");
+    }
+
+    private static void LogTeleportFailure(TeleportChain teleport, NavigationPlan plan)
+    {
+        if (teleport.Succeeded)
+        {
+            return;
+        }
+
+        Svc.Log.Error(
+            $"Stopping navigation because aethernet teleport did not complete: " +
+            $"{plan.SourceAethernet} -> {plan.DestinationAethernet}; " +
+            $"reason={teleport.FailureReason ?? "teleport chain timed out or was aborted"}");
     }
 
     private Chain AppendPathfinding(Chain chain, Vector3 destination, PathfindingChain pathfinding)
@@ -198,6 +249,7 @@ public abstract class Activity : IDisposable
         return () =>
         {
             var lastFateTargetPosition = Vector3.Zero;
+            long? unmountStartedAt = null;
 
             void ApproachFateTarget(IBattleNpc? target)
             {
@@ -206,8 +258,11 @@ public abstract class Activity : IDisposable
                     return;
                 }
 
-                var distance = Vector3.Distance(Player.Position, target.Position) - target.HitboxRadius;
-                if (distance <= module.Config.EngagementRange)
+                var centerDistance = Vector3.Distance(Player.Position, target.Position);
+                if (FateNavigationPolicy.IsTargetInEngagementRange(
+                        centerDistance,
+                        target.HitboxRadius,
+                        module.Config.EngagementRange))
                 {
                     if (vnav.IsRunning())
                     {
@@ -229,9 +284,34 @@ public abstract class Activity : IDisposable
             }
 
             return Chain.Create("Illegal:Participating")
-                // Retry the transition safeguard here as well. The initial
-                // unmount action can still be animation-locked on arrival.
-                .Then(_ => Actions.TryUnmount())
+                .Then(new TaskManagerTask(() =>
+                {
+                    var now = Environment.TickCount64;
+                    unmountStartedAt ??= now;
+                    var elapsedMs = now - unmountStartedAt.Value;
+                    var decision = ActivityParticipationState.GetCombatStartupDecision(
+                        Svc.Condition[ConditionFlag.Mounted],
+                        elapsedMs);
+
+                    if (decision == CombatStartupDecision.Ready)
+                    {
+                        return true;
+                    }
+
+                    if (decision == CombatStartupDecision.TimedOut)
+                    {
+                        throw new TimeoutException("Unable to dismount before starting combat automation.");
+                    }
+
+                    RetryArrivalDismount("Participating.ArrivalDismount");
+                    return false;
+                }, new TaskManagerConfiguration
+                {
+                    TimeLimitMS = ActivityParticipationState.UnmountTimeoutMs + 2000,
+                    AbortOnTimeout = true,
+                    AbortOnError = true,
+                    ShowError = false,
+                }))
                 .Then(_ => PromeRotationController.Start())
                 .ConditionalThen(_ => module.Config.ShouldToggleAiProvider, _ => module.SetAiProviderEnabled(true))
                 .ConditionalThen(_ => Svc.PluginInterface.InstalledPlugins.Any(p => p.InternalName == "AEAssistV3" && p.IsLoaded), _ =>
@@ -317,9 +397,36 @@ public abstract class Activity : IDisposable
             vnav.IsPathfinding());
     }
 
+    protected void StopAtArrivalAndTryDismount(string throttleKey)
+    {
+        if (vnav.IsRunning())
+        {
+            vnav.Stop();
+        }
+
+        RetryArrivalDismount(throttleKey);
+    }
+
+    protected static void RetryArrivalDismount(string throttleKey)
+    {
+        if (Svc.Condition[ConditionFlag.Mounted]
+            && EzThrottler.Throttle(throttleKey, 750))
+        {
+            Actions.TryUnmount();
+        }
+    }
+
     private bool ShouldMountToPathfindTo(Vector3 destination)
     {
         if (!module.PluginConfig.TeleporterConfig.ShouldMount)
+        {
+            return false;
+        }
+
+        if (Svc.Condition[ConditionFlag.Mounted]
+            || Svc.Condition[ConditionFlag.InCombat]
+            || Player.IsCasting
+            || Player.IsDead)
         {
             return false;
         }
@@ -366,6 +473,8 @@ public static class NavigationActivityState
 
 public static class ActivityParticipationState
 {
+    public const int UnmountTimeoutMs = 8000;
+
     public static bool IsInsideActivity(State state)
     {
         return state is State.InFate or State.InCriticalEncounter;
@@ -378,4 +487,23 @@ public static class ActivityParticipationState
         // completion after the state machine has observed the event once.
         return hasEnteredActivity && state == State.Idle;
     }
+
+    public static CombatStartupDecision GetCombatStartupDecision(bool mounted, long elapsedMs)
+    {
+        if (!mounted)
+        {
+            return CombatStartupDecision.Ready;
+        }
+
+        return elapsedMs >= UnmountTimeoutMs
+            ? CombatStartupDecision.TimedOut
+            : CombatStartupDecision.WaitingForUnmount;
+    }
+}
+
+public enum CombatStartupDecision
+{
+    WaitingForUnmount,
+    Ready,
+    TimedOut,
 }

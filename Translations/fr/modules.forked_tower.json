@@ -40,6 +40,15 @@
           "label": null,
           "tooltip": null
         }
+      },
+      "panel": {
+        "title": "Tour fourchue",
+        "tower": "Tour",
+        "dynamic_event_id": "ID de l'événement dynamique",
+        "tower_id": "ID de la tour",
+        "tower_id_tooltip": "Cet identifiant est propre à cette instance.",
+        "discovered_traps": "Pièges découverts",
+        "unmapped_traps": "Pièges non cartographiés"
       }
     }
   }

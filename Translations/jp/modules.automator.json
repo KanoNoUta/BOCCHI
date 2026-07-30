@@ -287,7 +287,15 @@
         },
         "activity_state": {
           "label": "アクティビティ状態",
-          "none": "アクティビティを待機中"
+          "none": "アクティビティを待機中",
+          "states": {
+            "idle": "待機中",
+            "pathfinding": "移動中",
+            "waiting_to_start_ce": "クリティカルエンカウント開始待ち",
+            "participating": "参加中",
+            "done": "完了",
+            "unknown": "不明な状態"
+          }
         },
         "rotation": {
           "state": "インスタンス更新",
@@ -303,7 +311,9 @@
           }
         },
         "lens": {
-          "title": "BOCCHI 不正レンズ"
+          "title": "BOCCHI 不正レンズ",
+          "toggle_illegal_mode": "不正モードを切り替える",
+          "disabled": "不正モードが有効ではありません。"
         }
       },
       "messages": {
