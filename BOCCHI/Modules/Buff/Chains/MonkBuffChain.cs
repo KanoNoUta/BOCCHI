@@ -5,6 +5,8 @@ namespace BOCCHI.Modules.Buff.Chains;
 
 public class MonkBuffChain(BuffModule module) : BuffChain(Job.Monk, PlayerStatus.Fleetfooted, Actions.Monk.Counterstance)
 {
+    protected override BuffModule Module => module;
+
     protected override bool ShouldRun()
     {
         return module.Config.ApplyFleetfooted;

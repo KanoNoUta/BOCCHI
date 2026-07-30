@@ -1,4 +1,8 @@
 ﻿using ECommons.Automation;
+using BOCCHI.Modules.Buff;
+using BOCCHI.Modules.Carrots;
+using BOCCHI.Modules.MobFarmer;
+using BOCCHI.Modules.Treasure;
 using ECommons.DalamudServices;
 using Ocelot;
 using Ocelot.Chain;
@@ -130,13 +134,62 @@ public class AutomatorModule : Module
         Config.Enabled = false;
         instanceRotation.Reset();
         automator.Refresh();
-        PromeRotationController.Stop();
-        if (TryGetIPCSubscriber<VNavmesh>(out var navigation) && navigation != null && navigation.IsReady())
+
+        // Stop persistent feature state before aborting queues. Hunters and
+        // the mob farmer otherwise remain marked as running and submit fresh
+        // work on the frame after an emergency stop.
+        if (TryGetModule<TreasureModule>(out var treasure) && treasure != null)
         {
-            navigation.Stop();
+            treasure.StopHunt();
         }
+        if (TryGetModule<CarrotsModule>(out var carrots) && carrots != null)
+        {
+            carrots.StopHunt();
+        }
+        if (TryGetModule<MobFarmerModule>(out var mobFarmer) && mobFarmer != null)
+        {
+            mobFarmer.Farmer.DisableFarmerMode();
+        }
+        if (TryGetModule<BuffModule>(out var buffs) && buffs != null)
+        {
+            buffs.BuffManager.CancelPending();
+        }
+
+        PromeRotationController.Stop();
         Plugin.Chain.Abort();
         ChainManager.AbortAll();
+
+        if (TryGetIPCSubscriber<VNavmesh>(out var navigation) && navigation != null && navigation.IsReady())
+        {
+            try
+            {
+                navigation.Stop();
+            }
+            catch (Exception exception)
+            {
+                Svc.Log.Warning(exception, "Emergency stop could not stop vnavmesh because its IPC became unavailable.");
+            }
+        }
+        if (TryGetIPCSubscriber<Lifestream>(out var lifestream) && lifestream != null && lifestream.IsReady())
+        {
+            try
+            {
+                lifestream.Abort();
+            }
+            catch (Exception exception)
+            {
+                Svc.Log.Warning(exception, "Emergency stop could not abort Lifestream because its IPC became unavailable.");
+            }
+        }
+
+        if (Svc.PluginInterface.InstalledPlugins.Any(p => p.InternalName == "AEAssistV3" && p.IsLoaded))
+        {
+            Chat.ExecuteCommand("/aeTargetSelector off");
+            Chat.ExecuteCommand("/aepull off");
+        }
+
+        Svc.Targets.Target = null;
+        PluginConfig.Save();
 
         if (wasEnabled)
         {

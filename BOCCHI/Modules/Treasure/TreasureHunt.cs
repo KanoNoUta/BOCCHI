@@ -1,4 +1,4 @@
-﻿using BOCCHI.Data;
+using BOCCHI.Data;
 using BOCCHI.Pathfinding;
 using BOCCHI.ActionHelpers;
 using BOCCHI.Chains;
@@ -79,6 +79,32 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
     protected override unsafe IPathfinder CreatePathfinder()
     {
         Treasure.Clear();
+
+        // Prefer the packaged layout. ActiveLayout is streamed around the
+        // player and is therefore only a partial snapshot on the much larger
+        // North Horn map; using it as the route source silently omits coffers
+        // that are not currently loaded.
+        var packagedTreasure = TreasureLayoutData.Read(Svc.ClientState.TerritoryType);
+        if (packagedTreasure.Count > 0)
+        {
+            Treasure.AddRange(packagedTreasure.Select(node =>
+                new TreasureData.TreasureDatum(node.Id, node.Position, node.Sgb)));
+            Treasure = Treasure.OrderBy(node => node.Id).ToList();
+            Svc.Log.Info(
+                $"Loaded {Treasure.Count} treasure nodes from packaged layout " +
+                $"for territory {Svc.ClientState.TerritoryType}.");
+            return new Pathfinder(
+                Treasure,
+                module.PluginConfig.PathfinderConfig.ReturnCost,
+                module.PluginConfig.PathfinderConfig.TeleportCost);
+        }
+
+        // Keep the runtime reader as a compatibility fallback for unexpected
+        // game-data layouts. Its result may be incomplete, but it is still
+        // better than making the hunt unavailable altogether.
+        Svc.Log.Warning(
+            $"Packaged treasure layout was unavailable for territory " +
+            $"{Svc.ClientState.TerritoryType}; falling back to ActiveLayout.");
         var layout = LayoutWorld.Instance()->ActiveLayout;
         if (layout == null)
         {

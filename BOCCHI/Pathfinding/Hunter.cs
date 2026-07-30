@@ -1,4 +1,4 @@
-﻿using BOCCHI.Chains;
+using BOCCHI.Chains;
 using BOCCHI.Enums;
 using BOCCHI.Data;
 using BOCCHI.Modules;
@@ -40,8 +40,6 @@ public abstract class Hunter
 
     private const int MAX_NODE_RECOVERY_ROUTES = 3;
 
-    private static readonly TimeSpan NodePathCalculationTimeout = TimeSpan.FromSeconds(20);
-
     private static readonly TimeSpan NodeProgressTimeout = TimeSpan.FromSeconds(30);
 
     private const int MAX_TRANSIT_ATTEMPTS = 3;
@@ -70,16 +68,6 @@ public abstract class Hunter
 
     protected Stopwatch stopwatch = new();
 
-    private Task<List<Vector3>>? nodePathTask;
-
-    private CancellationTokenSource? nodePathCancellation;
-
-    private DateTime nodePathStartedAt = DateTime.MinValue;
-
-    private Task? retiringNodePathTask;
-
-    private DateTime retiringNodePathStartedAt = DateTime.MinValue;
-
     private uint? navigationNodeId;
 
     private int nodePathAttempts;
@@ -89,8 +77,6 @@ public abstract class Hunter
     private DateTime lastNodeProgress = DateTime.MinValue;
 
     private DateTime nodeFollowSubmittedAt = DateTime.MinValue;
-
-    private bool nodeFollowObserved;
 
     private readonly HashSet<uint> dynamicallyPlannedNodes = [];
 
@@ -468,135 +454,69 @@ public abstract class Hunter
                     vnav.Stop();
                 }
 
-                ReleaseNodePathTask(cancel: true);
                 BeginNodeInteraction(nodeId, expectedPosition, obj);
                 return false;
             }
         }
 
-        if (vnav.IsRunning())
+        // vnavmesh's cancelable Pathfind query returns a Task<List<Vector3>>.
+        // Under the CN Dalamud the IPC layer serializes the return value, and a
+        // Task result trips a Newtonsoft self-referencing-loop exception, which
+        // faulted every node and made the route teleport-loop without ever
+        // digging. SimpleMove (PathfindAndMoveTo) returns a bool and walks
+        // internally, matching the CN-safe pattern already used for transits.
+        if (NavigationActivityState.IsActive(
+                vnav.IsRunning(),
+                vnav.IsSimpleMoveInProgress(),
+                vnav.IsPathfinding()))
         {
-            nodeFollowObserved |= nodeFollowSubmittedAt != DateTime.MinValue;
             if (DateTime.UtcNow - lastNodeProgress >= NodeProgressTimeout)
             {
                 vnav.Stop();
-                Svc.Log.Warning($"Hunt node {CurrentStep.NodeId} made no progress for {NodeProgressTimeout.TotalSeconds:f0}s; recalculating the segment.");
+                Svc.Log.Warning(
+                    $"Hunt node {CurrentStep.NodeId} made no progress for " +
+                    $"{NodeProgressTimeout.TotalSeconds:f0}s; recalculating the segment.");
                 lastNodeProgress = DateTime.UtcNow;
             }
 
             return false;
         }
 
+        // Give a freshly issued SimpleMove a moment to spin up before the idle
+        // navigation state is treated as "stopped short of the node".
         if (nodeFollowSubmittedAt != DateTime.MinValue)
         {
-            if (!nodeFollowObserved
-                && DateTime.UtcNow - nodeFollowSubmittedAt < TimeSpan.FromSeconds(2))
+            if (DateTime.UtcNow - nodeFollowSubmittedAt < TimeSpan.FromSeconds(2))
             {
                 return false;
             }
 
             nodeFollowSubmittedAt = DateTime.MinValue;
-            nodeFollowObserved = false;
         }
 
-        if (nodePathTask == null)
-        {
-            if (!IsNodePathWorkerAvailable())
-            {
-                return false;
-            }
-
-            // Mount before calculating/submitting the walking segment. A
-            // mount action issued after FollowPath interrupts vnavmesh and is
-            // the main source of the visible run-stop-run cycle.
-            if (ShouldMountForTravel())
-            {
-                StepProcessor.SubmitFront(ChainHelper.MountChain());
-                return false;
-            }
-
-            if (nodePathAttempts >= MAX_NODE_PATH_ATTEMPTS)
-            {
-                if (TryInsertForcedRecovery(nodeId, expectedPosition))
-                {
-                    return false;
-                }
-
-                return SkipCurrentNode($"vnavmesh could not reach it after {nodePathAttempts} attempts");
-            }
-
-            nodePathAttempts++;
-            var navigation = vnav;
-            var start = Player.Position;
-            nodePathCancellation = new CancellationTokenSource();
-            var cancellationToken = nodePathCancellation.Token;
-            nodePathTask = Task.Run(
-                () => navigation.PathfindCancelable(start, destination, false, cancellationToken),
-                cancellationToken);
-            nodePathStartedAt = DateTime.UtcNow;
-            return false;
-        }
-
-        if (!nodePathTask.IsCompleted)
-        {
-            if (DateTime.UtcNow - nodePathStartedAt >= NodePathCalculationTimeout)
-            {
-                Svc.Log.Warning(
-                    $"vnavmesh path calculation timed out for hunt node {CurrentStep.NodeId} " +
-                    $"after {NodePathCalculationTimeout.TotalSeconds:F0}s " +
-                    $"(attempt {nodePathAttempts}/{MAX_NODE_PATH_ATTEMPTS}).");
-                ReleaseNodePathTask(cancel: true);
-            }
-
-            return false;
-        }
-
-        if (nodePathTask.IsCanceled)
-        {
-            ReleaseNodePathTask(cancel: false);
-            Svc.Log.Warning($"vnavmesh cancelled path calculation for hunt node {CurrentStep.NodeId} (attempt {nodePathAttempts}/{MAX_NODE_PATH_ATTEMPTS}).");
-            return false;
-        }
-
-        if (nodePathTask.IsFaulted)
-        {
-            var exception = nodePathTask.Exception?.GetBaseException();
-            Svc.Log.Warning(exception, $"vnavmesh path calculation failed for hunt node {CurrentStep.NodeId} (attempt {nodePathAttempts}/{MAX_NODE_PATH_ATTEMPTS}).");
-            ReleaseNodePathTask(cancel: false);
-            return false;
-        }
-
+        // Mount before issuing the walking segment. A mount action issued after
+        // movement starts interrupts vnavmesh and is the main source of the
+        // visible run-stop-run cycle.
         if (ShouldMountForTravel())
         {
             StepProcessor.SubmitFront(ChainHelper.MountChain());
             return false;
         }
 
-        var path = nodePathTask.Result;
-        ReleaseNodePathTask(cancel: false);
-        if (!HuntNavigationPlanner.ReachesDestination(path, destination))
+        if (nodePathAttempts >= MAX_NODE_PATH_ATTEMPTS)
         {
-            Svc.Log.Warning(
-                $"vnavmesh returned an empty or partial route to hunt node {CurrentStep.NodeId} " +
-                $"(attempt {nodePathAttempts}/{MAX_NODE_PATH_ATTEMPTS}).");
             if (TryInsertForcedRecovery(nodeId, expectedPosition))
             {
                 return false;
             }
 
-            return false;
+            return SkipCurrentNode($"vnavmesh could not reach it after {nodePathAttempts} attempts");
         }
 
-        var route = path.SkipWhile(point => Vector3.DistanceSquared(point, Player.Position) < 0.25f).ToList();
-        if (route.Count == 0)
-        {
-            return SkipCurrentNode("vnavmesh returned an empty walking segment");
-        }
-
-        vnav.FollowPath(route, false);
-        nodeFollowSubmittedAt = DateTime.UtcNow;
-        nodeFollowObserved = false;
+        nodePathAttempts++;
         lastNodeProgress = DateTime.UtcNow;
+        vnav.PathfindAndMoveTo(destination, false);
+        nodeFollowSubmittedAt = DateTime.UtcNow;
         return false;
     }
 
@@ -771,7 +691,6 @@ public abstract class Hunter
 
     private void ResetNodePathState(bool keepCurrentNode = false)
     {
-        ReleaseNodePathTask(cancel: true);
         if (!keepCurrentNode)
         {
             navigationNodeId = null;
@@ -780,7 +699,6 @@ public abstract class Hunter
         bestNodeDistance = float.MaxValue;
         lastNodeProgress = DateTime.MinValue;
         nodeFollowSubmittedAt = DateTime.MinValue;
-        nodeFollowObserved = false;
     }
 
     private void ResetInteractionState()
@@ -796,83 +714,6 @@ public abstract class Hunter
         dynamicallyPlannedNodes.Clear();
         recoveredNodeAethernets.Clear();
         ResetInteractionState();
-    }
-
-    private void ReleaseNodePathTask(bool cancel)
-    {
-        var task = nodePathTask;
-        var cancellation = nodePathCancellation;
-        nodePathTask = null;
-        nodePathCancellation = null;
-        nodePathStartedAt = DateTime.MinValue;
-
-        if (cancel)
-        {
-            cancellation?.Cancel();
-        }
-
-        if (task == null)
-        {
-            cancellation?.Dispose();
-            return;
-        }
-
-        if (cancel && !task.IsCompleted)
-        {
-            retiringNodePathTask = task;
-            retiringNodePathStartedAt = DateTime.UtcNow;
-        }
-
-        ObserveDetachedTask(task, cancellation);
-    }
-
-    private bool IsNodePathWorkerAvailable()
-    {
-        var retiring = retiringNodePathTask;
-        if (retiring == null)
-        {
-            return true;
-        }
-
-        if (!retiring.IsCompleted)
-        {
-            if (DateTime.UtcNow - retiringNodePathStartedAt < TimeSpan.FromSeconds(10))
-            {
-                return false;
-            }
-
-            Svc.Log.Error(
-                "Stopping hunt route because a cancelled vnavmesh pathfinding worker " +
-                "did not exit within 10 seconds.");
-            Stop();
-            return false;
-        }
-
-        if (retiring.IsFaulted)
-        {
-            _ = retiring.Exception;
-        }
-
-        retiringNodePathTask = null;
-        retiringNodePathStartedAt = DateTime.MinValue;
-        return true;
-    }
-
-    private static void ObserveDetachedTask(Task task, CancellationTokenSource? cancellation = null)
-    {
-        _ = task.ContinueWith(
-            completed =>
-            {
-                if (completed.IsFaulted)
-                {
-                    _ = completed.Exception;
-                }
-
-                cancellation?.Dispose();
-            },
-            CancellationToken.None,
-            TaskContinuationOptions.ExecuteSynchronously,
-            TaskScheduler.Default);
     }
 
     private bool ReturnToBaseCampHandler()

@@ -5,6 +5,8 @@ namespace BOCCHI.Modules.Buff.Chains;
 
 public class BardBuffChain(BuffModule module) : BuffChain(Job.Bard, PlayerStatus.RomeosBallad, Actions.Bard.RomeosBallad)
 {
+    protected override BuffModule Module => module;
+
     protected override bool ShouldRun()
     {
         return module.Config.ApplyRomeosBallad;

@@ -75,13 +75,18 @@ public class TreasureModule(Plugin _plugin, Config config) : Module(_plugin, con
 
     public override void OnTerritoryChanged(uint id)
     {
-        hunter?.Stop();
+        StopHunt();
         Tracker.Reset();
+    }
+
+    public void StopHunt()
+    {
+        hunter?.Stop();
     }
 
     public override void Dispose()
     {
-        hunter?.Stop();
+        StopHunt();
         Tracker.Dispose();
         base.Dispose();
     }

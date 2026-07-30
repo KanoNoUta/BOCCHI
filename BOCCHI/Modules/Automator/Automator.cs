@@ -8,7 +8,9 @@ using Dalamud.Plugin.Services;
 using ECommons.DalamudServices;
 using FFXIVClientStructs.FFXIV.Client.Game.InstanceContent;
 using Ocelot.Chain;
+using Ocelot.Chain.ChainEx;
 using Ocelot.IPC;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -16,6 +18,10 @@ namespace BOCCHI.Modules.Automator;
 
 public class Automator
 {
+    private const int MaxPostActivityReturnAttempts = 3;
+
+    private static readonly TimeSpan PostActivityReturnRetryDelay = TimeSpan.FromSeconds(5);
+
     private static bool IsChainActive
     {
         get => AutomatorChainPolicy.IsActive(
@@ -26,8 +32,23 @@ public class Automator
 
     private int idleTime = 0;
 
+    private bool postActivityReturnPending;
+
+    private int postActivityReturnAttempts;
+
+    private DateTime nextPostActivityReturnAttempt = DateTime.MinValue;
+
+    private string postActivityReturnReason = "activity completed";
+
     public void PostUpdate(AutomatorModule module, IFramework framework)
     {
+        // Module dispatch normally filters disabled modules, but the emergency
+        // stop must also be safe when it is clicked during the same update.
+        if (!module.IsEnabled)
+        {
+            return;
+        }
+
         var vnav = module.GetIPCSubscriber<VNavmesh>();
         var lifestream = module.GetIPCSubscriber<Lifestream>();
         if (!vnav.IsReady() || !lifestream.IsReady())
@@ -36,6 +57,14 @@ public class Automator
         }
 
         var states = module.GetModule<StateManagerModule>();
+        if (Activity == null && postActivityReturnPending)
+        {
+            if (IsChainActive || HandlePostActivityReturn(module, states))
+            {
+                return;
+            }
+        }
+
         if (Activity == null)
         {
             if (states.GetState() == State.InCombat)
@@ -212,12 +241,107 @@ public class Automator
     {
         ClearActivity();
         idleTime = 0;
+        postActivityReturnPending = false;
+        postActivityReturnAttempts = 0;
+        nextPostActivityReturnAttempt = DateTime.MinValue;
+        postActivityReturnReason = "activity completed";
+    }
+
+    public void QueuePostActivityReturn(string reason)
+    {
+        if (postActivityReturnPending)
+        {
+            return;
+        }
+
+        postActivityReturnPending = true;
+        postActivityReturnAttempts = 0;
+        nextPostActivityReturnAttempt = DateTime.MinValue;
+        postActivityReturnReason = reason;
+        idleTime = 0;
+        Svc.Log.Info($"Queued forced base-camp return after {reason}.");
     }
 
     private void ClearActivity()
     {
         Activity?.Dispose();
         Activity = null;
+    }
+
+    private bool HandlePostActivityReturn(AutomatorModule module, StateManagerModule states)
+    {
+        if (!postActivityReturnPending)
+        {
+            return false;
+        }
+
+        // Do not select or walk toward another event while the completion
+        // return is pending. Wait for combat/event state to settle, then use
+        // Return explicitly rather than walking to a nearby shard.
+        if (states.GetState() != State.Idle || Svc.Condition[Dalamud.Game.ClientState.Conditions.ConditionFlag.InCombat])
+        {
+            return true;
+        }
+
+        if (ZoneData.IsNearAethernetShard(
+                ZoneData.GetBaseCampAethernet(),
+                AethernetData.DISTANCE + 1f))
+        {
+            postActivityReturnPending = false;
+            postActivityReturnAttempts = 0;
+            Svc.Log.Info($"Post-activity return already satisfied after {postActivityReturnReason}.");
+            return false;
+        }
+
+        var now = DateTime.UtcNow;
+        if (now < nextPostActivityReturnAttempt)
+        {
+            return true;
+        }
+
+        if (postActivityReturnAttempts >= MaxPostActivityReturnAttempts)
+        {
+            Svc.Log.Error(
+                $"Giving up forced base-camp return after {postActivityReturnReason}: " +
+                $"{postActivityReturnAttempts} attempts failed.");
+            postActivityReturnPending = false;
+            postActivityReturnAttempts = 0;
+            return false;
+        }
+
+        var returnChain = ChainHelper.ReturnChain(new ReturnChainConfig
+        {
+            ApproachAetheryte = true,
+            ForceReturn = true,
+        });
+        postActivityReturnAttempts++;
+        var attempt = postActivityReturnAttempts;
+        Svc.Log.Info(
+            $"Starting forced base-camp return after {postActivityReturnReason} " +
+            $"({attempt}/{MaxPostActivityReturnAttempts}).");
+
+        Plugin.Chain.Submit(() =>
+            Chain.Create("Illegal:PostActivityReturn")
+                .Then(returnChain)
+                .OnFinally(() =>
+                {
+                    if (returnChain.Succeeded)
+                    {
+                        postActivityReturnPending = false;
+                        postActivityReturnAttempts = 0;
+                        nextPostActivityReturnAttempt = DateTime.MinValue;
+                        idleTime = 0;
+                        Svc.Log.Info($"Forced base-camp return completed after {postActivityReturnReason}.");
+                        return;
+                    }
+
+                    nextPostActivityReturnAttempt = DateTime.UtcNow + PostActivityReturnRetryDelay;
+                    Svc.Log.Warning(
+                        $"Forced base-camp return failed after {postActivityReturnReason} " +
+                        $"({attempt}/{MaxPostActivityReturnAttempts}); " +
+                        $"reason={returnChain.FailureReason ?? "return chain timed out or was aborted"}.");
+                }));
+        return true;
     }
 }
 

@@ -78,13 +78,18 @@ public class CarrotsModule(Plugin plugin, Config config) : Module(plugin, config
 
     public override void OnTerritoryChanged(uint id)
     {
-        hunter?.Stop();
+        StopHunt();
         tracker.Reset();
+    }
+
+    public void StopHunt()
+    {
+        hunter?.Stop();
     }
 
     public override void Dispose()
     {
-        hunter?.Stop();
+        StopHunt();
         base.Dispose();
     }
 }

@@ -153,8 +153,14 @@ public class Teleporter(TeleporterModule module)
 
     public void OnFateEnd(StateManagerModule states)
     {
-        if (module.GetModule<AutomatorModule>().IsEnabled)
+        var automator = module.GetModule<AutomatorModule>();
+        if (automator.IsEnabled)
         {
+            // Automatic mode has its own deterministic post-FATE policy: get
+            // back to base camp before selecting the next activity. Do not
+            // inherit the manual teleporter toggle here, otherwise the route
+            // planner can walk to a nearby shard and chain-teleport instead.
+            automator.automator.QueuePostActivityReturn("FATE completion");
             return;
         }
 
@@ -168,8 +174,14 @@ public class Teleporter(TeleporterModule module)
 
     public void OnCriticalEncounterEnd(StateManagerModule states)
     {
-        if (module.GetModule<AutomatorModule>().IsEnabled)
+        var automator = module.GetModule<AutomatorModule>();
+        if (automator.IsEnabled)
         {
+            if (module.Config.ReturnAfterCriticalEncounter)
+            {
+                automator.automator.QueuePostActivityReturn("critical encounter completion");
+            }
+
             return;
         }
 

@@ -1,7 +1,6 @@
 ﻿using BOCCHI.Data;
 using BOCCHI.Modules.Buff.Chains;
 using ECommons.GameHelpers;
-using ECommons.Throttlers;
 using Ocelot.Chain;
 using System.Collections.Generic;
 using System.Linq;
@@ -22,8 +21,6 @@ public class BuffManager
         return applyBuffsOnNextTick;
     }
 
-    private int lowestTimer = int.MaxValue;
-
     public void Update(BuffModule module)
     {
         if (applyBuffsOnNextTick)
@@ -31,11 +28,11 @@ public class BuffManager
             applyBuffsOnNextTick = false;
             ApplyBuffs(module);
         }
+    }
 
-        if (EzThrottler.Throttle("BuffManager.Tick.GetLowestBuffTimer", 1000))
-        {
-            lowestTimer = GetLowestBuffTimer(module);
-        }
+    public void CancelPending()
+    {
+        applyBuffsOnNextTick = false;
     }
 
     public void ApplyBuffs(BuffModule module)
@@ -49,36 +46,42 @@ public class BuffManager
         manager.Submit(new AllBuffsChain(module));
     }
 
-    private int GetLowestBuffTimer(BuffModule module)
+    private static IEnumerable<PlayerStatus> GetRequestedBuffs(BuffModule module)
     {
-        List<uint> buffs = [];
+        List<PlayerStatus> buffs = [];
 
         if (module.Config.ApplyEnduringFortitude)
         {
-            buffs.Add((uint)PlayerStatus.EnduringFortitude);
+            buffs.Add(PlayerStatus.EnduringFortitude);
         }
 
         if (module.Config.ApplyFleetfooted)
         {
-            buffs.Add((uint)PlayerStatus.Fleetfooted);
+            buffs.Add(PlayerStatus.Fleetfooted);
         }
 
         if (module.Config.ApplyRomeosBallad)
         {
-            buffs.Add((uint)PlayerStatus.RomeosBallad);
+            buffs.Add(PlayerStatus.RomeosBallad);
         }
 
         if (module.Config.ApplyQuickerStep)
         {
-            buffs.Add((uint)PlayerStatus.QuickerStep);
+            buffs.Add(PlayerStatus.QuickerStep);
         }
         if (module.Config.UseInquiringMind && !module.Config.ApplyQuickerStep)
         {
-            buffs.Add((uint)PlayerStatus.QuickerStep);
+            buffs.Add(PlayerStatus.QuickerStep);
         }
 
-        var statuses = Player.Status.Where(s => buffs.Contains(s.StatusId)).ToList();
-        return statuses.Count == 0 ? 0 : statuses.Select(status => (int)status.RemainingTime).Min();
+        return buffs.Distinct();
+    }
+
+    public bool NeedsRefresh(BuffModule module, PlayerStatus buff)
+    {
+        var status = Player.Status.Get(buff);
+        return status == null
+               || status.RemainingTime <= module.Config.ReapplyThreshold * 60;
     }
 
     public bool ShouldRefresh(BuffModule module)
@@ -88,6 +91,6 @@ public class BuffManager
             return false;
         }
 
-        return lowestTimer <= module.Config.ReapplyThreshold * 60;
+        return GetRequestedBuffs(module).Any(buff => NeedsRefresh(module, buff));
     }
 }
