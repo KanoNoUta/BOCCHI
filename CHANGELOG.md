@@ -1,3 +1,10 @@
+# 3.3.13
+
+- 合并 PR #3，完善北岛传送落点、导航稳定停止与 vnavmesh 0.7.6.0 精确版本校验
+- 挖宝接入完整 LGB 数据源，改用国服安全的 SimpleMove，避免 PathfindCancelable IPC 序列化异常
+- FATE 结束后优先返回营地，Buff 按缺失状态分别补充，不再重复整套上 Buff
+- 紧急停止统一终止挖宝、胡萝卜、刷怪、Chain、vnavmesh、Lifestream、AE 与 PromeRotation 状态
+
 # 3.3.12
 
 - 北岛水晶传送改为动态解析当前场景内水晶对象位置，不再只依赖静态维护坐标
