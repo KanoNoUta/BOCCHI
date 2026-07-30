@@ -1,4 +1,4 @@
-﻿using BOCCHI.Enums;
+using BOCCHI.Enums;
 using Dalamud.Game.ClientState.Objects.Enums;
 using Dalamud.Game.ClientState.Objects.Types;
 using ECommons.DalamudServices;
@@ -230,6 +230,46 @@ public static class ZoneData
         return float.IsFinite(range)
                && range >= 0f
                && Vector3.DistanceSquared(playerPosition, shardPosition) <= range * range;
+    }
+
+    // Resolves the position BOCCHI should physically walk to in order to
+    // interact with an aethernet shard. Lifestream performs no approach of its
+    // own for Occult Crescent / North Horn custom aethernets: it targets the
+    // crystal and calls the game's InteractWithObject, which only fires inside
+    // the game's ~4.5m interaction range. North Horn's maintained coordinates
+    // can sit a few metres from the physical crystal, so we prefer the live
+    // crystal object's real position whenever it is present in the object table.
+    public static Vector3 GetAethernetShardApproachPosition(AethernetData data)
+    {
+        // South Horn shards expose the maintained EventObj BaseId directly.
+        var exact = Svc.Objects.FirstOrDefault(o =>
+            o.BaseId == data.BaseId
+            && o.ObjectKind is ObjectKind.EventObj or ObjectKind.Aetheryte);
+        if (exact != null)
+        {
+            return exact.Position;
+        }
+
+        // North Horn crystals can surface as a generic Aetheryte object whose
+        // runtime id differs from the maintained EventObj id. Crystals are
+        // hundreds of units apart, so the aetheryte nearest the maintained
+        // coordinate is unambiguously this shard.
+        var nearest = Svc.Objects
+            .Where(o => o.ObjectKind == ObjectKind.Aetheryte)
+            .Where(o => Vector3.Distance(o.Position, data.Position) <= 30f)
+            .OrderBy(o => Vector3.Distance(o.Position, data.Position))
+            .FirstOrDefault();
+        return nearest?.Position ?? data.Position;
+    }
+
+    // Straight-line distance from the player to the best-known position of the
+    // given aethernet shard (see GetAethernetShardApproachPosition).
+    public static float GetDistanceToAethernetShard(AethernetData data)
+    {
+        var player = Svc.Objects.LocalPlayer;
+        return player == null
+            ? float.MaxValue
+            : Vector3.Distance(player.Position, GetAethernetShardApproachPosition(data));
     }
 
     public static IList<IGameObject> GetNearbyKnowledgeCrystal(float range = 4.5f)
