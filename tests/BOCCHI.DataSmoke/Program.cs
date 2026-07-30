@@ -351,6 +351,43 @@ Assert(CriticalEncounterNavigationPolicy.EvaluateFinalApproach(
        && CriticalEncounterNavigationPolicy.EvaluateFinalApproach(
            new Vector3(14.99f, 0f, 0f), ceFinalTarget, false, true, 2000) == FinalApproachDecision.StoppedBeforeArrival,
     "CE final approach must survive vnavmesh's startup gap and confirm the saved random target within five yalms.");
+Assert(CriticalEncounterNavigationPolicy.CanSubmitApproach(registrationOpen: true, playerInEncounter: false)
+       && !CriticalEncounterNavigationPolicy.CanSubmitApproach(registrationOpen: false, playerInEncounter: false)
+       && !CriticalEncounterNavigationPolicy.CanSubmitApproach(registrationOpen: true, playerInEncounter: true),
+    "CE approach navigation must stop as soon as registration closes or participation begins.");
+Assert(CriticalEncounterNavigationPolicy.CanSubmitFinalApproach(
+           registrationOpen: true,
+           finalDestinationSubmitted: false,
+           isCloseToZone: true,
+           pathfindingInProgress: false)
+       && !CriticalEncounterNavigationPolicy.CanSubmitFinalApproach(
+           registrationOpen: false,
+           finalDestinationSubmitted: false,
+           isCloseToZone: true,
+           pathfindingInProgress: false)
+       && !CriticalEncounterNavigationPolicy.CanSubmitFinalApproach(
+           registrationOpen: true,
+           finalDestinationSubmitted: true,
+           isCloseToZone: true,
+           pathfindingInProgress: false),
+    "CE final random approach must be submitted exactly once while registration remains open.");
+var ceCenter = new Vector3(100f, 20f, 200f);
+var ceMinFinalTarget = CriticalEncounterNavigationPolicy.CreateFinalTarget(ceCenter, 0f, 0f);
+var ceMaxFinalTarget = CriticalEncounterNavigationPolicy.CreateFinalTarget(ceCenter, MathF.PI, 100f);
+Assert(MathF.Abs(Vector3.Distance(ceCenter, ceMinFinalTarget)
+                 - CriticalEncounterNavigationPolicy.MinFinalOffset) < 0.001f
+       && MathF.Abs(Vector3.Distance(ceCenter, ceMaxFinalTarget)
+                    - CriticalEncounterNavigationPolicy.MaxFinalOffset) < 0.001f,
+    "CE final random targets must remain in the configured inner annulus instead of landing at the center or edge.");
+Assert(CriticalEncounterNavigationPolicy.ShouldAbandon(
+           registrationOpen: false, isInZone: false, playerInEncounter: false)
+       && !CriticalEncounterNavigationPolicy.ShouldAbandon(
+           registrationOpen: true, isInZone: false, playerInEncounter: false)
+       && !CriticalEncounterNavigationPolicy.ShouldAbandon(
+           registrationOpen: false, isInZone: true, playerInEncounter: false)
+       && !CriticalEncounterNavigationPolicy.ShouldAbandon(
+           registrationOpen: false, isInZone: false, playerInEncounter: true),
+    "A started CE must be abandoned only while the player remains outside and has not joined it.");
 
 Assert(TransitCompletionPolicy.HasVerifiedArrival(true, true)
        && !TransitCompletionPolicy.HasVerifiedArrival(true, false)
@@ -395,6 +432,28 @@ Assert(ZoneData.IsWithinKnownAethernetRange(
            northCampShard.Position,
            AethernetData.DISTANCE + 1f),
     "North Horn teleport validation must fall back to maintained shard coordinates when EventObj lookup is unavailable.");
+var ruinedStreetsShard = Aethernet.RuinedStreetsFront.GetData();
+var failedRuinedStreetsApproach = new Vector3(-384.575f, 39.15826f, -439.2537f);
+Assert(!ZoneData.IsWithinKnownAethernetRange(
+           failedRuinedStreetsApproach,
+           ruinedStreetsShard.Position,
+           AethernetData.DISTANCE)
+       && ZoneData.IsWithinKnownAethernetRange(
+           failedRuinedStreetsApproach,
+           ruinedStreetsShard.Position,
+           AethernetData.DISTANCE + 1f),
+    "Source aethernet approach must reject the former 5.2-yalm allowance so Lifestream can actually interact.");
+var maintainedAethernets = ZoneData.GetAethernets(ZoneData.SOUTHHORN)
+    .Concat(ZoneData.GetAethernets(ZoneData.NORTHHORN))
+    .Select(aethernet => aethernet.GetData())
+    .ToArray();
+Assert(maintainedAethernets.All(shard =>
+           shard.IsWithinLandingRange(shard.Destination, AethernetData.DISTANCE))
+       && maintainedAethernets.All(shard =>
+           !shard.IsWithinLandingRange(
+               shard.Destination + new Vector3(AethernetData.DISTANCE + 0.01f, 0f, 0f),
+               AethernetData.DISTANCE)),
+    "Post-teleport validation must use the maintained landing point and reject positions outside 4.2 yalms.");
 Assert(!AutomatorChainPolicy.IsActive([])
        && !AutomatorChainPolicy.IsActive([(false, 0), (false, 0)])
        && AutomatorChainPolicy.IsActive([(true, 0)])

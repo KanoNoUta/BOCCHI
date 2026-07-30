@@ -4,10 +4,12 @@ using BOCCHI.Modules.Teleporter;
 using Dalamud.Game.ClientState.Conditions;
 using ECommons.Automation.NeoTaskManager;
 using ECommons.DalamudServices;
+using ECommons.GameHelpers;
 using Ocelot.Chain;
 using Ocelot.Chain.ChainEx;
 using Ocelot.IPC;
 using System;
+using System.Numerics;
 
 namespace BOCCHI.Chains;
 
@@ -41,7 +43,10 @@ public class TeleportChain(
             new PathfindAndMoveToChain(vnav, source.Position));
         chain.Then(new TaskManagerTask(() =>
         {
-            var range = AethernetData.DISTANCE + 1f;
+            // Stay inside Lifestream's custom-aethernet interaction range.
+            // The previous one-yalm allowance could stop navigation at 5.2,
+            // while Lifestream only recognizes these shards within 4.6.
+            var range = AethernetData.DISTANCE;
             if (source.DistanceToPlayer() <= range)
             {
                 return true;
@@ -85,7 +90,7 @@ public class TeleportChain(
         // teleport and make the outer activity walk across the whole map.
         chain.Then(_ =>
         {
-            var range = AethernetData.DISTANCE + 1f;
+            var range = AethernetData.DISTANCE;
             if (ZoneData.IsNearAethernetShard(source.Aethernet, range))
             {
                 return;
@@ -117,13 +122,14 @@ public class TeleportChain(
         chain.WaitToCycleCondition(ConditionFlag.BetweenAreas, timeout: 60000);
         chain.Then(_ =>
         {
-            var range = AethernetData.DISTANCE + 1f;
-            if (!ZoneData.IsNearAethernetShard(aethernet, range))
+            var destination = aethernet.GetData();
+            var range = AethernetData.DISTANCE;
+            if (!destination.IsPlayerWithinLandingRange(range))
             {
-                var destination = aethernet.GetData();
                 FailureReason =
-                    $"Teleport completed outside destination aethernet {aethernet} " +
-                    $"(distance={destination.DistanceToPlayer():F2}, range={range:F2}).";
+                    $"Teleport completed outside destination landing point {aethernet} " +
+                    $"(distance={Vector3.Distance(Player.Position, destination.Destination):F2}, " +
+                    $"range={range:F2}).";
                 throw new InvalidOperationException(FailureReason);
             }
 
