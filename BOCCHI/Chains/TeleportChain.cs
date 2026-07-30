@@ -1,6 +1,7 @@
 ﻿using BOCCHI.Data;
 using BOCCHI.Enums;
 using BOCCHI.Modules.Teleporter;
+using BOCCHI.Pathfinding;
 using Dalamud.Game.ClientState.Conditions;
 using ECommons.Automation.NeoTaskManager;
 using ECommons.DalamudServices;
@@ -35,12 +36,12 @@ public class TeleportChain(
         // closest known shard is the correct fallback.
         var source = sourceAethernet?.GetData() ?? AethernetData.GetClosestToPlayer();
         var sourceApproachStartedAt = 0L;
-        var sourceNavigationObserved = false;
+        long? sourceNavigationInactiveSince = null;
 
         chain.Then(_ => lifestream.Abort());
         chain.ConditionalThen(
             _ => source.DistanceToPlayer() > AethernetData.DISTANCE,
-            new PathfindAndMoveToChain(vnav, source.Position));
+            new PathfindAndMoveToChain(vnav, source.NavigationPosition));
         chain.Then(new TaskManagerTask(() =>
         {
             // Stay inside Lifestream's custom-aethernet interaction range.
@@ -61,9 +62,14 @@ public class TeleportChain(
             var navigationActive = vnav.IsRunning()
                                    || vnav.IsSimpleMoveInProgress()
                                    || vnav.IsPathfinding();
-            sourceNavigationObserved |= navigationActive;
-            if (navigationActive
-                || (!sourceNavigationObserved && now - sourceApproachStartedAt < 2000))
+            sourceNavigationInactiveSince = NavigationStopPolicy.UpdateInactiveSince(
+                navigationActive,
+                now,
+                sourceNavigationInactiveSince);
+            if (!NavigationStopPolicy.HasStopped(
+                    sourceApproachStartedAt,
+                    sourceNavigationInactiveSince,
+                    now))
             {
                 return false;
             }

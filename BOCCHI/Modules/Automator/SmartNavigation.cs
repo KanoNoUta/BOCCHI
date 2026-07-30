@@ -50,6 +50,38 @@ public static class SmartNavigation
 
     private readonly record struct PathSegment(Vector3 Start, Vector3 Destination);
 
+    public static NavigationPlan PreferBaseCampReturn(
+        NavigationPlan plan,
+        AethernetData baseCamp)
+    {
+        if (plan.Type != NavigationType.WalkTeleportWalk)
+        {
+            return plan;
+        }
+
+        var preferredType = plan.DestinationAethernet == baseCamp.Aethernet
+            ? NavigationType.ReturnWalk
+            : NavigationType.ReturnTeleportWalk;
+        var preferredCandidate = plan.Candidates
+            .Where(candidate => candidate.Type == preferredType)
+            .Where(candidate => preferredType != NavigationType.ReturnTeleportWalk
+                                || candidate.DestinationAethernet == plan.DestinationAethernet)
+            .Cast<NavigationCandidate?>()
+            .FirstOrDefault();
+
+        return plan with
+        {
+            Type = preferredType,
+            SourceAethernet = preferredType == NavigationType.ReturnTeleportWalk
+                ? baseCamp.Aethernet
+                : Aethernet.Unknown,
+            DestinationAethernet = preferredType == NavigationType.ReturnTeleportWalk
+                ? plan.DestinationAethernet
+                : baseCamp.Aethernet,
+            Cost = preferredCandidate?.Cost ?? plan.Cost,
+        };
+    }
+
     public static Task<NavigationPlan> DecideAsync(
         VNavmesh vnav,
         Vector3 playerPosition,
@@ -137,7 +169,7 @@ public static class SmartNavigation
             .ToArray();
 
         var sourceShards = shards
-            .OrderBy(shard => Vector3.DistanceSquared(playerPosition, shard.Position))
+            .OrderBy(shard => Vector3.DistanceSquared(playerPosition, shard.NavigationPosition))
             .Take(sourceCandidateCount)
             .ToArray();
 
@@ -187,7 +219,7 @@ public static class SmartNavigation
         {
             sourceDistances[shard.Aethernet] = await GetDistanceAsync(
                 playerPosition,
-                shard.Position,
+                shard.NavigationPosition,
                 false).ConfigureAwait(false);
         }
 
@@ -307,7 +339,7 @@ public static class SmartNavigation
             return CreateDirectFallback(playerPosition, destination, reason);
         }
 
-        var source = shards.OrderBy(shard => Vector3.DistanceSquared(playerPosition, shard.Position)).First();
+        var source = shards.OrderBy(shard => Vector3.DistanceSquared(playerPosition, shard.NavigationPosition)).First();
         var target = preferredAethernet is { } preferred
             ? shards.FirstOrDefault(shard => shard.Aethernet == preferred)
               ?? shards.OrderBy(shard => Vector3.DistanceSquared(shard.Destination, destination)).First()
@@ -316,7 +348,7 @@ public static class SmartNavigation
         var directDistance = Vector3.Distance(playerPosition, destination);
         var baseDistance = Vector3.Distance(baseCamp.Destination, destination);
         var targetDistance = Vector3.Distance(target.Destination, destination);
-        var sourceDistance = Vector3.Distance(playerPosition, source.Position);
+        var sourceDistance = Vector3.Distance(playerPosition, source.NavigationPosition);
         var candidates = new List<NavigationCandidate>
         {
             new(NavigationType.Walk, Aethernet.Unknown, Aethernet.Unknown, directDistance),

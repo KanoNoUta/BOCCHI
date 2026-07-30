@@ -879,8 +879,9 @@ public abstract class Hunter
     {
         BeginTransitStep();
         var baseCamp = ZoneData.GetBaseCampAethernet();
-        var destination = baseCamp.GetData().Position;
-        distance = Player.DistanceTo(destination);
+        var baseCampData = baseCamp.GetData();
+        var destination = baseCampData.NavigationPosition;
+        distance = baseCampData.DistanceToPlayer();
         ObserveTransitProgress(distance);
         var inCombat = states.GetState() == State.InCombat;
 
@@ -983,9 +984,10 @@ public abstract class Hunter
     private bool WalkToAethernetHandler()
     {
         BeginTransitStep();
-        var destination = CurrentStep.Aethernet.GetData().Position;
+        var aethernet = CurrentStep.Aethernet.GetData();
+        var destination = aethernet.NavigationPosition;
 
-        distance = Player.DistanceTo(destination);
+        distance = aethernet.DistanceToPlayer();
         ObserveTransitProgress(distance);
 
         if (distance <= 4f)

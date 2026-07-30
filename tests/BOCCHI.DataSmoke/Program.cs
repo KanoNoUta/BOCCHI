@@ -211,6 +211,14 @@ var expensiveTeleportPlan = await SmartNavigation.DecideAsync(
 Assert(cheapTeleportPlan.Type == NavigationType.WalkTeleportWalk
        && expensiveTeleportPlan.Type == NavigationType.Walk,
     "TeleportCost must participate in smart-navigation route selection.");
+var delayedCePlan = SmartNavigation.PreferBaseCampReturn(cheapTeleportPlan, navigationBaseCamp);
+Assert(delayedCePlan.Type == NavigationType.ReturnTeleportWalk
+       && delayedCePlan.SourceAethernet == navigationBaseCamp.Aethernet
+       && delayedCePlan.DestinationAethernet == cheapTeleportPlan.DestinationAethernet,
+    "A delayed CE must use Return from base camp instead of walking to an arbitrary source shard.");
+Assert(SmartNavigation.PreferBaseCampReturn(expensiveTeleportPlan, navigationBaseCamp)
+           == expensiveTeleportPlan,
+    "Delayed-CE return preference must not replace a direct walking route.");
 
 var preferredNavigationEvent = navigationEvent;
 preferredNavigationEvent.Aethernet = navigationTarget.Aethernet;
@@ -397,6 +405,30 @@ Assert(TransitCompletionPolicy.HasVerifiedArrival(true, true)
        && !TransitCompletionPolicy.CanContinueAfterReturn(false),
     "Return/teleport chains must not advance until both child success and destination validation are true.");
 
+var observedNorthReturnLanding = new Vector3(906.7626f, 259.99268f, 907.2258f);
+var karnakLanding = new Vector3(454.3429f, 69.99997f, 530.9988f);
+Assert(TransitCompletionPolicy.IsVerifiedReturnLanding(
+           observedNorthReturnLanding,
+           ZoneData.StartingLocations[ZoneData.NORTHHORN],
+           Aethernet.NorthBaseCamp,
+           Aethernet.NorthBaseCamp)
+       && !TransitCompletionPolicy.IsVerifiedReturnLanding(
+           karnakLanding,
+           ZoneData.StartingLocations[ZoneData.NORTHHORN],
+           Aethernet.KarnakCitadel,
+           Aethernet.NorthBaseCamp),
+    "Return must verify the base-camp landing instead of accepting another aethernet's BetweenAreas cycle.");
+
+long? inactiveSince = null;
+inactiveSince = NavigationStopPolicy.UpdateInactiveSince(false, 100, inactiveSince);
+Assert(!NavigationStopPolicy.HasStopped(100, inactiveSince, 900),
+    "Navigation must retain its startup grace before reporting a stop.");
+inactiveSince = NavigationStopPolicy.UpdateInactiveSince(true, 1000, inactiveSince);
+inactiveSince = NavigationStopPolicy.UpdateInactiveSince(false, 1100, inactiveSince);
+Assert(!NavigationStopPolicy.HasStopped(100, inactiveSince, 2500)
+       && NavigationStopPolicy.HasStopped(100, inactiveSince, 2600),
+    "A transient vnavmesh status gap must not be treated as a stable stop.");
+
 Assert(ActivityParticipationState.GetCombatStartupDecision(false, 0) == CombatStartupDecision.Ready
        && ActivityParticipationState.GetCombatStartupDecision(true, 0) == CombatStartupDecision.WaitingForUnmount
        && ActivityParticipationState.GetCombatStartupDecision(true, 7999) == CombatStartupDecision.WaitingForUnmount
@@ -454,6 +486,16 @@ Assert(maintainedAethernets.All(shard =>
                shard.Destination + new Vector3(AethernetData.DISTANCE + 0.01f, 0f, 0f),
                AethernetData.DISTANCE)),
     "Post-teleport validation must use the maintained landing point and reject positions outside 4.2 yalms.");
+var northHornLayerTargets = ZoneData.GetAethernets(ZoneData.NORTHHORN)
+    .Select(aethernet => aethernet.GetData())
+    .ToArray();
+Assert(northHornLayerTargets.All(shard => shard.NavigationPositionOverride.HasValue)
+       && northHornLayerTargets.All(shard =>
+           Vector3.Distance(shard.NavigationPosition, shard.Position) <= AethernetData.DISTANCE)
+       && northHornLayerTargets.All(shard => shard.NavigationPosition != shard.Position),
+    "North Horn LAYERS navigation targets must remain on the reachable mesh and inside aethernet interaction range.");
+Assert(Aethernet.BaseCamp.GetData().NavigationPosition == Aethernet.BaseCamp.GetData().Position,
+    "Territories without a mesh-specific override must keep using the interaction coordinate for navigation.");
 Assert(!AutomatorChainPolicy.IsActive([])
        && !AutomatorChainPolicy.IsActive([(false, 0), (false, 0)])
        && AutomatorChainPolicy.IsActive([(true, 0)])
