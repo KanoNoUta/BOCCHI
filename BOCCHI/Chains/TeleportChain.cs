@@ -1,4 +1,4 @@
-﻿using BOCCHI.Data;
+using BOCCHI.Data;
 using BOCCHI.Enums;
 using BOCCHI.Modules.Teleporter;
 using BOCCHI.Pathfinding;
@@ -37,19 +37,29 @@ public class TeleportChain(
         var source = sourceAethernet?.GetData() ?? AethernetData.GetClosestToPlayer();
         var sourceApproachStartedAt = 0L;
         long? sourceNavigationInactiveSince = null;
+        // Baseline of Lifestream's teleport-request sequence captured right
+        // before we submit, so the status poll below knows it is observing our
+        // request and not a stale result. Null means the status IPC is absent.
+        uint? acceptedSequence = null;
 
         chain.Then(_ => lifestream.Abort());
+        // Lifestream performs NO approach of its own for custom aethernets: it
+        // targets the crystal and calls the game's InteractWithObject, which
+        // only fires inside the game's ~4.5m interaction range. The maintained
+        // North Horn coordinates can sit several metres from the physical
+        // crystal, so we navigate to the crystal's real object position and only
+        // hand off to Lifestream once we are comfortably inside interaction
+        // range, otherwise the request is "accepted" but silently stalls.
+        const float interactRange = 3.5f;
+        var lastRepathAt = 0L;
         chain.ConditionalThen(
-            _ => source.DistanceToPlayer() > AethernetData.DISTANCE,
-            new PathfindAndMoveToChain(vnav, source.NavigationPosition));
+            _ => ZoneData.GetDistanceToAethernetShard(source) > interactRange,
+            new PathfindAndMoveToChain(vnav, ZoneData.GetAethernetShardApproachPosition(source)));
         chain.Then(new TaskManagerTask(() =>
         {
-            // Stay inside Lifestream's custom-aethernet interaction range.
-            // The previous one-yalm allowance could stop navigation at 5.2,
-            // while Lifestream only recognizes these shards within 4.6.
-            var range = AethernetData.DISTANCE;
-            if (source.DistanceToPlayer() <= range)
+            if (ZoneData.GetDistanceToAethernetShard(source) <= interactRange)
             {
+                vnav.Stop();
                 return true;
             }
 
@@ -66,6 +76,22 @@ public class TeleportChain(
                 navigationActive,
                 now,
                 sourceNavigationInactiveSince);
+            if (navigationActive)
+            {
+                return false;
+            }
+
+            // Navigation settled but we are still outside interaction range;
+            // the crystal's live position may have resolved after the initial
+            // pathfind. Re-issue a path toward the best-known crystal position.
+            if (now - lastRepathAt > 1500
+                && vnav.PathfindAndMoveTo(ZoneData.GetAethernetShardApproachPosition(source), false))
+            {
+                lastRepathAt = now;
+                sourceNavigationInactiveSince = null;
+                return false;
+            }
+
             if (!NavigationStopPolicy.HasStopped(
                     sourceApproachStartedAt,
                     sourceNavigationInactiveSince,
@@ -75,8 +101,11 @@ public class TeleportChain(
             }
 
             FailureReason =
-                $"vnavmesh stopped before reaching source aethernet {source.Aethernet}.";
-            return true;
+                $"vnavmesh could not reach interaction range of source aethernet {source.Aethernet} " +
+                $"(distance={ZoneData.GetDistanceToAethernetShard(source):F2}, range={interactRange:F2}).";
+            vnav.Stop();
+            Svc.Log.Warning($"Aethernet teleport aborted before IPC: {FailureReason}");
+            throw new InvalidOperationException(FailureReason);
         }, new TaskManagerConfiguration
         {
             TimeLimitMS = 60000,
@@ -90,30 +119,12 @@ public class TeleportChain(
             },
         }));
 
-        // North Horn custom shards are not always exposed through Dalamud's
-        // live object table. ZoneData also validates the maintained shard
-        // coordinate, so a missing runtime BaseId cannot silently skip the
-        // teleport and make the outer activity walk across the whole map.
-        chain.Then(_ =>
-        {
-            var range = AethernetData.DISTANCE;
-            if (ZoneData.IsNearAethernetShard(source.Aethernet, range))
-            {
-                return;
-            }
-
-            var distance = source.DistanceToPlayer();
-            FailureReason ??=
-                $"Player did not reach source aethernet {source.Aethernet} " +
-                $"(baseId={source.BaseId}, distance={distance:F2}, range={range:F2}).";
-            vnav.Stop();
-            Svc.Log.Warning($"Aethernet teleport aborted before IPC: {FailureReason}");
-            throw new InvalidOperationException(FailureReason);
-        });
-
         chain.Then(_ => vnav.Stop());
         chain.Then(_ =>
         {
+            // Snapshot the sequence before submitting; a successful submit bumps
+            // it, letting the poll below distinguish our attempt from a stale one.
+            acceptedSequence = LifestreamTeleportStatus.GetSequence();
             if (!lifestream.AethernetTeleportByPlaceNameId((uint)aethernet))
             {
                 FailureReason = $"Lifestream rejected aethernet teleport to {aethernet}.";
@@ -122,6 +133,60 @@ public class TeleportChain(
 
             Svc.Log.Info($"Aethernet teleport accepted: {source.Aethernet} -> {aethernet}");
         });
+        // "Accepted" from Lifestream only means the task was enqueued, not that
+        // the current shard/destination were resolved. Poll Lifestream's real
+        // execution status so a queued-but-doomed request (the "未找到目的地 (3)"
+        // race) fails fast with a classified reason instead of blocking on a
+        // zone transition that will never happen. When the status IPC is not
+        // exposed (older Lifestream / mid-reload), fall back to the legacy
+        // zone-transition detection below.
+        chain.Then(new TaskManagerTask(() =>
+        {
+            if (acceptedSequence == null)
+            {
+                return true;
+            }
+
+            var status = LifestreamTeleportStatus.GetStatus();
+            switch (status)
+            {
+                case LifestreamTeleportStatus.Status.Unknown:
+                    // Gate vanished mid-flight; defer to legacy detection.
+                    return true;
+
+                case LifestreamTeleportStatus.Status.Dispatched:
+                    // The game teleport command was actually issued. Proceed to
+                    // wait for the zone transition and verify the landing shard.
+                    return true;
+
+                case LifestreamTeleportStatus.Status.Failed:
+                {
+                    var failure = LifestreamTeleportStatus.GetFailure();
+                    FailureReason =
+                        $"Lifestream failed to dispatch teleport to {aethernet}: " +
+                        $"{LifestreamTeleportStatus.Describe(failure)} ({(int)failure}).";
+                    Svc.Log.Warning(FailureReason);
+                    throw new InvalidOperationException(FailureReason);
+                }
+
+                default:
+                    // None/Queued: still waiting for the shard/zone data to
+                    // become ready. Keep polling until this task times out.
+                    return false;
+            }
+        }, new TaskManagerConfiguration
+        {
+            TimeLimitMS = 15000,
+            AbortOnTimeout = true,
+            ShowError = false,
+            OnTaskTimeout = (TaskManagerTask _, ref long _) =>
+            {
+                FailureReason =
+                    $"Timed out waiting for Lifestream to dispatch teleport to {aethernet} " +
+                    $"(last status={LifestreamTeleportStatus.GetStatus()}).";
+                Svc.Log.Warning(FailureReason);
+            },
+        }));
         // North Horn loading times can comfortably exceed Ocelot's five
         // second default. Keep the chain alive until both sides of the zone
         // transition have completed, then verify the actual landing shard.
