@@ -76,6 +76,18 @@ public class AethernetData
     {
         return DistanceTo(Player.Position);
     }
+
+    public bool IsWithinLandingRange(Vector3 position, float range)
+    {
+        return float.IsFinite(range)
+               && range >= 0f
+               && Vector3.DistanceSquared(position, Destination) <= range * range;
+    }
+
+    public bool IsPlayerWithinLandingRange(float range)
+    {
+        return IsWithinLandingRange(Player.Position, range);
+    }
 }
 
 public static class AethernetExtensions
