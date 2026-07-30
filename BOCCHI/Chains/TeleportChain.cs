@@ -1,6 +1,7 @@
 using BOCCHI.Data;
 using BOCCHI.Enums;
 using BOCCHI.Modules.Teleporter;
+using BOCCHI.Pathfinding;
 using Dalamud.Game.ClientState.Conditions;
 using ECommons.Automation.NeoTaskManager;
 using ECommons.DalamudServices;
@@ -35,7 +36,7 @@ public class TeleportChain(
         // closest known shard is the correct fallback.
         var source = sourceAethernet?.GetData() ?? AethernetData.GetClosestToPlayer();
         var sourceApproachStartedAt = 0L;
-        var sourceNavigationObserved = false;
+        long? sourceNavigationInactiveSince = null;
         // Baseline of Lifestream's teleport-request sequence captured right
         // before we submit, so the status poll below knows it is observing our
         // request and not a stale result. Null means the status IPC is absent.
@@ -71,7 +72,10 @@ public class TeleportChain(
             var navigationActive = vnav.IsRunning()
                                    || vnav.IsSimpleMoveInProgress()
                                    || vnav.IsPathfinding();
-            sourceNavigationObserved |= navigationActive;
+            sourceNavigationInactiveSince = NavigationStopPolicy.UpdateInactiveSince(
+                navigationActive,
+                now,
+                sourceNavigationInactiveSince);
             if (navigationActive)
             {
                 return false;
@@ -84,11 +88,14 @@ public class TeleportChain(
                 && vnav.PathfindAndMoveTo(ZoneData.GetAethernetShardApproachPosition(source), false))
             {
                 lastRepathAt = now;
-                sourceNavigationObserved = true;
+                sourceNavigationInactiveSince = null;
                 return false;
             }
 
-            if (!sourceNavigationObserved && now - sourceApproachStartedAt < 2000)
+            if (!NavigationStopPolicy.HasStopped(
+                    sourceApproachStartedAt,
+                    sourceNavigationInactiveSince,
+                    now))
             {
                 return false;
             }

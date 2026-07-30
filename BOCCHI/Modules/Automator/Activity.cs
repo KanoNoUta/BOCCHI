@@ -113,16 +113,28 @@ public abstract class Activity : IDisposable
             var isFate = data.Type == EventType.Fate;
             var destination = GetPosition();
             var pathfinderConfig = module.PluginConfig.PathfinderConfig;
-            var plan = SmartNavigation.DecideFallback(
+            var baseCamp = ZoneData.GetBaseCampAethernet().GetData();
+            var selectedPlan = SmartNavigation.DecideFallback(
                 Player.Position,
                 destination,
                 data,
                 AethernetData.All().ToArray(),
-                ZoneData.GetBaseCampAethernet().GetData(),
+                baseCamp,
                 pathfinderConfig.ReturnCost,
                 pathfinderConfig.TeleportCost,
                 "Fast runtime selection; candidate precomputation is not allowed to block movement.");
+            var delayCriticalEncounter = !isFate && module.Config.ShouldDelayCriticalEncounters;
+            var plan = delayCriticalEncounter
+                ? SmartNavigation.PreferBaseCampReturn(selectedPlan, baseCamp)
+                : selectedPlan;
             var pathfinding = new PathfindingChain(vnav, destination, data);
+
+            if (plan.Type != selectedPlan.Type)
+            {
+                Svc.Log.Info(
+                    $"Delayed CE navigation prefers base-camp Return: " +
+                    $"{selectedPlan.Type} -> {plan.Type}, destination={plan.DestinationAethernet}");
+            }
 
             Svc.Log.Info(
                 $"Using navigation plan: {plan.Type} ({plan.Cost:F2}), " +
@@ -132,7 +144,7 @@ public abstract class Activity : IDisposable
             var chain = Chain.Create("Illegal:Pathfinding")
                 .ConditionalThen(_ => isFate && module.Config.ShouldStanceOnBeforeDoFates && Player.Job.IsTank(), new StanceChain(isFate))
                 .ConditionalThen(_ => !isFate && module.Config.ShouldStanceOffBeforeCriticalEncounters && Player.Job.IsTank(), new StanceChain(isFate))
-                .ConditionalWait(_ => !isFate && module.Config.ShouldDelayCriticalEncounters, Random.Shared.Next((int)module.Config.MinDelay * 1000, (int)module.Config.MaxDelay * 1000));
+                .ConditionalWait(_ => delayCriticalEncounter, Random.Shared.Next((int)module.Config.MinDelay * 1000, (int)module.Config.MaxDelay * 1000));
 
             switch (plan.Type)
             {
@@ -185,11 +197,15 @@ public abstract class Activity : IDisposable
 
                 case NavigationType.WalkTeleportWalk:
                 {
+                    var sourcePosition = plan.SourceAethernet.GetData().NavigationPosition;
                     var teleport = ChainHelper.TeleportChain(
                         plan.DestinationAethernet,
                         plan.SourceAethernet,
                         mountAfterTeleport: false);
                     chain
+                        .ConditionalThen(
+                            _ => ShouldContinueNavigation(states) && ShouldMountToPathfindTo(sourcePosition),
+                            ChainHelper.MountChain())
                         .ConditionalThen(_ => ShouldContinueNavigation(states), teleport)
                         .ConditionalThen(_ => ShouldContinueNavigation(states), _ => LogTeleportFailure(teleport, plan))
                         .BreakIf(() => ShouldContinueNavigation(states) && !teleport.Succeeded)

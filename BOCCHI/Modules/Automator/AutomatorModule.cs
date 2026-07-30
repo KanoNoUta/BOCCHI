@@ -1,5 +1,6 @@
 ﻿using ECommons.Automation;
 using ECommons.DalamudServices;
+using BOCCHI.Pathfinding;
 using Ocelot;
 using Ocelot.Chain;
 using Ocelot.IPC;
@@ -14,6 +15,8 @@ namespace BOCCHI.Modules.Automator;
 [OcelotModule(int.MaxValue - 1)]
 public class AutomatorModule : Module
 {
+    private bool vnavmeshFailureReported;
+
     public override AutomatorConfig Config
     {
         get => PluginConfig.AutomatorConfig;
@@ -42,6 +45,16 @@ public class AutomatorModule : Module
 
     public override void PostUpdate(UpdateContext context)
     {
+        if (!Config.Enabled)
+        {
+            return;
+        }
+
+        if (!EnsureCompatibleVnavmesh())
+        {
+            return;
+        }
+
         if (instanceRotation.PostUpdate(this))
         {
             return;
@@ -106,6 +119,16 @@ public class AutomatorModule : Module
 
     public void EnableIllegalMode()
     {
+        var vnavmesh = GetVnavmeshVersionCheck();
+        if (!vnavmesh.IsCompatible)
+        {
+            Config.Enabled = false;
+            PluginConfig.Save();
+            ReportVnavmeshFailure(vnavmesh);
+            return;
+        }
+
+        vnavmeshFailureReported = false;
         var wasDisabled = !Config.Enabled;
         Config.Enabled = true;
         if (!Svc.Condition[Dalamud.Game.ClientState.Conditions.ConditionFlag.InCombat])
@@ -142,6 +165,68 @@ public class AutomatorModule : Module
         {
             Svc.Chat.Print(T("messages.off"));
         }
+    }
+
+    public VnavmeshVersionCheck GetVnavmeshVersionCheck()
+    {
+        var plugin = Svc.PluginInterface.InstalledPlugins.FirstOrDefault(p =>
+            string.Equals(p.InternalName, VnavmeshVersionPolicy.PluginInternalName, StringComparison.OrdinalIgnoreCase));
+
+        return VnavmeshVersionPolicy.Evaluate(
+            plugin != null,
+            plugin?.IsLoaded == true,
+            plugin?.Version);
+    }
+
+    private bool EnsureCompatibleVnavmesh()
+    {
+        var check = GetVnavmeshVersionCheck();
+        if (check.IsCompatible)
+        {
+            vnavmeshFailureReported = false;
+            return true;
+        }
+
+        if (Config.Enabled)
+        {
+            SetAiProviderEnabled(false);
+            Config.Enabled = false;
+            instanceRotation.Reset();
+            automator.Refresh();
+            PromeRotationController.Stop();
+            if (TryGetIPCSubscriber<VNavmesh>(out var navigation)
+                && navigation != null
+                && navigation.IsReady())
+            {
+                navigation.Stop();
+            }
+            Plugin.Chain.Abort();
+            ChainManager.AbortAll();
+            PluginConfig.Save();
+        }
+
+        ReportVnavmeshFailure(check);
+        return false;
+    }
+
+    private void ReportVnavmeshFailure(VnavmeshVersionCheck check)
+    {
+        if (vnavmeshFailureReported)
+        {
+            return;
+        }
+
+        var reason = check.Status switch
+        {
+            VnavmeshVersionStatus.Missing => "未安装 vnavmesh",
+            VnavmeshVersionStatus.NotLoaded => "vnavmesh 未加载",
+            VnavmeshVersionStatus.VersionMismatch => $"当前版本为 {check.ActualVersion?.ToString() ?? "未知"}",
+            _ => "vnavmesh 状态未知",
+        };
+        var message = $"自动化已停用：{reason}，必须精确使用 vnavmesh {VnavmeshVersionPolicy.RequiredVersion}。";
+        Svc.Log.Warning(message);
+        Svc.Chat.PrintError(message);
+        vnavmeshFailureReported = true;
     }
 
     public void SetAiProviderEnabled(bool enabled)
