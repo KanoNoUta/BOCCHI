@@ -113,16 +113,28 @@ public abstract class Activity : IDisposable
             var isFate = data.Type == EventType.Fate;
             var destination = GetPosition();
             var pathfinderConfig = module.PluginConfig.PathfinderConfig;
-            var plan = SmartNavigation.DecideFallback(
+            var baseCamp = ZoneData.GetBaseCampAethernet().GetData();
+            var selectedPlan = SmartNavigation.DecideFallback(
                 Player.Position,
                 destination,
                 data,
                 AethernetData.All().ToArray(),
-                ZoneData.GetBaseCampAethernet().GetData(),
+                baseCamp,
                 pathfinderConfig.ReturnCost,
                 pathfinderConfig.TeleportCost,
                 "Fast runtime selection; candidate precomputation is not allowed to block movement.");
+            var delayCriticalEncounter = !isFate && module.Config.ShouldDelayCriticalEncounters;
+            var plan = delayCriticalEncounter
+                ? SmartNavigation.PreferBaseCampReturn(selectedPlan, baseCamp)
+                : selectedPlan;
             var pathfinding = new PathfindingChain(vnav, destination, data);
+
+            if (plan.Type != selectedPlan.Type)
+            {
+                Svc.Log.Info(
+                    $"Delayed CE navigation prefers base-camp Return: " +
+                    $"{selectedPlan.Type} -> {plan.Type}, destination={plan.DestinationAethernet}");
+            }
 
             Svc.Log.Info(
                 $"Using navigation plan: {plan.Type} ({plan.Cost:F2}), " +
@@ -132,12 +144,12 @@ public abstract class Activity : IDisposable
             var chain = Chain.Create("Illegal:Pathfinding")
                 .ConditionalThen(_ => isFate && module.Config.ShouldStanceOnBeforeDoFates && Player.Job.IsTank(), new StanceChain(isFate))
                 .ConditionalThen(_ => !isFate && module.Config.ShouldStanceOffBeforeCriticalEncounters && Player.Job.IsTank(), new StanceChain(isFate))
-                .ConditionalWait(_ => !isFate && module.Config.ShouldDelayCriticalEncounters, Random.Shared.Next((int)module.Config.MinDelay * 1000, (int)module.Config.MaxDelay * 1000));
+                .ConditionalWait(_ => delayCriticalEncounter, Random.Shared.Next((int)module.Config.MinDelay * 1000, (int)module.Config.MaxDelay * 1000));
 
             switch (plan.Type)
             {
                 case NavigationType.Walk:
-                    chain = AppendPathfinding(chain, destination, pathfinding);
+                    chain = AppendPathfinding(chain, destination, pathfinding, states);
                     break;
 
                 case NavigationType.ReturnWalk:
@@ -148,10 +160,11 @@ public abstract class Activity : IDisposable
                         ForceReturn = true,
                     });
                     chain
-                        .Then(returnChain)
-                        .Then(_ => LogReturnFailure(returnChain, plan))
-                        .BreakIf(() => !TransitCompletionPolicy.CanContinueAfterReturn(returnChain.Succeeded));
-                    chain = AppendPathfinding(chain, destination, pathfinding);
+                        .ConditionalThen(_ => ShouldContinueNavigation(states), returnChain)
+                        .ConditionalThen(_ => ShouldContinueNavigation(states), _ => LogReturnFailure(returnChain, plan))
+                        .BreakIf(() => ShouldContinueNavigation(states)
+                            && !TransitCompletionPolicy.CanContinueAfterReturn(returnChain.Succeeded));
+                    chain = AppendPathfinding(chain, destination, pathfinding, states);
                     break;
                 }
 
@@ -167,41 +180,52 @@ public abstract class Activity : IDisposable
                         plan.SourceAethernet,
                         mountAfterTeleport: false);
                     chain
-                        .Then(returnChain)
-                        .Then(_ => LogReturnFailure(returnChain, plan))
-                        .BreakIf(() => !TransitCompletionPolicy.CanContinueAfterReturn(returnChain.Succeeded))
-                        .Then(teleport)
-                        .Then(_ => LogTeleportFailure(teleport, plan))
-                        .BreakIf(() => !teleport.Succeeded)
+                        .ConditionalThen(_ => ShouldContinueNavigation(states), returnChain)
+                        .ConditionalThen(_ => ShouldContinueNavigation(states), _ => LogReturnFailure(returnChain, plan))
+                        .BreakIf(() => ShouldContinueNavigation(states)
+                            && !TransitCompletionPolicy.CanContinueAfterReturn(returnChain.Succeeded))
+                        .ConditionalThen(_ => ShouldContinueNavigation(states), teleport)
+                        .ConditionalThen(_ => ShouldContinueNavigation(states), _ => LogTeleportFailure(teleport, plan))
+                        .BreakIf(() => ShouldContinueNavigation(states) && !teleport.Succeeded)
                         .Debug("Waiting for lifestream to not be 'busy'")
-                        .Then(new TaskManagerTask(() => !lifestream.IsBusy(), new TaskManagerConfiguration { TimeLimitMS = 30000 }));
-                    chain = AppendPathfinding(chain, destination, pathfinding);
+                        .ConditionalThen(
+                            _ => ShouldContinueNavigation(states),
+                            new TaskManagerTask(() => !lifestream.IsBusy(), new TaskManagerConfiguration { TimeLimitMS = 30000 }));
+                    chain = AppendPathfinding(chain, destination, pathfinding, states);
                     break;
                 }
 
                 case NavigationType.WalkTeleportWalk:
                 {
+                    var sourcePosition = plan.SourceAethernet.GetData().NavigationPosition;
                     var teleport = ChainHelper.TeleportChain(
                         plan.DestinationAethernet,
                         plan.SourceAethernet,
                         mountAfterTeleport: false);
                     chain
-                        .Then(teleport)
-                        .Then(_ => LogTeleportFailure(teleport, plan))
-                        .BreakIf(() => !teleport.Succeeded)
+                        .ConditionalThen(
+                            _ => ShouldContinueNavigation(states) && ShouldMountToPathfindTo(sourcePosition),
+                            ChainHelper.MountChain())
+                        .ConditionalThen(_ => ShouldContinueNavigation(states), teleport)
+                        .ConditionalThen(_ => ShouldContinueNavigation(states), _ => LogTeleportFailure(teleport, plan))
+                        .BreakIf(() => ShouldContinueNavigation(states) && !teleport.Succeeded)
                         .Debug("Waiting for lifestream to not be 'busy'")
-                        .Then(new TaskManagerTask(() => !lifestream.IsBusy(), new TaskManagerConfiguration { TimeLimitMS = 30000 }));
-                    chain = AppendPathfinding(chain, destination, pathfinding);
+                        .ConditionalThen(
+                            _ => ShouldContinueNavigation(states),
+                            new TaskManagerTask(() => !lifestream.IsBusy(), new TaskManagerConfiguration { TimeLimitMS = 30000 }));
+                    chain = AppendPathfinding(chain, destination, pathfinding, states);
                     break;
                 }
             }
 
             chain
-                .ConditionalThen(_ => !pathfinding.TransitReachedEnd, GetPathfindingWatcher(states))
+                .ConditionalThen(
+                    _ => ShouldContinueNavigation(states) && !pathfinding.TransitReachedEnd,
+                    GetPathfindingWatcher(states))
                 // Each activity owns its precise arrival and dismount timing;
                 // this avoids treating the outer edge of a large event radius
                 // as arrival while still guaranteeing a combat-ready handoff.
-                .Then(_ => state = GetPostPathfindingState());
+                .ConditionalThen(_ => state != ActivityState.Done, _ => state = GetPostPathfindingState());
 
             return chain;
         };
@@ -232,14 +256,20 @@ public abstract class Activity : IDisposable
             $"reason={teleport.FailureReason ?? "teleport chain timed out or was aborted"}");
     }
 
-    private Chain AppendPathfinding(Chain chain, Vector3 destination, PathfindingChain pathfinding)
+    private Chain AppendPathfinding(
+        Chain chain,
+        Vector3 destination,
+        PathfindingChain pathfinding,
+        StateManagerModule states)
     {
         return chain
             // Mount before submitting movement. Submitting a ground route and
             // mounting afterwards interrupts vnavmesh and causes visible
             // stop/start motion; teleport routes could previously do it twice.
-            .ConditionalThen(_ => ShouldMountToPathfindTo(destination), ChainHelper.MountChain())
-            .Then(pathfinding)
+            .ConditionalThen(
+                _ => ShouldContinueNavigation(states) && ShouldMountToPathfindTo(destination),
+                ChainHelper.MountChain())
+            .ConditionalThen(_ => ShouldContinueNavigation(states), pathfinding)
             .BreakIf(() => pathfinding.TransitAttempted && !pathfinding.TransitReachedEnd);
     }
 
@@ -437,6 +467,11 @@ public abstract class Activity : IDisposable
     protected abstract float GetRadius();
 
     protected abstract TaskManagerTask GetPathfindingWatcher(StateManagerModule states);
+
+    protected virtual bool ShouldContinueNavigation(StateManagerModule states)
+    {
+        return true;
+    }
 
     public abstract bool IsValid();
 

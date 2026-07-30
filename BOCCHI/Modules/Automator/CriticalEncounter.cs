@@ -31,6 +31,10 @@ public static class CriticalEncounterNavigationPolicy
 
     public const float FinalArrivalDistance = 5f;
 
+    public const float MinFinalOffset = 6f;
+
+    public const float MaxFinalOffset = 17f;
+
     public static bool IsInsideNavigationStartGrace(bool hasObservedNavigation, long elapsedMs)
     {
         return !hasObservedNavigation && elapsedMs < NavigationStartGraceMs;
@@ -61,6 +65,37 @@ public static class CriticalEncounterNavigationPolicy
 
         return FinalApproachDecision.StoppedBeforeArrival;
     }
+
+    public static bool CanSubmitApproach(bool registrationOpen, bool playerInEncounter)
+    {
+        return registrationOpen && !playerInEncounter;
+    }
+
+    public static bool CanSubmitFinalApproach(
+        bool registrationOpen,
+        bool finalDestinationSubmitted,
+        bool isCloseToZone,
+        bool pathfindingInProgress)
+    {
+        return registrationOpen
+               && !finalDestinationSubmitted
+               && isCloseToZone
+               && !pathfindingInProgress;
+    }
+
+    public static Vector3 CreateFinalTarget(Vector3 center, float angle, float distance)
+    {
+        distance = Math.Clamp(distance, MinFinalOffset, MaxFinalOffset);
+        return new Vector3(
+            center.X + MathF.Cos(angle) * distance,
+            center.Y,
+            center.Z + MathF.Sin(angle) * distance);
+    }
+
+    public static bool ShouldAbandon(bool registrationOpen, bool isInZone, bool playerInEncounter)
+    {
+        return !registrationOpen && !isInZone && !playerInEncounter;
+    }
 }
 
 public class CriticalEncounter : Activity
@@ -85,6 +120,7 @@ public class CriticalEncounter : Activity
         long? watcherStartedAt = null;
         var hasObservedInitialNavigation = false;
         Vector3? finalDestination = null;
+        var finalDestinationSubmitted = false;
         var finalDestinationSubmittedAt = 0L;
         var hasObservedFinalNavigation = false;
 
@@ -93,60 +129,81 @@ public class CriticalEncounter : Activity
             var now = Environment.TickCount64;
             watcherStartedAt = CriticalEncounterNavigationPolicy.StartAtFirstTick(watcherStartedAt, now);
             var navigationActive = IsNavigationActive();
-            if (finalDestination == null)
+            if (!finalDestinationSubmitted)
             {
                 hasObservedInitialNavigation |= navigationActive;
             }
 
-            if (!IsValid())
+            var critical = module.GetModule<CriticalEncountersModule>();
+            var encounter = critical.CriticalEncounters[data.Id];
+            var registrationOpen = encounter.State == DynamicEventState.Register;
+            var playerInEncounter = IsPlayerInThisEncounter(states);
+
+            if (playerInEncounter && !registrationOpen)
             {
-                throw new Exception("Activity is no longer valid.");
+                StopAtArrivalAndTryDismount("CriticalEncounter.ArrivalDismount");
+                return true;
             }
 
-            if (finalDestination == null
-                && !IsInZone()
-                && IsCloseToZone()
-                && !IsPathfindingInProgress())
+            if (CriticalEncounterNavigationPolicy.ShouldAbandon(
+                    registrationOpen,
+                    IsInZone(),
+                    playerInEncounter))
+            {
+                if (navigationActive)
+                {
+                    vnav.Stop();
+                }
+
+                module.Debug($"Skipping started critical encounter outside its area: {GetName()}");
+                state = ActivityState.Done;
+                return true;
+            }
+
+            if (!IsValid())
+            {
+                state = ActivityState.Done;
+                return true;
+            }
+
+            if (!registrationOpen)
+            {
+                StopAtArrivalAndTryDismount("CriticalEncounter.ArrivalDismount");
+                return true;
+            }
+
+            if (finalDestination == null)
             {
                 var rand = module.GetModule<AutomatorModule>().random;
                 var angle = (float)(rand.NextDouble() * MathF.PI * 2);
-                var distance = (float)(rand.NextDouble() * 20f);
-                var offsetX = MathF.Cos(angle) * distance;
-                var offsetZ = MathF.Sin(angle) * distance;
+                var distance = CriticalEncounterNavigationPolicy.MinFinalOffset
+                               + (float)rand.NextDouble()
+                               * (CriticalEncounterNavigationPolicy.MaxFinalOffset
+                                  - CriticalEncounterNavigationPolicy.MinFinalOffset);
+                var candidate = CriticalEncounterNavigationPolicy.CreateFinalTarget(
+                    GetPosition(),
+                    angle,
+                    distance);
+                finalDestination = vnav.FindPointOnFloor(candidate, false, 0.5f) ?? candidate;
+                module.Debug($"Selected CE final random point: {finalDestination.Value}");
+            }
 
-                var randomPoint = new Vector3(GetPosition().X + offsetX, GetPosition().Y, GetPosition().Z + offsetZ);
-                module.Debug($"Pathfinding to random point: {randomPoint}");
-
-                if (vnav.PathfindAndMoveTo(randomPoint, false))
+            if (CriticalEncounterNavigationPolicy.CanSubmitFinalApproach(
+                    registrationOpen,
+                    finalDestinationSubmitted,
+                    IsCloseToZone(),
+                    IsPathfindingInProgress()))
+            {
+                if (vnav.PathfindAndMoveTo(finalDestination.Value, false))
                 {
-                    finalDestination = randomPoint;
+                    module.Debug($"Pathfinding to CE final random point: {finalDestination.Value}");
+                    finalDestinationSubmitted = true;
                     finalDestinationSubmittedAt = now;
                     hasObservedFinalNavigation = false;
                 }
             }
 
-            if (finalDestination == null && IsInZone())
-            {
-                StopAtArrivalAndTryDismount("CriticalEncounter.ArrivalDismount");
-
-                return true;
-            }
-
-            var critical = module.GetModule<CriticalEncountersModule>();
-            var encounter = critical.CriticalEncounters[data.Id];
-
-            if (encounter.State != DynamicEventState.Register)
-            {
-                if (IsPlayerInThisEncounter(states))
-                {
-                    StopAtArrivalAndTryDismount("CriticalEncounter.ArrivalDismount");
-                    return true;
-                }
-
-                throw new Exception("This event started without you");
-            }
-
-            if (finalDestination is { } finalTarget)
+            if (finalDestinationSubmitted && finalDestination is { } finalTarget)
             {
                 navigationActive = IsNavigationActive();
                 hasObservedFinalNavigation |= navigationActive;
@@ -187,6 +244,13 @@ public class CriticalEncounter : Activity
         }, new TaskManagerConfiguration { TimeLimitMS = 180000, ShowError = false });
     }
 
+    protected override bool ShouldContinueNavigation(StateManagerModule states)
+    {
+        return CriticalEncounterNavigationPolicy.CanSubmitApproach(
+            Encounter.State == DynamicEventState.Register,
+            IsPlayerInThisEncounter(states));
+    }
+
 
     private Func<Chain> GetWaitingToStartCriticalEncounterChain(StateManagerModule states)
     {
@@ -195,18 +259,40 @@ public class CriticalEncounter : Activity
             return Chain.Create("Illegal:WaitingToStartCriticalEncounter")
                 .Then(new TaskManagerTask(() =>
                     {
-                        if (!IsValid())
-                        {
-                            throw new Exception("The critical encounter appears to have started without you.");
-                        }
-
                         var critical = module.GetModule<CriticalEncountersModule>();
                         var encounter = critical.CriticalEncounters[data.Id];
+                        var registrationOpen = encounter.State == DynamicEventState.Register;
+                        var playerInEncounter = IsPlayerInThisEncounter(states);
 
-                        if (encounter.State == DynamicEventState.Battle
-                            && !IsPlayerInThisEncounter(states))
+                        if (playerInEncounter)
                         {
-                            throw new Exception("The critical encounter appears to have started without you.");
+                            if (IsNavigationActive())
+                            {
+                                vnav.Stop();
+                            }
+
+                            return true;
+                        }
+
+                        if (CriticalEncounterNavigationPolicy.ShouldAbandon(
+                                registrationOpen,
+                                IsInZone(),
+                                playerInEncounter))
+                        {
+                            if (IsNavigationActive())
+                            {
+                                vnav.Stop();
+                            }
+
+                            module.Debug($"Skipping started critical encounter outside its area: {GetName()}");
+                            state = ActivityState.Done;
+                            return true;
+                        }
+
+                        if (!IsValid())
+                        {
+                            state = ActivityState.Done;
+                            return true;
                         }
 
                         if (!vnav.IsRunning() && states.GetState() == State.InCombat)
@@ -231,14 +317,14 @@ public class CriticalEncounter : Activity
                             RetryArrivalDismount("CriticalEncounter.ArrivalDismount");
                         }
 
-                        return states.GetState() == State.InCriticalEncounter;
+                        return false;
                     },
                     new TaskManagerConfiguration
                     {
                         TimeLimitMS = 180000,
                     }))
-                .Then(_ => PromeRotationController.Start())
-                .Then(_ => state = ActivityState.Participating);
+                .ConditionalThen(_ => state != ActivityState.Done, _ => PromeRotationController.Start())
+                .ConditionalThen(_ => state != ActivityState.Done, _ => state = ActivityState.Participating);
         };
     }
 
@@ -306,6 +392,16 @@ public class CriticalEncounter : Activity
 
     protected override ActivityState GetPostPathfindingState()
     {
+        var states = module.GetModule<StateManagerModule>();
+        if (CriticalEncounterNavigationPolicy.ShouldAbandon(
+                Encounter.State == DynamicEventState.Register,
+                IsInZone(),
+                IsPlayerInThisEncounter(states)))
+        {
+            module.Debug($"Skipping started critical encounter outside its area: {GetName()}");
+            return ActivityState.Done;
+        }
+
         return ActivityState.WaitingToStartCriticalEncounter;
     }
 }

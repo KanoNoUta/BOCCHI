@@ -1,13 +1,16 @@
 using BOCCHI.Data;
 using BOCCHI.Enums;
 using BOCCHI.Modules.Teleporter;
+using BOCCHI.Pathfinding;
 using Dalamud.Game.ClientState.Conditions;
 using ECommons.Automation.NeoTaskManager;
 using ECommons.DalamudServices;
+using ECommons.GameHelpers;
 using Ocelot.Chain;
 using Ocelot.Chain.ChainEx;
 using Ocelot.IPC;
 using System;
+using System.Numerics;
 
 namespace BOCCHI.Chains;
 
@@ -33,7 +36,7 @@ public class TeleportChain(
         // closest known shard is the correct fallback.
         var source = sourceAethernet?.GetData() ?? AethernetData.GetClosestToPlayer();
         var sourceApproachStartedAt = 0L;
-        var sourceNavigationObserved = false;
+        long? sourceNavigationInactiveSince = null;
         // Baseline of Lifestream's teleport-request sequence captured right
         // before we submit, so the status poll below knows it is observing our
         // request and not a stale result. Null means the status IPC is absent.
@@ -69,7 +72,10 @@ public class TeleportChain(
             var navigationActive = vnav.IsRunning()
                                    || vnav.IsSimpleMoveInProgress()
                                    || vnav.IsPathfinding();
-            sourceNavigationObserved |= navigationActive;
+            sourceNavigationInactiveSince = NavigationStopPolicy.UpdateInactiveSince(
+                navigationActive,
+                now,
+                sourceNavigationInactiveSince);
             if (navigationActive)
             {
                 return false;
@@ -82,11 +88,14 @@ public class TeleportChain(
                 && vnav.PathfindAndMoveTo(ZoneData.GetAethernetShardApproachPosition(source), false))
             {
                 lastRepathAt = now;
-                sourceNavigationObserved = true;
+                sourceNavigationInactiveSince = null;
                 return false;
             }
 
-            if (!sourceNavigationObserved && now - sourceApproachStartedAt < 2000)
+            if (!NavigationStopPolicy.HasStopped(
+                    sourceApproachStartedAt,
+                    sourceNavigationInactiveSince,
+                    now))
             {
                 return false;
             }
@@ -184,13 +193,14 @@ public class TeleportChain(
         chain.WaitToCycleCondition(ConditionFlag.BetweenAreas, timeout: 60000);
         chain.Then(_ =>
         {
-            var range = AethernetData.DISTANCE + 1f;
-            if (!ZoneData.IsNearAethernetShard(aethernet, range))
+            var destination = aethernet.GetData();
+            var range = AethernetData.DISTANCE;
+            if (!destination.IsPlayerWithinLandingRange(range))
             {
-                var destination = aethernet.GetData();
                 FailureReason =
-                    $"Teleport completed outside destination aethernet {aethernet} " +
-                    $"(distance={destination.DistanceToPlayer():F2}, range={range:F2}).";
+                    $"Teleport completed outside destination landing point {aethernet} " +
+                    $"(distance={Vector3.Distance(Player.Position, destination.Destination):F2}, " +
+                    $"range={range:F2}).";
                 throw new InvalidOperationException(FailureReason);
             }
 

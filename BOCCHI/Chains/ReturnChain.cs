@@ -5,6 +5,7 @@ using BOCCHI.Modules.Automator;
 using BOCCHI.Modules.Buff;
 using BOCCHI.Modules.Buff.Chains;
 using BOCCHI.Modules.Teleporter;
+using BOCCHI.Pathfinding;
 using Dalamud.Game.ClientState.Conditions;
 using ECommons.Automation.NeoTaskManager;
 using ECommons.DalamudServices;
@@ -35,9 +36,14 @@ public class ReturnChain(TeleporterModule module, ReturnChainConfig config) : Ch
         chain.BreakIf(() => Player.IsDead);
 
         var shouldReturn = config.ForceReturn || GetCostToReturn() < GetCostToWalk();
+        var returnTerritory = Svc.ClientState.TerritoryType;
+        var lifestream = module.GetIPCSubscriber<Lifestream>();
 
         if (shouldReturn)
         {
+            // A stale delayed-CE teleport must not race Return and provide the
+            // BetweenAreas cycle that this chain is waiting for.
+            chain.Then(_ => lifestream.Abort());
             chain.Then(new TaskManagerTask(
                 () => ActionManager.Instance()->GetActionStatus(ActionType.GeneralAction, 8) == 0,
                 new TaskManagerConfiguration
@@ -49,6 +55,7 @@ public class ReturnChain(TeleporterModule module, ReturnChainConfig config) : Ch
             chain
                 .WaitToCast(timeout: 10000)
                 .WaitToCycleCondition(ConditionFlag.BetweenAreas, timeout: 60000);
+            chain.Then(_ => VerifyReturnLanding(returnTerritory, lifestream));
         }
 
         chain.Then(ChainHelper.TreasureSightChain());
@@ -58,11 +65,11 @@ public class ReturnChain(TeleporterModule module, ReturnChainConfig config) : Ch
         if (config.ApproachAetheryte)
         {
             var vnav = module.GetIPCSubscriber<VNavmesh>();
-            var position = GetAetherytePosition();
+            var position = ZoneData.GetBaseCampAethernet().GetData().NavigationPosition;
             var approachStartedAt = 0L;
-            var navigationObserved = false;
+            long? navigationInactiveSince = null;
 
-            chain.Then(PathfindAndMoveToChain.RandomNearby(vnav, position, 3));
+            chain.Then(new PathfindAndMoveToChain(vnav, position));
             chain.Then(new TaskManagerTask(() =>
             {
                 var range = AethernetData.DISTANCE + 1f;
@@ -80,9 +87,14 @@ public class ReturnChain(TeleporterModule module, ReturnChainConfig config) : Ch
                 var navigationActive = vnav.IsRunning()
                                        || vnav.IsSimpleMoveInProgress()
                                        || vnav.IsPathfinding();
-                navigationObserved |= navigationActive;
-                if (navigationActive
-                    || (!navigationObserved && now - approachStartedAt < 2000))
+                navigationInactiveSince = NavigationStopPolicy.UpdateInactiveSince(
+                    navigationActive,
+                    now,
+                    navigationInactiveSince);
+                if (!NavigationStopPolicy.HasStopped(
+                        approachStartedAt,
+                        navigationInactiveSince,
+                        now))
                 {
                     return false;
                 }
@@ -134,6 +146,48 @@ public class ReturnChain(TeleporterModule module, ReturnChainConfig config) : Ch
 
 
         return chain;
+    }
+
+    private void VerifyReturnLanding(uint expectedTerritory, Lifestream lifestream)
+    {
+        var player = Svc.Objects.LocalPlayer;
+        var currentTerritory = Svc.ClientState.TerritoryType;
+        var hasStartingLocation = ZoneData.StartingLocations.TryGetValue(
+            expectedTerritory,
+            out var startingLocation);
+        var isExpectedOccultTerritory = currentTerritory == expectedTerritory
+                                        && ZoneData.IsInOccultCrescent();
+        var baseCamp = isExpectedOccultTerritory
+            ? ZoneData.GetBaseCampAethernet()
+            : Aethernet.Unknown;
+        var closestAethernet = player == null || !isExpectedOccultTerritory
+            ? Aethernet.Unknown
+            : ZoneData.GetClosestAethernetShard(player.Position);
+        var verified = player != null
+                       && currentTerritory == expectedTerritory
+                       && hasStartingLocation
+                       && TransitCompletionPolicy.IsVerifiedReturnLanding(
+                           player.Position,
+                           startingLocation,
+                           closestAethernet,
+                           baseCamp);
+
+        if (verified)
+        {
+            return;
+        }
+
+        lifestream.Abort();
+        var distance = player != null && hasStartingLocation
+            ? Vector3.Distance(player.Position, startingLocation)
+            : float.NaN;
+        FailureReason =
+            $"Return transition completed outside the base-camp landing area " +
+            $"(expectedTerritory={expectedTerritory}, currentTerritory={currentTerritory}, " +
+            $"closestAethernet={closestAethernet}, distance={distance:F2}, " +
+            $"range={TransitCompletionPolicy.MaximumReturnLandingDistance:F2}).";
+        Svc.Log.Error(FailureReason);
+        throw new InvalidOperationException(FailureReason);
     }
 
     private unsafe Chain ChangeLowLevelJob()
@@ -232,11 +286,11 @@ public class ReturnChain(TeleporterModule module, ReturnChainConfig config) : Ch
         };
     }
 
-    private Vector3 GetAetherytePosition()
+    private Vector3 GetAetheryteNavigationPosition()
     {
-        if (ZoneData.Aetherytes.TryGetValue(Svc.ClientState.TerritoryType, out var position))
+        if (ZoneData.IsOccultCrescentTerritory(Svc.ClientState.TerritoryType))
         {
-            return position;
+            return ZoneData.GetBaseCampAethernet().GetData().NavigationPosition;
         }
 
         throw new Exception("Unable to determine Aetheryte position");
@@ -246,7 +300,7 @@ public class ReturnChain(TeleporterModule module, ReturnChainConfig config) : Ch
     {
         if (ZoneData.StartingLocations.TryGetValue(Svc.ClientState.TerritoryType, out var start))
         {
-            return Vector3.Distance(start, GetAetherytePosition()) + 75f;
+            return Vector3.Distance(start, GetAetheryteNavigationPosition()) + 75f;
         }
 
 
@@ -255,6 +309,6 @@ public class ReturnChain(TeleporterModule module, ReturnChainConfig config) : Ch
 
     private float GetCostToWalk()
     {
-        return Player.DistanceTo(GetAetherytePosition());
+        return Player.DistanceTo(GetAetheryteNavigationPosition());
     }
 }

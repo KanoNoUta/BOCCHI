@@ -211,6 +211,14 @@ var expensiveTeleportPlan = await SmartNavigation.DecideAsync(
 Assert(cheapTeleportPlan.Type == NavigationType.WalkTeleportWalk
        && expensiveTeleportPlan.Type == NavigationType.Walk,
     "TeleportCost must participate in smart-navigation route selection.");
+var delayedCePlan = SmartNavigation.PreferBaseCampReturn(cheapTeleportPlan, navigationBaseCamp);
+Assert(delayedCePlan.Type == NavigationType.ReturnTeleportWalk
+       && delayedCePlan.SourceAethernet == navigationBaseCamp.Aethernet
+       && delayedCePlan.DestinationAethernet == cheapTeleportPlan.DestinationAethernet,
+    "A delayed CE must use Return from base camp instead of walking to an arbitrary source shard.");
+Assert(SmartNavigation.PreferBaseCampReturn(expensiveTeleportPlan, navigationBaseCamp)
+           == expensiveTeleportPlan,
+    "Delayed-CE return preference must not replace a direct walking route.");
 
 var preferredNavigationEvent = navigationEvent;
 preferredNavigationEvent.Aethernet = navigationTarget.Aethernet;
@@ -351,6 +359,43 @@ Assert(CriticalEncounterNavigationPolicy.EvaluateFinalApproach(
        && CriticalEncounterNavigationPolicy.EvaluateFinalApproach(
            new Vector3(14.99f, 0f, 0f), ceFinalTarget, false, true, 2000) == FinalApproachDecision.StoppedBeforeArrival,
     "CE final approach must survive vnavmesh's startup gap and confirm the saved random target within five yalms.");
+Assert(CriticalEncounterNavigationPolicy.CanSubmitApproach(registrationOpen: true, playerInEncounter: false)
+       && !CriticalEncounterNavigationPolicy.CanSubmitApproach(registrationOpen: false, playerInEncounter: false)
+       && !CriticalEncounterNavigationPolicy.CanSubmitApproach(registrationOpen: true, playerInEncounter: true),
+    "CE approach navigation must stop as soon as registration closes or participation begins.");
+Assert(CriticalEncounterNavigationPolicy.CanSubmitFinalApproach(
+           registrationOpen: true,
+           finalDestinationSubmitted: false,
+           isCloseToZone: true,
+           pathfindingInProgress: false)
+       && !CriticalEncounterNavigationPolicy.CanSubmitFinalApproach(
+           registrationOpen: false,
+           finalDestinationSubmitted: false,
+           isCloseToZone: true,
+           pathfindingInProgress: false)
+       && !CriticalEncounterNavigationPolicy.CanSubmitFinalApproach(
+           registrationOpen: true,
+           finalDestinationSubmitted: true,
+           isCloseToZone: true,
+           pathfindingInProgress: false),
+    "CE final random approach must be submitted exactly once while registration remains open.");
+var ceCenter = new Vector3(100f, 20f, 200f);
+var ceMinFinalTarget = CriticalEncounterNavigationPolicy.CreateFinalTarget(ceCenter, 0f, 0f);
+var ceMaxFinalTarget = CriticalEncounterNavigationPolicy.CreateFinalTarget(ceCenter, MathF.PI, 100f);
+Assert(MathF.Abs(Vector3.Distance(ceCenter, ceMinFinalTarget)
+                 - CriticalEncounterNavigationPolicy.MinFinalOffset) < 0.001f
+       && MathF.Abs(Vector3.Distance(ceCenter, ceMaxFinalTarget)
+                    - CriticalEncounterNavigationPolicy.MaxFinalOffset) < 0.001f,
+    "CE final random targets must remain in the configured inner annulus instead of landing at the center or edge.");
+Assert(CriticalEncounterNavigationPolicy.ShouldAbandon(
+           registrationOpen: false, isInZone: false, playerInEncounter: false)
+       && !CriticalEncounterNavigationPolicy.ShouldAbandon(
+           registrationOpen: true, isInZone: false, playerInEncounter: false)
+       && !CriticalEncounterNavigationPolicy.ShouldAbandon(
+           registrationOpen: false, isInZone: true, playerInEncounter: false)
+       && !CriticalEncounterNavigationPolicy.ShouldAbandon(
+           registrationOpen: false, isInZone: false, playerInEncounter: true),
+    "A started CE must be abandoned only while the player remains outside and has not joined it.");
 
 Assert(TransitCompletionPolicy.HasVerifiedArrival(true, true)
        && !TransitCompletionPolicy.HasVerifiedArrival(true, false)
@@ -359,6 +404,30 @@ Assert(TransitCompletionPolicy.HasVerifiedArrival(true, true)
        && TransitCompletionPolicy.CanContinueAfterReturn(true)
        && !TransitCompletionPolicy.CanContinueAfterReturn(false),
     "Return/teleport chains must not advance until both child success and destination validation are true.");
+
+var observedNorthReturnLanding = new Vector3(906.7626f, 259.99268f, 907.2258f);
+var karnakLanding = new Vector3(454.3429f, 69.99997f, 530.9988f);
+Assert(TransitCompletionPolicy.IsVerifiedReturnLanding(
+           observedNorthReturnLanding,
+           ZoneData.StartingLocations[ZoneData.NORTHHORN],
+           Aethernet.NorthBaseCamp,
+           Aethernet.NorthBaseCamp)
+       && !TransitCompletionPolicy.IsVerifiedReturnLanding(
+           karnakLanding,
+           ZoneData.StartingLocations[ZoneData.NORTHHORN],
+           Aethernet.KarnakCitadel,
+           Aethernet.NorthBaseCamp),
+    "Return must verify the base-camp landing instead of accepting another aethernet's BetweenAreas cycle.");
+
+long? inactiveSince = null;
+inactiveSince = NavigationStopPolicy.UpdateInactiveSince(false, 100, inactiveSince);
+Assert(!NavigationStopPolicy.HasStopped(100, inactiveSince, 900),
+    "Navigation must retain its startup grace before reporting a stop.");
+inactiveSince = NavigationStopPolicy.UpdateInactiveSince(true, 1000, inactiveSince);
+inactiveSince = NavigationStopPolicy.UpdateInactiveSince(false, 1100, inactiveSince);
+Assert(!NavigationStopPolicy.HasStopped(100, inactiveSince, 2500)
+       && NavigationStopPolicy.HasStopped(100, inactiveSince, 2600),
+    "A transient vnavmesh status gap must not be treated as a stable stop.");
 
 Assert(ActivityParticipationState.GetCombatStartupDecision(false, 0) == CombatStartupDecision.Ready
        && ActivityParticipationState.GetCombatStartupDecision(true, 0) == CombatStartupDecision.WaitingForUnmount
@@ -395,6 +464,38 @@ Assert(ZoneData.IsWithinKnownAethernetRange(
            northCampShard.Position,
            AethernetData.DISTANCE + 1f),
     "North Horn teleport validation must fall back to maintained shard coordinates when EventObj lookup is unavailable.");
+var ruinedStreetsShard = Aethernet.RuinedStreetsFront.GetData();
+var failedRuinedStreetsApproach = new Vector3(-384.575f, 39.15826f, -439.2537f);
+Assert(!ZoneData.IsWithinKnownAethernetRange(
+           failedRuinedStreetsApproach,
+           ruinedStreetsShard.Position,
+           AethernetData.DISTANCE)
+       && ZoneData.IsWithinKnownAethernetRange(
+           failedRuinedStreetsApproach,
+           ruinedStreetsShard.Position,
+           AethernetData.DISTANCE + 1f),
+    "Source aethernet approach must reject the former 5.2-yalm allowance so Lifestream can actually interact.");
+var maintainedAethernets = ZoneData.GetAethernets(ZoneData.SOUTHHORN)
+    .Concat(ZoneData.GetAethernets(ZoneData.NORTHHORN))
+    .Select(aethernet => aethernet.GetData())
+    .ToArray();
+Assert(maintainedAethernets.All(shard =>
+           shard.IsWithinLandingRange(shard.Destination, AethernetData.DISTANCE))
+       && maintainedAethernets.All(shard =>
+           !shard.IsWithinLandingRange(
+               shard.Destination + new Vector3(AethernetData.DISTANCE + 0.01f, 0f, 0f),
+               AethernetData.DISTANCE)),
+    "Post-teleport validation must use the maintained landing point and reject positions outside 4.2 yalms.");
+var northHornLayerTargets = ZoneData.GetAethernets(ZoneData.NORTHHORN)
+    .Select(aethernet => aethernet.GetData())
+    .ToArray();
+Assert(northHornLayerTargets.All(shard => shard.NavigationPositionOverride.HasValue)
+       && northHornLayerTargets.All(shard =>
+           Vector3.Distance(shard.NavigationPosition, shard.Position) <= AethernetData.DISTANCE)
+       && northHornLayerTargets.All(shard => shard.NavigationPosition != shard.Position),
+    "North Horn LAYERS navigation targets must remain on the reachable mesh and inside aethernet interaction range.");
+Assert(Aethernet.BaseCamp.GetData().NavigationPosition == Aethernet.BaseCamp.GetData().Position,
+    "Territories without a mesh-specific override must keep using the interaction coordinate for navigation.");
 Assert(!AutomatorChainPolicy.IsActive([])
        && !AutomatorChainPolicy.IsActive([(false, 0), (false, 0)])
        && AutomatorChainPolicy.IsActive([(true, 0)])
@@ -1049,4 +1150,17 @@ finally
     Directory.Delete(atomicDirectory, true);
 }
 
-Console.WriteLine("BOCCHI 7.55 North Horn data, lifecycle, config, translation, routing, and precompute smoke tests passed.");
+var requiredVnavmeshVersion = new Version(0, 7, 6, 0);
+Assert(VnavmeshVersionPolicy.RequiredVersion == requiredVnavmeshVersion,
+    "Automator must pin the verified North Horn LAYERS vnavmesh build exactly.");
+Assert(VnavmeshVersionPolicy.Evaluate(true, true, requiredVnavmeshVersion).IsCompatible,
+    "The exact verified vnavmesh build must be accepted.");
+Assert(!VnavmeshVersionPolicy.Evaluate(true, true, new Version(0, 7, 6)).IsCompatible
+       && !VnavmeshVersionPolicy.Evaluate(true, true, new Version(0, 7, 6, 1)).IsCompatible
+       && !VnavmeshVersionPolicy.Evaluate(true, true, new Version(0, 7, 7, 0)).IsCompatible,
+    "vnavmesh validation must be exact, including the revision component.");
+Assert(VnavmeshVersionPolicy.Evaluate(false, false, null).Status == VnavmeshVersionStatus.Missing
+       && VnavmeshVersionPolicy.Evaluate(true, false, requiredVnavmeshVersion).Status == VnavmeshVersionStatus.NotLoaded,
+    "Missing and unloaded vnavmesh installations must fail closed.");
+
+Console.WriteLine("BOCCHI 7.55 North Horn data, lifecycle, config, translation, routing, precompute, and vnavmesh version smoke tests passed.");
