@@ -1,5 +1,6 @@
 using BOCCHI;
 using BOCCHI.Chains;
+using BOCCHI.Commands;
 using BOCCHI.Data;
 using BOCCHI.Enums;
 using BOCCHI.Modules.Automator;
@@ -38,7 +39,19 @@ static Task<List<Vector3>> StraightPath(Vector3 start, Vector3 destination, Canc
     return Task.FromResult(new List<Vector3> { start, destination });
 }
 
+Assert(TreasureHuntCommand.ShortAlias == "/ochth",
+    "The compact treasure-hunter command alias must remain stable for macros.");
+Assert(typeof(Hunter).GetMethod(nameof(Hunter.Start), BindingFlags.Instance | BindingFlags.Public) != null,
+    "Treasure commands and the UI must share Hunter's public start lifecycle.");
+
 var aggroZone = new AggroDangerZone(14857, Vector3.Zero, 5f);
+Assert(!AggroAvoidanceLevelPolicy.ShouldAvoid(playerLevel: 10, mobLevel: 9)
+       && AggroAvoidanceLevelPolicy.ShouldAvoid(playerLevel: 10, mobLevel: 10)
+       && AggroAvoidanceLevelPolicy.ShouldAvoid(playerLevel: 10, mobLevel: 11),
+    "Aggro avoidance must ignore confirmed lower-level mobs while retaining equal- and higher-level threats.");
+Assert(AggroAvoidanceLevelPolicy.ShouldAvoid(playerLevel: 0, mobLevel: 9)
+       && AggroAvoidanceLevelPolicy.ShouldAvoid(playerLevel: 10, mobLevel: 0),
+    "Transient unknown Occult Crescent levels must remain conservative during object loading.");
 var terminalAggroZones = AggroAvoidancePlanner.GetRelevantZones(
     [aggroZone, new AggroDangerZone(14858, new Vector3(20f, 0f, 0f), 5f)],
     new Vector3(1f, 0f, 0f));
@@ -128,6 +141,12 @@ Assert(legacyMobConfig.Migrate()
        && legacyMobConfig.MobFarmerConfig.NorthHornMobs.SequenceEqual([Mob.CrescentCliffkite])
        && legacyMobConfig.MobFarmerConfig.Mobs.Count == 0,
     "Legacy mixed monster selections must migrate into independent South/North Horn lists.");
+var mainWindowConfig = new Config();
+Assert(!mainWindowConfig.CompactMainWindow,
+    "The compact main-window layout must remain opt-in for existing users.");
+mainWindowConfig.CompactMainWindow = true;
+Assert(mainWindowConfig.CompactMainWindow,
+    "The compact main-window layout selection must be persistable in plugin configuration.");
 
 var navigationEvent = new EventData
 {

@@ -306,17 +306,13 @@ public abstract class Hunter
         {
             if (ImGui.Button(running ? I18N.T("generic.label.stop") : I18N.T("generic.label.start")))
             {
-                running = !running;
-                if (running == false)
+                if (running)
                 {
-                    Teardown();
+                    Stop();
                 }
                 else
                 {
-                    routeGeneration++;
-                    ResetHuntRouteState();
-                    stopwatch.Restart();
-                    OnStarted();
+                    Start();
                 }
             }
 
@@ -381,6 +377,20 @@ public abstract class Hunter
     protected virtual void Teardown()
     {
         ResetHunter(keepRunning: false);
+    }
+
+    public void Start()
+    {
+        if (running)
+        {
+            return;
+        }
+
+        routeGeneration++;
+        ResetHuntRouteState();
+        running = true;
+        stopwatch.Restart();
+        OnStarted();
     }
 
     public void Stop()
