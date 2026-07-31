@@ -59,6 +59,7 @@ public class AutomatorModule : Module
             return;
         }
 
+        instanceRotation.PollDailyRoutinesCommandModules(this);
         if (instanceRotation.PostUpdate(this))
         {
             return;
@@ -143,6 +144,22 @@ public class AutomatorModule : Module
 
         if (wasDisabled)
         {
+            if (!BOCCHI.Data.ZoneData.IsInOccultCrescent())
+            {
+                instanceRotation.EnsureDailyRoutinesCommandModules(this);
+                if (!instanceRotation.TryStartFromOutside(this))
+                {
+                    Config.Enabled = false;
+                    instanceRotation.Reset();
+                    PluginConfig.Save();
+                    return;
+                }
+            }
+            else if (Config.ShouldAutoRotateInstance)
+            {
+                instanceRotation.EnsureDailyRoutinesCommandModules(this);
+            }
+
             Svc.Chat.Print(T("messages.on"));
         }
     }

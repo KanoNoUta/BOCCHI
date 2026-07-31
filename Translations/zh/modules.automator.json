@@ -30,13 +30,21 @@
           "label": "接战距离",
           "tooltip": "距离FATE怪物多远时下坐骑并启动循环/AI插件"
         },
+        "initial_instance_area": {
+          "label": "岛外启动进入区域",
+          "tooltip": "在蜃景岛外开启自动模式时，通过DailyRoutines申请进入所选区域",
+          "options": {
+            "south_horn": "南征之章",
+            "north_horn": "北征之章"
+          }
+        },
         "auto_rotate_instance": {
           "label": "自动轮换副本",
           "tooltip": "无人值守时自动退出当前蜃景岛，并重新进入刚才所在的南征或北征区域"
         },
         "instance_stay_minutes": {
           "label": "岛内停留时间（分钟）",
-          "tooltip": "达到该时间后等待无FATE、CE、战斗和自动化任务时开始轮换"
+          "tooltip": "按任务情报Addon显示的实际副本倒计时计算；达到该停留时间后，等待无FATE、CE、战斗和自动化任务时开始轮换"
         },
         "rotate_when_population_low": {
           "label": "人数过少时轮换",
@@ -350,6 +358,9 @@
         "rotation": {
           "exit": "[BOCCHI] 副本轮换：正在退出当前区域。",
           "entry": "[BOCCHI] 副本轮换：正在申请重新进入之前的区域。",
+          "initial_entry": "[BOCCHI] 自动模式：正在申请进入配置的蜃景岛区域。",
+          "entry_unavailable": "[BOCCHI] 自动模式已开启，但无法申请入岛。请确认DailyRoutines已加载后，关闭并重新开启自动模式。",
+          "modules_enabling": "[BOCCHI] 正在自动启用pdr入岛命令所需的DailyRoutines模块。",
           "failed": "[BOCCHI] 副本轮换因超时或DailyRoutines命令不可用而停止。处理问题后请关闭并重新开启非法模式。"
         }
       }

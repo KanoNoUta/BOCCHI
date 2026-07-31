@@ -129,7 +129,6 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
     {
         var automator = Plugin.Modules.GetModule<AutomatorModule>();
         var farmer = Plugin.Modules.GetModule<MobFarmerModule>();
-        var inZone = ZoneData.IsInOccultCrescent();
         var zoneName = ZoneData.IsInSouthHorn()
             ? "南部新月岛"
             : ZoneData.IsInNorthHorn()
@@ -147,7 +146,6 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
         var toggleWidth = automator.Config.Enabled ? 116f : 128f;
         ImGui.SameLine(MathF.Max(ImGui.GetCursorPosX() + 18f, available - emergencyWidth - toggleWidth));
 
-        ImGui.BeginDisabled(!inZone && !automator.Config.Enabled);
         ImGui.PushStyleColor(
             ImGuiCol.Button,
             automator.Config.Enabled
@@ -158,7 +156,6 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
             AutomatorModule.ToggleIllegalMode(Plugin);
         }
         ImGui.PopStyleColor();
-        ImGui.EndDisabled();
 
         ImGui.SameLine();
         ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.62f, 0.15f, 0.13f, 0.92f));
@@ -233,6 +230,14 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
         DrawKeyValue("自动模式", automator.Config.Enabled ? "运行中" : "已停止");
         DrawKeyValue("当前目标", activityName);
         DrawKeyValue("目标阶段", activityState);
+
+        var rotation = automator.instanceRotation;
+        var rotationEnabled = automator.Config.ShouldAutoRotateInstance
+                              || rotation.State != InstanceRotationState.Idle;
+        var rotationState = rotationEnabled ? rotation.GetStateLabel(automator) : "未启用";
+        var rotationRemaining = rotation.GetRemainingLabel(automator);
+        var rotationPopulation = rotation.CurrentPopulation?.ToString() ?? "--";
+        DrawKeyValue("副本轮换状态", $"{rotationState} · 剩余 {rotationRemaining} · 人数 {rotationPopulation}");
 
         var vnavmesh = automator.GetVnavmeshAvailability();
         DrawKeyValue(

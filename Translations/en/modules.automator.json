@@ -26,13 +26,21 @@
           "label": "Engagement Range",
           "tooltip": "The range to be at from a fate monster before dismounting and letting your rotation/ai plugin take over"
         },
+        "initial_instance_area": {
+          "label": "Area to enter from outside",
+          "tooltip": "When Illegal Mode is started outside the Occult Crescent, request entry to this area through DailyRoutines",
+          "options": {
+            "south_horn": "South Horn",
+            "north_horn": "North Horn"
+          }
+        },
         "auto_rotate_instance": {
           "label": "Automatically rotate instance",
           "tooltip": "Leave the current Occult Crescent instance and automatically return to the same area for unattended operation"
         },
         "instance_stay_minutes": {
           "label": "Time in instance (minutes)",
-          "tooltip": "Rotate after this many minutes in the current instance; rotation waits until no FATE, CE, combat, or automation task is active"
+          "tooltip": "Use the actual Duty Information addon countdown; rotate after this many minutes in the instance when no FATE, CE, combat, or automation task is active"
         },
         "rotate_when_population_low": {
           "label": "Rotate when population is low",
@@ -322,6 +330,9 @@
         "rotation": {
           "exit": "[BOCCHI] Instance rotation: leaving the current area.",
           "entry": "[BOCCHI] Instance rotation: requesting entry to the previous area.",
+          "initial_entry": "[BOCCHI] Illegal Mode: requesting entry to the configured Occult Crescent area.",
+          "entry_unavailable": "[BOCCHI] Illegal Mode is enabled, but entry could not be requested. Make sure DailyRoutines is loaded, then toggle Illegal Mode off and on.",
+          "modules_enabling": "[BOCCHI] Enabling the DailyRoutines modules required by the pdr entry commands.",
           "failed": "[BOCCHI] Instance rotation stopped after a timeout or unavailable DailyRoutines command. Toggle Illegal Mode off and on after correcting the problem."
         }
       }

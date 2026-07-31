@@ -1,5 +1,6 @@
 using BOCCHI.Data;
 using BOCCHI.Modules.StateManager;
+using BOCCHI.Pathfinding;
 using Dalamud.Game.ClientState.Conditions;
 using ECommons.Automation;
 using ECommons.DalamudServices;
@@ -20,6 +21,12 @@ public sealed class InstanceRotationController
 
     private readonly InstanceRotationStateMachine stateMachine = new();
     private readonly InstancePopulationProvider populationProvider = new();
+    private readonly InstanceDutyTimerProvider dutyTimerProvider = new();
+    private string? pendingEntryCommand;
+    private string? pendingEntryMessageKey;
+    private bool dailyRoutinesEnableNoticeShown;
+    private bool dailyRoutinesModulesReady;
+    private DateTimeOffset nextDailyRoutinesModuleCheck;
 
     public static bool IsTransitionActive { get; private set; }
 
@@ -28,6 +35,8 @@ public sealed class InstanceRotationController
     public InstanceRotationReason Reason => stateMachine.Reason;
 
     public int? CurrentPopulation => populationProvider.CurrentPopulation;
+
+    public TimeSpan? CurrentInstanceTimeRemaining => dutyTimerProvider.CurrentRemaining;
 
     public DateTimeOffset? Deadline => stateMachine.Deadline;
 
@@ -38,12 +47,29 @@ public sealed class InstanceRotationController
     public bool PostUpdate(AutomatorModule module)
     {
         var now = DateTimeOffset.UtcNow;
-        var enabled = module.IsEnabled && module.Config.ShouldAutoRotateInstance;
+        var enabled = module.IsEnabled
+                      && (module.Config.ShouldAutoRotateInstance
+                          || stateMachine.IsBusy
+                          || stateMachine.State == InstanceRotationState.Failed);
         if (!enabled)
         {
             var shouldBlockCurrentFrame = stateMachine.IsBusy || stateMachine.State == InstanceRotationState.Failed;
             Reset();
             return shouldBlockCurrentFrame;
+        }
+
+        if (pendingEntryCommand != null)
+        {
+            TryDispatchPendingEntry(module);
+        }
+
+        if (ZoneData.IsInOccultCrescent())
+        {
+            dutyTimerProvider.Update();
+        }
+        else
+        {
+            dutyTimerProvider.Reset();
         }
 
         if (stateMachine.State == InstanceRotationState.Monitoring
@@ -59,7 +85,8 @@ public sealed class InstanceRotationController
             CanStart(module),
             TimeSpan.FromMinutes(module.Config.InstanceStayMinutes),
             module.Config.ShouldRotateWhenPopulationLow
-            && populationProvider.IsConfirmedBelow(module.Config.MinimumInstancePopulation));
+            && populationProvider.IsConfirmedBelow(module.Config.MinimumInstancePopulation),
+            dutyTimerProvider.CurrentRemaining);
         var previousState = stateMachine.State;
         var action = stateMachine.Update(now, input);
 
@@ -78,16 +105,18 @@ public sealed class InstanceRotationController
                 break;
 
             case InstanceRotationAction.EnterSouthHorn:
-                SendEntryCommand(module, SouthHornEntryCommand);
+                QueueEntryCommand(module, SouthHornEntryCommand, "messages.rotation.entry");
                 break;
 
             case InstanceRotationAction.EnterNorthHorn:
-                SendEntryCommand(module, NorthHornEntryCommand);
+                QueueEntryCommand(module, NorthHornEntryCommand, "messages.rotation.entry");
                 break;
         }
 
         if (previousState != InstanceRotationState.Failed && stateMachine.State == InstanceRotationState.Failed)
         {
+            pendingEntryCommand = null;
+            pendingEntryMessageKey = null;
             Svc.Chat.PrintError(module.T("messages.rotation.failed"));
         }
 
@@ -97,9 +126,87 @@ public sealed class InstanceRotationController
         return stateMachine.IsBusy || stateMachine.State == InstanceRotationState.Failed;
     }
 
+    public bool TryStartFromOutside(AutomatorModule module)
+    {
+        if (ZoneData.IsInOccultCrescent())
+        {
+            return true;
+        }
+
+        if (stateMachine.IsBusy)
+        {
+            return true;
+        }
+
+        if (!IsDailyRoutinesLoaded())
+        {
+            Svc.Chat.PrintError(module.T("messages.rotation.entry_unavailable"));
+            return false;
+        }
+
+        var targetTerritoryId = module.Config.InitialInstanceArea.ToTerritoryId();
+        var action = stateMachine.BeginEntryFromOutside(DateTimeOffset.UtcNow, targetTerritoryId);
+        var command = action switch
+        {
+            InstanceRotationAction.EnterSouthHorn => SouthHornEntryCommand,
+            InstanceRotationAction.EnterNorthHorn => NorthHornEntryCommand,
+            _ => null,
+        };
+
+        if (command == null)
+        {
+            Reset();
+            Svc.Chat.PrintError(module.T("messages.rotation.entry_unavailable"));
+            return false;
+        }
+
+        pendingEntryCommand = command;
+        pendingEntryMessageKey = "messages.rotation.initial_entry";
+        IsTransitionActive = true;
+        TryDispatchPendingEntry(module);
+        return stateMachine.State != InstanceRotationState.Failed;
+    }
+
+    public DailyRoutinesModuleStatus EnsureDailyRoutinesCommandModules(AutomatorModule module)
+    {
+        var status = DailyRoutinesModuleBridge.EnsureRequiredModules();
+        dailyRoutinesModulesReady = status == DailyRoutinesModuleStatus.Ready;
+        if (status == DailyRoutinesModuleStatus.Enabling && !dailyRoutinesEnableNoticeShown)
+        {
+            dailyRoutinesEnableNoticeShown = true;
+            Svc.Chat.Print(module.T("messages.rotation.modules_enabling"));
+        }
+        else if (status == DailyRoutinesModuleStatus.Ready)
+        {
+            dailyRoutinesEnableNoticeShown = false;
+        }
+
+        return status;
+    }
+
+    public void PollDailyRoutinesCommandModules(AutomatorModule module)
+    {
+        if (!module.Config.ShouldAutoRotateInstance
+            && !stateMachine.IsBusy
+            && pendingEntryCommand == null)
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        if (dailyRoutinesModulesReady || now < nextDailyRoutinesModuleCheck)
+        {
+            return;
+        }
+
+        nextDailyRoutinesModuleCheck = now + TimeSpan.FromMilliseconds(250);
+        EnsureDailyRoutinesCommandModules(module);
+    }
+
     public void OnTerritoryChanged(uint territoryId)
     {
         populationProvider.Reset();
+        dutyTimerProvider.Reset();
 
         if (!stateMachine.IsBusy)
         {
@@ -114,6 +221,11 @@ public sealed class InstanceRotationController
 
         var input = new InstanceRotationInput(true, territoryId, false, TimeSpan.MaxValue, false);
         stateMachine.Update(DateTimeOffset.UtcNow, input);
+        if (stateMachine.State != InstanceRotationState.WaitingForEntry)
+        {
+            pendingEntryCommand = null;
+            pendingEntryMessageKey = null;
+        }
         IsTransitionActive = stateMachine.IsBusy;
     }
 
@@ -121,6 +233,9 @@ public sealed class InstanceRotationController
     {
         stateMachine.Reset();
         populationProvider.Reset();
+        dutyTimerProvider.Reset();
+        pendingEntryCommand = null;
+        pendingEntryMessageKey = null;
         IsTransitionActive = false;
     }
 
@@ -134,8 +249,7 @@ public sealed class InstanceRotationController
         var now = DateTimeOffset.UtcNow;
         TimeSpan? remaining = State switch
         {
-            InstanceRotationState.Monitoring when IslandEnteredAt is { } enteredAt =>
-                TimeSpan.FromMinutes(module.Config.InstanceStayMinutes) - (now - enteredAt),
+            InstanceRotationState.Monitoring => dutyTimerProvider.CurrentRemaining,
             InstanceRotationState.WaitingForExit or InstanceRotationState.Cooldown
                 or InstanceRotationState.WaitingForEntry when Deadline is { } deadline => deadline - now,
             _ => null,
@@ -194,7 +308,14 @@ public sealed class InstanceRotationController
             && navigation != null
             && navigation.IsReady())
         {
-            navigation.Stop();
+            try
+            {
+                AggroAvoidanceNavigation.Stop(navigation);
+            }
+            catch (Exception exception)
+            {
+                Svc.Log.Warning(exception, "Instance rotation could not stop vnavmesh because its IPC became unavailable.");
+            }
         }
 
         if (module.Config.ShouldToggleAiProvider)
@@ -211,15 +332,41 @@ public sealed class InstanceRotationController
         }
     }
 
-    private void SendEntryCommand(AutomatorModule module, string command)
+    private void QueueEntryCommand(AutomatorModule module, string command, string messageKey)
     {
-        if (!IsDailyRoutinesLoaded())
+        pendingEntryCommand = command;
+        pendingEntryMessageKey = messageKey;
+        TryDispatchPendingEntry(module);
+    }
+
+    private bool TryDispatchPendingEntry(AutomatorModule module)
+    {
+        if (pendingEntryCommand == null)
         {
-            stateMachine.Fail("daily_routines_unavailable");
-            return;
+            return true;
         }
 
+        var status = EnsureDailyRoutinesCommandModules(module);
+        if (status == DailyRoutinesModuleStatus.Enabling)
+        {
+            return false;
+        }
+
+        if (status == DailyRoutinesModuleStatus.Unavailable)
+        {
+            stateMachine.Fail("daily_routines_unavailable");
+            pendingEntryCommand = null;
+            pendingEntryMessageKey = null;
+            Svc.Chat.PrintError(module.T("messages.rotation.entry_unavailable"));
+            return false;
+        }
+
+        var command = pendingEntryCommand;
+        var messageKey = pendingEntryMessageKey ?? "messages.rotation.entry";
+        pendingEntryCommand = null;
+        pendingEntryMessageKey = null;
         Chat.ExecuteCommand(command);
-        Svc.Chat.Print(module.T("messages.rotation.entry"));
+        Svc.Chat.Print(module.T(messageKey));
+        return true;
     }
 }

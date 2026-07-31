@@ -48,6 +48,9 @@ public class AutomatorConfig : ModuleConfig
 
     [FloatRange(5f, 30f)] public float EngagementRange { get; set; } = 5f;
 
+    [Enum(typeof(InstanceEntryArea), nameof(InstanceEntryAreaProvider))]
+    public InstanceEntryArea InitialInstanceArea { get; set; } = InstanceEntryArea.NorthHorn;
+
     [Checkbox]
     [RequiredPlugin("DailyRoutines")]
     public bool AutoRotateInstance { get; set; } = false;

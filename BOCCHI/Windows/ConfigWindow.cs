@@ -218,10 +218,32 @@ public class ConfigWindow(Plugin primaryPlugin, Config config) : OcelotConfigWin
         DrawFloat(module, cfg, nameof(cfg.MaxDelay), 0f, 30f, "%.1f 秒", !cfg.DelayCriticalEncounters);
 
         DrawSectionTitle("副本轮换");
+        DrawInitialInstanceArea(module);
         DrawBoolean(module, cfg, nameof(cfg.AutoRotateInstance));
         DrawFloat(module, cfg, nameof(cfg.InstanceStayMinutes), 15f, 180f, "%.0f 分钟", !cfg.AutoRotateInstance);
         DrawBoolean(module, cfg, nameof(cfg.RotateWhenPopulationLow), !cfg.AutoRotateInstance);
         DrawInt(module, cfg, nameof(cfg.MinimumInstancePopulation), 1, 72, !cfg.AutoRotateInstance || !cfg.RotateWhenPopulationLow);
+    }
+
+    private void DrawInitialInstanceArea(AutomatorModule module)
+    {
+        var current = module.Config.InitialInstanceArea;
+        var label = ConfigLabel(module, nameof(module.Config.InitialInstanceArea));
+        var preview = module.T($"config.initial_instance_area.options.{ToSnakeCase(current.ToString())}");
+        if (ImGui.BeginCombo($"{label}##InitialInstanceArea", preview))
+        {
+            foreach (var area in Enum.GetValues<InstanceEntryArea>())
+            {
+                var option = module.T($"config.initial_instance_area.options.{ToSnakeCase(area.ToString())}");
+                if (ImGui.Selectable(option, area == current))
+                {
+                    module.Config.InitialInstanceArea = area;
+                    primaryPlugin.Config.Save();
+                }
+            }
+            ImGui.EndCombo();
+        }
+        ConfigTooltip(module, nameof(module.Config.InitialInstanceArea));
     }
 
     private void DrawAiProvider(AutomatorModule module)

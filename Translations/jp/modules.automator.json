@@ -26,13 +26,21 @@
           "label": "交戦範囲",
           "tooltip": "F.A.T.E.モンスターからどのくらいの距離にいるとマウントを解除し、ローテーション/AIプラグインに任せるか"
         },
+        "initial_instance_area": {
+          "label": "島外から入場するエリア",
+          "tooltip": "蜃気楼の島の外で不正モードを開始した時、DailyRoutinesでこのエリアへの入場を申請します",
+          "options": {
+            "south_horn": "南征の章",
+            "north_horn": "北征の章"
+          }
+        },
         "auto_rotate_instance": {
           "label": "インスタンスを自動更新",
           "tooltip": "現在の蜃気楼の島を退出し、同じエリアへ自動的に再入場します"
         },
         "instance_stay_minutes": {
           "label": "滞在時間（分）",
-          "tooltip": "指定時間後、FATE・CE・戦闘・自動移動がない時に更新します"
+          "tooltip": "コンテンツ情報HUDの実際の残り時間から滞在時間を計算し、指定時間後にFATE・CE・戦闘・自動移動がない時に更新します"
         },
         "rotate_when_population_low": {
           "label": "人数が少ない時に更新",
@@ -322,6 +330,9 @@
         "rotation": {
           "exit": "[BOCCHI] インスタンス更新：現在のエリアから退出します。",
           "entry": "[BOCCHI] インスタンス更新：前のエリアへ再入場します。",
+          "initial_entry": "[BOCCHI] 不正モード：設定された蜃気楼の島への入場を申請します。",
+          "entry_unavailable": "[BOCCHI] 不正モードは有効ですが、入場を申請できませんでした。DailyRoutinesの読み込みを確認してから、不正モードを入れ直してください。",
+          "modules_enabling": "[BOCCHI] pdr入場コマンドに必要なDailyRoutinesモジュールを有効化しています。",
           "failed": "[BOCCHI] タイムアウトまたはDailyRoutinesコマンドが使用できないため、インスタンス更新を停止しました。"
         }
       }
