@@ -128,6 +128,12 @@ Assert(legacyMobConfig.Migrate()
        && legacyMobConfig.MobFarmerConfig.NorthHornMobs.SequenceEqual([Mob.CrescentCliffkite])
        && legacyMobConfig.MobFarmerConfig.Mobs.Count == 0,
     "Legacy mixed monster selections must migrate into independent South/North Horn lists.");
+var mainWindowConfig = new Config();
+Assert(!mainWindowConfig.CompactMainWindow,
+    "The compact main-window layout must remain opt-in for existing users.");
+mainWindowConfig.CompactMainWindow = true;
+Assert(mainWindowConfig.CompactMainWindow,
+    "The compact main-window layout selection must be persistable in plugin configuration.");
 
 var navigationEvent = new EventData
 {

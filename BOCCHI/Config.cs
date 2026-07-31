@@ -31,6 +31,8 @@ public class Config : IOcelotConfig
 
     public int Version { get; set; } = CurrentVersion;
 
+    public bool CompactMainWindow { get; set; } = false;
+
     // Core
     public MountConfig MountConfig { get; set; } = new();
 

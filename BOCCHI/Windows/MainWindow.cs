@@ -29,8 +29,12 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
 {
     private static readonly Vector4 SouthHornAccent = new(0.31f, 0.72f, 0.48f, 1f);
     private static readonly Vector4 NorthHornAccent = new(0.42f, 0.68f, 0.95f, 1f);
+    private static readonly Vector4 ReadyAccent = new(0.35f, 0.82f, 0.82f, 1f);
+    private static readonly Vector4 WaitingAccent = new(0.48f, 0.53f, 0.61f, 1f);
     private static readonly Vector4 CardBackground = new(0.055f, 0.085f, 0.12f, 0.72f);
     private static readonly Vector4 CardBorder = new(0.24f, 0.34f, 0.45f, 0.72f);
+    private DateTimeOffset nextCompactDependencyCheck = DateTimeOffset.MinValue;
+    private DailyRoutinesModuleStatus compactDailyRoutinesStatus = DailyRoutinesModuleStatus.Unavailable;
 
     public override void PostInitialize()
     {
@@ -38,11 +42,9 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
 
         SizeConstraints = new WindowSizeConstraints
         {
-            MinimumSize = new Vector2(680, 520),
+            MinimumSize = new Vector2(360, 260),
             MaximumSize = new Vector2(float.MaxValue, float.MaxValue),
         };
-        Size = new Vector2(860, 720);
-        SizeCondition = ImGuiCond.FirstUseEver;
 
         TitleBarButtons.Add(new TitleBarButton
         {
@@ -75,6 +77,13 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
 
     protected override void Render(RenderContext context)
     {
+        DrawCompactModeSwitch();
+        if (config.CompactMainWindow)
+        {
+            DrawCompactMode();
+            return;
+        }
+
         DrawOpenSourceBanner();
         DrawStatusHeader();
 
@@ -104,6 +113,258 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
         }
 
         ImGui.EndTabBar();
+    }
+
+    private void DrawCompactModeSwitch()
+    {
+        var compact = config.CompactMainWindow;
+        if (ImGui.Checkbox("精简模式##CompactMainWindow", ref compact))
+        {
+            config.CompactMainWindow = compact;
+            config.Save();
+        }
+
+        if (ImGui.IsItemHovered())
+        {
+            ImGui.SetTooltip("启动前仅显示依赖检查与岛屿选择，启动后仅保留运行概览。");
+        }
+
+        ImGui.Separator();
+    }
+
+    private void DrawCompactMode()
+    {
+        var automator = Plugin.Modules.GetModule<AutomatorModule>();
+        if (automator.Config.Enabled)
+        {
+            DrawCompactRuntime(automator);
+            return;
+        }
+
+        var readiness = GetCompactDependencyReadiness(automator);
+        DrawCompactIslandSelector(automator);
+        ImGui.Spacing();
+        DrawCompactLaunch(automator, readiness);
+    }
+
+    private void DrawCompactRuntime(AutomatorModule automator)
+    {
+        ImGui.TextColored(ReadyAccent, "自动模式运行中");
+
+        const float emergencySize = 28f;
+        var remainingWidth = ImGui.GetContentRegionAvail().X;
+        ImGui.SameLine(MathF.Max(
+            ImGui.GetCursorPosX() + 12f,
+            ImGui.GetCursorPosX() + remainingWidth - emergencySize));
+        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.62f, 0.15f, 0.13f, 0.92f));
+        ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, 5f);
+        ImGui.PushFont(UiBuilder.IconFont);
+        var emergencyClicked = ImGui.Button(
+            $"{FontAwesomeIcon.Stop.ToIconString()}##CompactEmergencyStop",
+            new Vector2(emergencySize, 0));
+        ImGui.PopFont();
+        ImGui.PopStyleVar();
+        ImGui.PopStyleColor();
+        if (ImGui.IsItemHovered())
+        {
+            ImGui.SetTooltip("紧急停止");
+        }
+
+        if (emergencyClicked)
+        {
+            automator.DisableIllegalMode();
+        }
+
+        ImGui.Separator();
+        ImGui.TextUnformatted("运行概览");
+        ImGui.Spacing();
+        DrawRuntimeSummary();
+    }
+
+    private void DrawCompactIslandSelector(AutomatorModule automator)
+    {
+        ImGui.TextDisabled("启动岛屿");
+        var spacing = ImGui.GetStyle().ItemSpacing.X;
+        var buttonWidth = MathF.Max(120f, (ImGui.GetContentRegionAvail().X - spacing) / 2f);
+        DrawIslandChoiceButton(
+            automator,
+            InstanceEntryArea.SouthHorn,
+            "南部新月岛",
+            SouthHornAccent,
+            buttonWidth);
+        ImGui.SameLine();
+        DrawIslandChoiceButton(
+            automator,
+            InstanceEntryArea.NorthHorn,
+            "北部新月岛",
+            NorthHornAccent,
+            buttonWidth);
+
+        if (ZoneData.IsInOccultCrescent())
+        {
+            ImGui.TextDisabled("当前已在岛内，本次启动从当前区域开始；该选择用于下次从岛外启动。");
+        }
+    }
+
+    private void DrawIslandChoiceButton(
+        AutomatorModule automator,
+        InstanceEntryArea area,
+        string label,
+        Vector4 accent,
+        float width)
+    {
+        var selected = automator.Config.InitialInstanceArea == area;
+        if (selected)
+        {
+            ImGui.PushStyleColor(ImGuiCol.Button, accent with { W = 0.78f });
+            ImGui.PushStyleColor(ImGuiCol.ButtonHovered, accent with { W = 0.92f });
+        }
+
+        if (ImGui.Button($"{(selected ? "● " : string.Empty)}{label}##Compact-{area}", new Vector2(width, 0))
+            && !selected)
+        {
+            automator.Config.InitialInstanceArea = area;
+            config.Save();
+        }
+
+        if (selected)
+        {
+            ImGui.PopStyleColor(2);
+        }
+    }
+
+    private void DrawCompactLaunch(AutomatorModule automator, CompactDependencyReadiness readiness)
+    {
+        var icon = readiness.IsReady ? FontAwesomeIcon.Play : FontAwesomeIcon.Lock;
+        const float launchButtonSize = 76f;
+        ImGui.SetCursorPosX(MathF.Max(
+            ImGui.GetCursorPosX(),
+            ImGui.GetCursorPosX() + (ImGui.GetContentRegionAvail().X - launchButtonSize) / 2f));
+
+        ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, launchButtonSize / 2f);
+        ImGui.PushStyleColor(
+            ImGuiCol.Button,
+            readiness.IsReady
+                ? new Vector4(0.15f, 0.56f, 0.58f, 0.92f)
+                : new Vector4(0.20f, 0.24f, 0.30f, 0.92f));
+        ImGui.PushStyleColor(
+            ImGuiCol.ButtonHovered,
+            readiness.IsReady
+                ? new Vector4(0.20f, 0.69f, 0.71f, 1f)
+                : new Vector4(0.20f, 0.24f, 0.30f, 0.92f));
+        ImGui.BeginDisabled(!readiness.IsReady);
+        ImGui.PushFont(UiBuilder.IconFont);
+        var startClicked = ImGui.Button(
+            $"{icon.ToIconString()}##CompactAutomationStart",
+            new Vector2(launchButtonSize, launchButtonSize));
+        ImGui.PopFont();
+        ImGui.EndDisabled();
+        ImGui.PopStyleColor(2);
+        ImGui.PopStyleVar();
+
+        if (startClicked)
+        {
+            AutomatorModule.ToggleIllegalMode(Plugin);
+        }
+
+        ImGui.Spacing();
+        DrawCenteredText(
+            readiness.IsReady ? "准备完成，可以启动" : "正在准备自动化插件",
+            readiness.IsReady ? ReadyAccent : WaitingAccent);
+        DrawCenteredText(
+            automator.Config.InitialInstanceArea == InstanceEntryArea.NorthHorn
+                ? "目标：北部新月岛"
+                : "目标：南部新月岛");
+
+        ImGui.Spacing();
+        ImGui.Separator();
+        DrawDependencyStatus("Lifestream", readiness.LifestreamReady ? "已加载" : "未加载", readiness.LifestreamReady);
+        DrawDependencyStatus("vnavmesh", readiness.VnavmeshLabel, readiness.VnavmeshReady);
+        DrawDependencyStatus(
+            "DailyRoutines",
+            readiness.DailyRoutinesStatus switch
+            {
+                DailyRoutinesModuleStatus.Ready => "入岛模块已准备",
+                DailyRoutinesModuleStatus.Enabling => "正在启用入岛模块",
+                _ => "未加载或 IPC 不可用",
+            },
+            readiness.DailyRoutinesStatus == DailyRoutinesModuleStatus.Ready,
+            readiness.DailyRoutinesStatus == DailyRoutinesModuleStatus.Enabling);
+    }
+
+    private CompactDependencyReadiness GetCompactDependencyReadiness(AutomatorModule automator)
+    {
+        var now = DateTimeOffset.UtcNow;
+        if (now >= nextCompactDependencyCheck)
+        {
+            nextCompactDependencyCheck = now + TimeSpan.FromMilliseconds(500);
+            compactDailyRoutinesStatus = automator.instanceRotation.EnsureDailyRoutinesCommandModules(automator);
+        }
+
+        var vnavmesh = automator.GetVnavmeshAvailability();
+        var lifestreamReady = IsPluginLoaded("Lifestream");
+        var vnavmeshLabel = vnavmesh.IsAvailable
+            ? $"{vnavmesh.DisplayVersion?.ToString() ?? "版本未知"}（可用）"
+            : vnavmesh.Status == Pathfinding.VnavmeshAvailabilityStatus.Missing
+                ? "未安装"
+                : "未加载";
+        return new CompactDependencyReadiness(
+            lifestreamReady,
+            vnavmesh.IsAvailable,
+            vnavmeshLabel,
+            compactDailyRoutinesStatus);
+    }
+
+    private static bool IsPluginLoaded(string internalName)
+    {
+        return Svc.PluginInterface.InstalledPlugins.Any(plugin =>
+            string.Equals(plugin.InternalName, internalName, StringComparison.OrdinalIgnoreCase)
+            && plugin.IsLoaded);
+    }
+
+    private static void DrawDependencyStatus(
+        string name,
+        string status,
+        bool ready,
+        bool pending = false)
+    {
+        var color = ready
+            ? new Vector4(0.33f, 0.82f, 0.48f, 1f)
+            : pending
+                ? ImGuiColors.DalamudYellow
+                : new Vector4(0.88f, 0.39f, 0.34f, 1f);
+        ImGui.TextColored(color, "●");
+        ImGui.SameLine();
+        ImGui.TextUnformatted(name);
+        ImGui.SameLine(150f);
+        ImGui.TextDisabled(status);
+    }
+
+    private static void DrawCenteredText(string text, Vector4? color = null)
+    {
+        var width = ImGui.CalcTextSize(text).X;
+        ImGui.SetCursorPosX(MathF.Max(
+            ImGui.GetCursorPosX(),
+            ImGui.GetCursorPosX() + (ImGui.GetContentRegionAvail().X - width) / 2f));
+        if (color.HasValue)
+        {
+            ImGui.TextColored(color.Value, text);
+        }
+        else
+        {
+            ImGui.TextUnformatted(text);
+        }
+    }
+
+    private readonly record struct CompactDependencyReadiness(
+        bool LifestreamReady,
+        bool VnavmeshReady,
+        string VnavmeshLabel,
+        DailyRoutinesModuleStatus DailyRoutinesStatus)
+    {
+        public bool IsReady => LifestreamReady
+                               && VnavmeshReady
+                               && DailyRoutinesStatus == DailyRoutinesModuleStatus.Ready;
     }
 
     private void DrawOpenSourceBanner()
@@ -142,7 +403,7 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
         ImGui.TextDisabled($"  区域 {Svc.ClientState.TerritoryType}");
 
         var available = ImGui.GetContentRegionAvail().X;
-        var emergencyWidth = 96f;
+        var emergencyWidth = 72f;
         var toggleWidth = automator.Config.Enabled ? 116f : 128f;
         ImGui.SameLine(MathF.Max(ImGui.GetCursorPosX() + 18f, available - emergencyWidth - toggleWidth));
 
