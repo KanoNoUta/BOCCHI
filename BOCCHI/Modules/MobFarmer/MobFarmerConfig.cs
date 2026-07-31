@@ -2,6 +2,7 @@
 using Ocelot.Config.Attributes;
 using Ocelot.Modules;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace BOCCHI.Modules.MobFarmer;
 
@@ -11,9 +12,17 @@ public class MobFarmerConfig : ModuleConfig
     [Label("generic.label.enabled")]
     public bool Enabled { get; set; } = true;
 
-    [MultiEnum(typeof(Mob), nameof(MobProvider))]
-    [Searchable]
+    // Kept for one-way migration from the pre-3.3.14 mixed monster selector.
+    // It intentionally has no config UI attribute.
     public List<Mob> Mobs { get; set; } = [];
+
+    [MultiEnum(typeof(Mob), nameof(SouthHornMobProvider))]
+    [Searchable]
+    public List<Mob> SouthHornMobs { get; set; } = [];
+
+    [MultiEnum(typeof(Mob), nameof(NorthHornMobProvider))]
+    [Searchable]
+    public List<Mob> NorthHornMobs { get; set; } = [];
 
     [Checkbox] public bool ConsiderSpecialMobs { get; set; } = false;
 
@@ -52,4 +61,19 @@ public class MobFarmerConfig : ModuleConfig
     [IntRange(1, 20)] public int MinimumMobsToStartFight { get; set; } = 5;
 
     [IntRange(0, 20)] public int ExtraTimeToWait { get; set; } = 0;
+
+    public IReadOnlyList<Mob> GetMobsForTerritory(uint territoryId)
+    {
+        return territoryId switch
+        {
+            ZoneData.SOUTHHORN => SouthHornMobs,
+            ZoneData.NORTHHORN => NorthHornMobs,
+            _ => [],
+        };
+    }
+
+    public bool IsSelectedForTerritory(Mob mob, uint territoryId)
+    {
+        return GetMobsForTerritory(territoryId).Contains(mob);
+    }
 }

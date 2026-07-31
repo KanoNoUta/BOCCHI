@@ -87,7 +87,7 @@ public class Farmer : IDisposable
         foreach (var mob in module.Scanner.NotInCombat)
         {
             var color = new Vector4(0.9f, 0.1f, 0.1f, 1f);
-            if (module.Config.Mobs.Contains((Mob)mob.NameId))
+            if (module.Config.IsSelectedForTerritory((Mob)mob.NameId, Svc.ClientState.TerritoryType))
             {
                 color = new Vector4(0.9f, 0.1f, 0.9f, 1f);
             }

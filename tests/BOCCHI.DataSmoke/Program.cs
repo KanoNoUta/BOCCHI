@@ -5,6 +5,7 @@ using BOCCHI.Modules.Automator;
 using BOCCHI.Modules.Carrots;
 using BOCCHI.Modules.CriticalEncounters;
 using BOCCHI.Modules.StateManager;
+using BOCCHI.Modules.Treasure;
 using BOCCHI.Pathfinding;
 using System.Numerics;
 using System.Reflection;
@@ -34,6 +35,38 @@ static Task<List<Vector3>> StraightPath(Vector3 start, Vector3 destination, Canc
 {
     return Task.FromResult(new List<Vector3> { start, destination });
 }
+
+Assert(PostActivityReturnPolicy.ShouldQueue(EventType.Fate)
+       && !PostActivityReturnPolicy.ShouldQueue(EventType.CriticalEncounter),
+    "Completed FATEs must lock the automator into a base-camp return before selecting another activity.");
+Assert(CombatAutomationPolicy.ShouldAcquireTarget(false, false)
+       && CombatAutomationPolicy.ShouldAcquireTarget(true, true)
+       && !CombatAutomationPolicy.ShouldAcquireTarget(false, true),
+    "FATE arrival must acquire an initial target even when continuous force-target is disabled.");
+Assert(CombatAutomationPolicy.ShouldRetryPromeRotation(true, false)
+       && !CombatAutomationPolicy.ShouldRetryPromeRotation(false, false)
+       && !CombatAutomationPolicy.ShouldRetryPromeRotation(true, true),
+    "FATE combat maintenance must retry a loaded but stopped PromeRotation instance only.");
+Assert(TreasureInteractionPolicy.CanAttempt(true, false, false)
+       && TreasureInteractionPolicy.CanAttempt(false, false, false)
+       && !TreasureInteractionPolicy.CanAttempt(true, true, false)
+       && !TreasureInteractionPolicy.CanAttempt(true, false, true),
+    "Treasure interaction must remain available while mounted and only wait for combat/casting to clear.");
+
+var legacyMobConfig = new Config
+{
+    Version = 2,
+    MobFarmerConfig = new BOCCHI.Modules.MobFarmer.MobFarmerConfig
+    {
+        Mobs = [Mob.Goobbue, Mob.CrescentCliffkite],
+    },
+};
+Assert(legacyMobConfig.Migrate()
+       && legacyMobConfig.Version == Config.CurrentVersion
+       && legacyMobConfig.MobFarmerConfig.SouthHornMobs.SequenceEqual([Mob.Goobbue])
+       && legacyMobConfig.MobFarmerConfig.NorthHornMobs.SequenceEqual([Mob.CrescentCliffkite])
+       && legacyMobConfig.MobFarmerConfig.Mobs.Count == 0,
+    "Legacy mixed monster selections must migrate into independent South/North Horn lists.");
 
 var navigationEvent = new EventData
 {
@@ -760,8 +793,10 @@ var northCriticalEncounterIds = Enumerable.Range(49, 15).Select(id => (uint)id).
 Assert(PromeRotationController.PluginInternalName == "PromeRotation"
        && PromeRotationController.StartIpcName == "PromeRotation.IPC.Start"
        && PromeRotationController.StopIpcName == "PromeRotation.IPC.Stop"
-       && PromeRotationController.IsRunningIpcName == "PromeRotation.IPC.IsRunning",
-    "PromeRotation automatic-rotation integration must retain the official plugin and IPC names.");
+       && PromeRotationController.IsRunningIpcName == "PromeRotation.IPC.IsRunning"
+       && PromeRotationController.AutoPullOnCommand == "/pr autopull on"
+       && PromeRotationController.AutoPullOffCommand == "/pr autopull off",
+    "PromeRotation integration must retain its official IPC names and AutoPull commands.");
 Assert(typeof(PromeRotationController).GetMethod(nameof(PromeRotationController.Start))?.ReturnType == typeof(void)
        && typeof(PromeRotationController).GetMethod(nameof(PromeRotationController.Stop))?.ReturnType == typeof(void),
     "PromeRotation start/stop must be fire-and-forget so IPC false cannot block an Ocelot chain.");

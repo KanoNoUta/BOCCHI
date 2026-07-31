@@ -1,3 +1,4 @@
+using ECommons.Automation;
 using ECommons.DalamudServices;
 using ECommons.Throttlers;
 using System;
@@ -13,30 +14,66 @@ namespace BOCCHI;
 public static class PromeRotationController
 {
     private const int FailureLogIntervalMs = 30_000;
+    private static bool autoPullEnabledByBocchi;
 
     public const string PluginInternalName = "PromeRotation";
     public const string StartIpcName = "PromeRotation.IPC.Start";
     public const string StopIpcName = "PromeRotation.IPC.Stop";
     public const string IsRunningIpcName = "PromeRotation.IPC.IsRunning";
+    public const string AutoPullOnCommand = "/pr autopull on";
+    public const string AutoPullOffCommand = "/pr autopull off";
+
+    public static bool IsLoaded
+    {
+        get => Svc.PluginInterface.InstalledPlugins.Any(plugin =>
+            plugin.InternalName == PluginInternalName && plugin.IsLoaded);
+    }
 
     public static void Start()
     {
+        // PromeRotation's Start IPC only switches EnableAcr to On.  Outside
+        // combat its decision loop still returns early unless AutoPull is on,
+        // so selecting a FATE target alone is not enough to make it engage.
+        SetAutoPull(true);
         Invoke(StartIpcName, "start");
     }
 
     public static void Stop()
     {
         Invoke(StopIpcName, "stop");
+        SetAutoPull(false);
     }
 
-    private static void Invoke(string ipcName, string operation)
+    public static bool IsRunning()
+    {
+        if (!IsLoaded)
+        {
+            return false;
+        }
+
+        try
+        {
+            return Svc.PluginInterface
+                .GetIpcSubscriber<bool>(IsRunningIpcName)
+                .InvokeFunc();
+        }
+        catch (Exception exception)
+        {
+            if (ShouldLogFailure("query"))
+            {
+                Svc.Log.Warning(exception, "PromeRotation IPC failed to query automatic rotation state.");
+            }
+            return false;
+        }
+    }
+
+    private static bool Invoke(string ipcName, string operation)
     {
         try
         {
-            if (!Svc.PluginInterface.InstalledPlugins.Any(plugin =>
-                    plugin.InternalName == PluginInternalName && plugin.IsLoaded))
+            if (!IsLoaded)
             {
-                return;
+                return false;
             }
 
             var succeeded = Svc.PluginInterface
@@ -47,6 +84,8 @@ public static class PromeRotationController
             {
                 Svc.Log.Warning($"PromeRotation IPC did not {operation} the automatic rotation.");
             }
+
+            return succeeded;
         }
         catch (Exception exception)
         {
@@ -56,6 +95,36 @@ public static class PromeRotationController
             if (ShouldLogFailure(operation))
             {
                 Svc.Log.Warning(exception, $"PromeRotation IPC failed to {operation} the automatic rotation.");
+            }
+
+            return false;
+        }
+    }
+
+    private static void SetAutoPull(bool enabled)
+    {
+        if (!IsLoaded)
+        {
+            autoPullEnabledByBocchi = false;
+            return;
+        }
+
+        if (autoPullEnabledByBocchi == enabled)
+        {
+            return;
+        }
+
+        try
+        {
+            Chat.ExecuteCommand(enabled ? AutoPullOnCommand : AutoPullOffCommand);
+            autoPullEnabledByBocchi = enabled;
+        }
+        catch (Exception exception)
+        {
+            if (ShouldLogFailure(enabled ? "enable AutoPull" : "disable AutoPull"))
+            {
+                Svc.Log.Warning(exception,
+                    $"PromeRotation command failed to {(enabled ? "enable" : "disable")} AutoPull.");
             }
         }
     }

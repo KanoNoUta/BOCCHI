@@ -1,6 +1,7 @@
 ﻿using BOCCHI.Data;
 using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Plugin.Services;
+using ECommons.DalamudServices;
 using ECommons.GameHelpers;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using System.Collections.Generic;
@@ -38,7 +39,7 @@ public class Scanner(MobFarmerModule module)
 
             var chara = (BattleChara*)o.Address;
 
-            if (module.Config.Mobs.Contains((Mob)o.NameId))
+            if (module.Config.IsSelectedForTerritory((Mob)o.NameId, Svc.ClientState.TerritoryType))
             {
                 return chara->ForayInfo.Level <= module.Config.MaxMobLevel;
             }

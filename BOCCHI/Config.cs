@@ -1,5 +1,6 @@
 ﻿using BOCCHI.Modules.Automator;
 using BOCCHI.Modules.Buff;
+using BOCCHI.Data;
 using BOCCHI.Modules.Carrots;
 using BOCCHI.Modules.CriticalEncounters;
 using BOCCHI.Modules.Currency;
@@ -18,13 +19,14 @@ using BOCCHI.Modules.WindowManager;
 using ECommons.DalamudServices;
 using Ocelot;
 using System;
+using System.Linq;
 
 namespace BOCCHI;
 
 [Serializable]
 public class Config : IOcelotConfig
 {
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
 
     public int Version { get; set; } = CurrentVersion;
 
@@ -82,6 +84,29 @@ public class Config : IOcelotConfig
             AutomatorConfig.DoNorthHornFate2072 = AutomatorConfig.DoPersistentPots;
             AutomatorConfig.DoNorthHornFate2073 = AutomatorConfig.DoPleadingPots;
             Version = 2;
+            changed = true;
+        }
+
+        MobFarmerConfig ??= new MobFarmerConfig();
+        MobFarmerConfig.Mobs ??= [];
+        MobFarmerConfig.SouthHornMobs ??= [];
+        MobFarmerConfig.NorthHornMobs ??= [];
+
+        if (Version < 3)
+        {
+            foreach (var mob in MobFarmerConfig.Mobs.Distinct())
+            {
+                var destination = MobData.IsNorthHornMob(mob)
+                    ? MobFarmerConfig.NorthHornMobs
+                    : MobFarmerConfig.SouthHornMobs;
+                if (!destination.Contains(mob))
+                {
+                    destination.Add(mob);
+                }
+            }
+
+            MobFarmerConfig.Mobs.Clear();
+            Version = 3;
             changed = true;
         }
 

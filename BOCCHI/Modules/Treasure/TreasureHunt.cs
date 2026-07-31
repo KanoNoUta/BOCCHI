@@ -1,6 +1,5 @@
 using BOCCHI.Data;
 using BOCCHI.Pathfinding;
-using BOCCHI.ActionHelpers;
 using BOCCHI.Chains;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.Objects.Types;
@@ -162,31 +161,8 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
             var attempts = 0;
             var hasInteracted = false;
             var lastAttemptAt = long.MinValue;
-            var lastUnmountAttemptAt = Environment.TickCount64 - 1000;
 
             return Chain.Create($"Treasure.Interact({nodeId})")
-                .Then(new TaskManagerTask((Func<bool?>)(() =>
-                {
-                    if (!Svc.Condition[ConditionFlag.Mounted])
-                    {
-                        return true;
-                    }
-
-                    var now = Environment.TickCount64;
-                    if (now - lastUnmountAttemptAt >= 1000)
-                    {
-                        Actions.TryUnmount();
-                        lastUnmountAttemptAt = now;
-                    }
-
-                    return false;
-                }), new TaskManagerConfiguration
-                {
-                    TimeLimitMS = 8000,
-                    AbortOnTimeout = true,
-                    OnTaskTimeout = (TaskManagerTask _, ref long _) =>
-                        outcome = HuntInteractionOutcome.Failed,
-                }))
                 .Then(new TaskManagerTask((Func<bool?>)(() =>
                 {
                     var target = ResolveTarget(nodeId, expectedPosition, gameObjectId);
@@ -219,9 +195,10 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
                         return false;
                     }
 
-                    if (Svc.Condition[ConditionFlag.Mounted]
-                        || Svc.Condition[ConditionFlag.InCombat]
-                        || Player.IsCasting)
+                    if (!TreasureInteractionPolicy.CanAttempt(
+                            Svc.Condition[ConditionFlag.Mounted],
+                            Svc.Condition[ConditionFlag.InCombat],
+                            Player.IsCasting))
                     {
                         return false;
                     }
@@ -346,5 +323,17 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
                 : ZoneData.IsInNorthHorn())
             .Select(treasure => treasure.Id)
             .ToList();
+    }
+}
+
+public static class TreasureInteractionPolicy
+{
+    public static bool CanAttempt(bool isMounted, bool inCombat, bool isCasting)
+    {
+        // Occult Crescent coffers are directly interactable while mounted.
+        // Keep the parameter explicit as a regression guard: mount state must
+        // not block interaction or force a dismount/remount cycle per chest.
+        _ = isMounted;
+        return !inCombat && !isCasting;
     }
 }

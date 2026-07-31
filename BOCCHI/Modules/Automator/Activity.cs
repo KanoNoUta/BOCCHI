@@ -313,6 +313,28 @@ public abstract class Activity : IDisposable
                 }
             }
 
+            IBattleNpc? SelectPreferredTarget()
+            {
+                var enemies = GetEnemies().Where(enemy => enemy.CurrentHp > 0).ToList();
+                if (enemies.Count == 0)
+                {
+                    return null;
+                }
+
+                return enemies.FirstOrDefault(enemy => DangerousEnemies.Contains(enemy.BaseId))
+                       ?? (module.Config.ShouldForceTargetCentralEnemy ? enemies.Centroid() : enemies.Closest());
+            }
+
+            bool HasValidActivityTarget()
+            {
+                return Svc.Targets.Target is IBattleNpc
+                {
+                    IsDead: false,
+                    IsTargetable: true,
+                    CurrentHp: > 0,
+                } current && IsActivityTarget(current);
+            }
+
             return Chain.Create("Illegal:Participating")
                 .Then(new TaskManagerTask(() =>
                 {
@@ -342,6 +364,22 @@ public abstract class Activity : IDisposable
                     AbortOnError = true,
                     ShowError = false,
                 }))
+                // Stop the arrival route and establish a valid event target
+                // before starting rotation IPCs.  PromeRotation does not pull
+                // when it is enabled with no target, and the old order started
+                // it one chain step before target selection.
+                .Then(_ => vnav.Stop())
+                .Then(_ =>
+                {
+                    var target = SelectPreferredTarget();
+                    if (target != null
+                        && CombatAutomationPolicy.ShouldAcquireTarget(
+                            module.Config.ShouldForceTarget,
+                            HasValidActivityTarget()))
+                    {
+                        Svc.Targets.Target = target;
+                    }
+                })
                 .Then(_ => PromeRotationController.Start())
                 .ConditionalThen(_ => module.Config.ShouldToggleAiProvider, _ => module.SetAiProviderEnabled(true))
                 .ConditionalThen(_ => Svc.PluginInterface.InstalledPlugins.Any(p => p.InternalName == "AEAssistV3" && p.IsLoaded), _ =>
@@ -349,7 +387,6 @@ public abstract class Activity : IDisposable
                     Chat.ExecuteCommand("/aeTargetSelector off");
                     Chat.ExecuteCommand("/aepull on");
                 })
-                .Then(_ => vnav.Stop())
                 .Then(new TaskManagerTask(() =>
                 {
                     if (HasParticipationEnded(states))
@@ -357,24 +394,25 @@ public abstract class Activity : IDisposable
                         return true;
                     }
 
-                    if (!module.Config.ShouldForceTarget || !EzThrottler.Throttle("Participating.ForceTarget", 500))
+                    if (CombatAutomationPolicy.ShouldRetryPromeRotation(
+                            PromeRotationController.IsLoaded,
+                            PromeRotationController.IsRunning())
+                        && EzThrottler.Throttle("Participating.PromeRotationStart", 2000))
+                    {
+                        PromeRotationController.Start();
+                    }
+
+                    if (!EzThrottler.Throttle("Participating.CombatMaintenance", 500))
                     {
                         return false;
                     }
 
-                    var enemies = GetEnemies();
-                    IBattleNpc? target;
-
-                    if (enemies.Any(e => DangerousEnemies.Contains(e.BaseId) && e.CurrentHp > 0))
+                    var target = SelectPreferredTarget();
+                    if (target != null && (module.Config.ShouldForceTarget || !HasValidActivityTarget()))
                     {
-                        target = enemies.FirstOrDefault(e => DangerousEnemies.Contains(e.BaseId) && e.CurrentHp > 0);
-                    }
-                    else
-                    {
-                        target = module.Config.ShouldForceTargetCentralEnemy ? enemies.Centroid() : enemies.Closest();
+                        Svc.Targets.Target = target;
                     }
 
-                    Svc.Targets.Target = target;
                     ApproachFateTarget(target);
 
                     return false;
@@ -541,4 +579,17 @@ public enum CombatStartupDecision
     WaitingForUnmount,
     Ready,
     TimedOut,
+}
+
+public static class CombatAutomationPolicy
+{
+    public static bool ShouldAcquireTarget(bool forceTarget, bool hasValidActivityTarget)
+    {
+        return forceTarget || !hasValidActivityTarget;
+    }
+
+    public static bool ShouldRetryPromeRotation(bool pluginLoaded, bool rotationRunning)
+    {
+        return pluginLoaded && !rotationRunning;
+    }
 }

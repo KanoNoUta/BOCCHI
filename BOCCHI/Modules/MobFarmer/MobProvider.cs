@@ -10,3 +10,19 @@ public class MobProvider : EnumProvider<Mob>
         return MobData.GetName(mob);
     }
 }
+
+public sealed class SouthHornMobProvider : MobProvider
+{
+    public override bool Filter(Mob mob)
+    {
+        return MobData.IsSouthHornMob(mob);
+    }
+}
+
+public sealed class NorthHornMobProvider : MobProvider
+{
+    public override bool Filter(Mob mob)
+    {
+        return MobData.IsNorthHornMob(mob);
+    }
+}

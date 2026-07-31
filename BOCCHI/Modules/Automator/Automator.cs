@@ -111,11 +111,17 @@ public class Automator
 
         if (Activity != null && !Activity.IsValid())
         {
+            var shouldReturn = PostActivityReturnPolicy.ShouldQueue(Activity.data.Type);
+            var returnReason = $"FATE {Activity.data.Id} ended";
             Plugin.Chain.Abort();
             vnav.Stop();
             module.SetAiProviderEnabled(false);
             PromeRotationController.Stop();
             ClearActivity();
+            if (shouldReturn)
+            {
+                QueuePostActivityReturn(returnReason);
+            }
             // Let the lower-priority FATE/CE trackers refresh before selecting
             // another activity. Continuing in this same update can immediately
             // reselect the just-despawned FATE from their stale cache.
@@ -131,9 +137,15 @@ public class Automator
         {
             if (Activity.state == ActivityState.Done)
             {
+                var shouldReturn = PostActivityReturnPolicy.ShouldQueue(Activity.data.Type);
+                var returnReason = $"FATE {Activity.data.Id} completed";
                 module.SetAiProviderEnabled(false);
                 PromeRotationController.Stop();
                 ClearActivity();
+                if (shouldReturn)
+                {
+                    QueuePostActivityReturn(returnReason);
+                }
                 return;
             }
 
@@ -353,5 +365,13 @@ public static class AutomatorChainPolicy
         // cleanup tick removes them. Counting dictionary entries therefore
         // stalls the automator even though no work is actually running.
         return queues.Any(queue => queue.IsRunning || queue.QueueCount > 0);
+    }
+}
+
+public static class PostActivityReturnPolicy
+{
+    public static bool ShouldQueue(EventType eventType)
+    {
+        return eventType == EventType.Fate;
     }
 }

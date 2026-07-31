@@ -2,12 +2,19 @@
 using Lumina.Excel.Sheets;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 
 namespace BOCCHI.Data;
 
 public static class MobData
 {
     private static Dictionary<Mob, string> NameCache = [];
+
+    public static IReadOnlyList<Mob> SouthHornMobs { get; } =
+        System.Enum.GetValues<Mob>().Where(IsSouthHornMob).ToArray();
+
+    public static IReadOnlyList<Mob> NorthHornMobs { get; } =
+        System.Enum.GetValues<Mob>().Where(IsNorthHornMob).ToArray();
 
     public static List<Mob> MobsWithSpawnCondition { get; private set; } =
     [
@@ -40,5 +47,15 @@ public static class MobData
         }
 
         return mob.ToString();
+    }
+
+    public static bool IsSouthHornMob(Mob mob)
+    {
+        return !IsNorthHornMob(mob);
+    }
+
+    public static bool IsNorthHornMob(Mob mob)
+    {
+        return (uint)mob >= (uint)Mob.CrescentCliffkite;
     }
 }
