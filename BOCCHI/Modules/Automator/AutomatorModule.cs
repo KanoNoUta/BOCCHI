@@ -19,6 +19,8 @@ namespace BOCCHI.Modules.Automator;
 [OcelotModule(int.MaxValue - 1)]
 public class AutomatorModule : Module
 {
+    private bool vnavmeshFailureReported;
+
     public override AutomatorConfig Config
     {
         get => PluginConfig.AutomatorConfig;
@@ -52,11 +54,12 @@ public class AutomatorModule : Module
             return;
         }
 
-        if (IsEnabled)
+        if (!EnsureVnavmeshAvailable())
         {
-            instanceRotation.PollDailyRoutinesCommandModules(this);
+            return;
         }
 
+        instanceRotation.PollDailyRoutinesCommandModules(this);
         if (instanceRotation.PostUpdate(this))
         {
             return;
@@ -121,6 +124,16 @@ public class AutomatorModule : Module
 
     public void EnableIllegalMode()
     {
+        var vnavmesh = GetVnavmeshAvailability();
+        if (!vnavmesh.IsAvailable)
+        {
+            Config.Enabled = false;
+            PluginConfig.Save();
+            ReportVnavmeshFailure(vnavmesh);
+            return;
+        }
+
+        vnavmeshFailureReported = false;
         var wasDisabled = !Config.Enabled;
         Config.Enabled = true;
         if (!Svc.Condition[Dalamud.Game.ClientState.Conditions.ConditionFlag.InCombat])
@@ -131,14 +144,23 @@ public class AutomatorModule : Module
 
         if (wasDisabled)
         {
-            Svc.Chat.Print(T("messages.on"));
-            ReportVnavmeshVersionCheck();
-            instanceRotation.EnsureDailyRoutinesCommandModules(this);
-
             if (!BOCCHI.Data.ZoneData.IsInOccultCrescent())
             {
-                instanceRotation.TryStartFromOutside(this);
+                instanceRotation.EnsureDailyRoutinesCommandModules(this);
+                if (!instanceRotation.TryStartFromOutside(this))
+                {
+                    Config.Enabled = false;
+                    instanceRotation.Reset();
+                    PluginConfig.Save();
+                    return;
+                }
             }
+            else if (Config.ShouldAutoRotateInstance)
+            {
+                instanceRotation.EnsureDailyRoutinesCommandModules(this);
+            }
+
+            Svc.Chat.Print(T("messages.on"));
         }
     }
 
@@ -215,36 +237,65 @@ public class AutomatorModule : Module
         }
     }
 
-    public VnavmeshVersionCheck GetVnavmeshVersionCheck()
+    public VnavmeshAvailabilityCheck GetVnavmeshAvailability()
     {
         var plugin = Svc.PluginInterface.InstalledPlugins.FirstOrDefault(p =>
-            string.Equals(p.InternalName, VnavmeshVersionPolicy.PluginInternalName, StringComparison.OrdinalIgnoreCase));
+            string.Equals(p.InternalName, VnavmeshAvailabilityPolicy.PluginInternalName, StringComparison.OrdinalIgnoreCase));
 
-        return VnavmeshVersionPolicy.Evaluate(
+        return VnavmeshAvailabilityPolicy.Evaluate(
             plugin != null,
             plugin?.IsLoaded == true,
             plugin?.Version);
     }
 
-    private void ReportVnavmeshVersionCheck()
+    private bool EnsureVnavmeshAvailable()
     {
-        var check = GetVnavmeshVersionCheck();
-        if (check.IsCompatible)
+        var check = GetVnavmeshAvailability();
+        if (check.IsAvailable)
         {
-            Svc.Log.Info($"vnavmesh version check passed: {check.ActualVersion}");
+            vnavmeshFailureReported = false;
+            return true;
+        }
+
+        if (Config.Enabled)
+        {
+            SetAiProviderEnabled(false);
+            Config.Enabled = false;
+            instanceRotation.Reset();
+            automator.Refresh();
+            PromeRotationController.Stop();
+            if (TryGetIPCSubscriber<VNavmesh>(out var navigation)
+                && navigation != null
+                && navigation.IsReady())
+            {
+                AggroAvoidanceNavigation.Stop(navigation);
+            }
+            Plugin.Chain.Abort();
+            ChainManager.AbortAll();
+            PluginConfig.Save();
+        }
+
+        ReportVnavmeshFailure(check);
+        return false;
+    }
+
+    private void ReportVnavmeshFailure(VnavmeshAvailabilityCheck check)
+    {
+        if (vnavmeshFailureReported)
+        {
             return;
         }
 
         var reason = check.Status switch
         {
-            VnavmeshVersionStatus.Missing => "未安装 vnavmesh",
-            VnavmeshVersionStatus.NotLoaded => "vnavmesh 未加载",
-            VnavmeshVersionStatus.VersionMismatch => $"当前版本为 {check.ActualVersion?.ToString() ?? "未知"}",
+            VnavmeshAvailabilityStatus.Missing => "未安装 vnavmesh",
+            VnavmeshAvailabilityStatus.NotLoaded => "vnavmesh 未加载",
             _ => "vnavmesh 状态未知",
         };
-        var message = $"[BOCCHI] vnavmesh 版本检查警告：{reason}，建议精确使用 {VnavmeshVersionPolicy.RequiredVersion}；自动化仍会继续运行。";
+        var message = $"自动化已停用：{reason}。";
         Svc.Log.Warning(message);
         Svc.Chat.PrintError(message);
+        vnavmeshFailureReported = true;
     }
 
     public void SetAiProviderEnabled(bool enabled)

@@ -1,5 +1,6 @@
 using BOCCHI.Data;
 using BOCCHI.Modules.StateManager;
+using BOCCHI.Pathfinding;
 using Dalamud.Game.ClientState.Conditions;
 using ECommons.Automation;
 using ECommons.DalamudServices;
@@ -47,7 +48,9 @@ public sealed class InstanceRotationController
     {
         var now = DateTimeOffset.UtcNow;
         var enabled = module.IsEnabled
-                      && (module.Config.ShouldAutoRotateInstance || stateMachine.IsBusy);
+                      && (module.Config.ShouldAutoRotateInstance
+                          || stateMachine.IsBusy
+                          || stateMachine.State == InstanceRotationState.Failed);
         if (!enabled)
         {
             var shouldBlockCurrentFrame = stateMachine.IsBusy || stateMachine.State == InstanceRotationState.Failed;
@@ -183,6 +186,13 @@ public sealed class InstanceRotationController
 
     public void PollDailyRoutinesCommandModules(AutomatorModule module)
     {
+        if (!module.Config.ShouldAutoRotateInstance
+            && !stateMachine.IsBusy
+            && pendingEntryCommand == null)
+        {
+            return;
+        }
+
         var now = DateTimeOffset.UtcNow;
         if (dailyRoutinesModulesReady || now < nextDailyRoutinesModuleCheck)
         {
@@ -298,7 +308,14 @@ public sealed class InstanceRotationController
             && navigation != null
             && navigation.IsReady())
         {
-            navigation.Stop();
+            try
+            {
+                AggroAvoidanceNavigation.Stop(navigation);
+            }
+            catch (Exception exception)
+            {
+                Svc.Log.Warning(exception, "Instance rotation could not stop vnavmesh because its IPC became unavailable.");
+            }
         }
 
         if (module.Config.ShouldToggleAiProvider)

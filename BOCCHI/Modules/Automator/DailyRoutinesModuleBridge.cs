@@ -1,4 +1,5 @@
 using ECommons.DalamudServices;
+using Dalamud.Plugin.Ipc.Exceptions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -33,7 +34,8 @@ public static class DailyRoutinesModuleBridge
         new[] { AutoTalkSkipModuleName, FieldEntryCommandModuleName };
 
     public static bool IsLoaded => Svc.PluginInterface.InstalledPlugins.Any(plugin =>
-        plugin.InternalName == PluginInternalName && plugin.IsLoaded);
+        string.Equals(plugin.InternalName, PluginInternalName, StringComparison.OrdinalIgnoreCase)
+        && plugin.IsLoaded);
 
     public static DailyRoutinesModuleStatus EnsureRequiredModules()
     {
@@ -69,13 +71,13 @@ public static class DailyRoutinesModuleBridge
                 if (!loadRequestedAt.TryGetValue(moduleName, out var requestedAt)
                     || now - requestedAt >= RetryInterval)
                 {
+                    loadRequestedAt[moduleName] = now;
                     if (!loadModule.InvokeFunc(moduleName, true))
                     {
-                        Svc.Log.Warning($"DailyRoutines rejected the module enable request: {moduleName}");
-                        return DailyRoutinesModuleStatus.Unavailable;
+                        Svc.Log.Verbose($"DailyRoutines has not accepted the module enable request yet: {moduleName}");
+                        return DailyRoutinesModuleStatus.Enabling;
                     }
 
-                    loadRequestedAt[moduleName] = now;
                     Svc.Log.Info($"Requested DailyRoutines module enable: {moduleName}");
                 }
 
@@ -83,6 +85,14 @@ public static class DailyRoutinesModuleBridge
             }
 
             return DailyRoutinesModuleStatus.Ready;
+        }
+        catch (IpcNotReadyError)
+        {
+            // InstalledPlugins can report the plugin as loaded one framework
+            // tick before its call gates are registered. Keep the queued entry
+            // request alive and retry instead of turning that startup race into
+            // a permanent failed rotation.
+            return DailyRoutinesModuleStatus.Enabling;
         }
         catch (Exception exception)
         {

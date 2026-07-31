@@ -26,6 +26,7 @@ public class TreasureSightChain(TreasureModule module, bool force = false) : Cha
         chain.Then(Job.Freelancer.ChangeToChain);
         chain.Then(Actions.Freelancer.Treasuresight.GetCastChain()).Wait(1500);
         chain.Then(StartingJob.ChangeToChain);
+        chain.OnFinally(() => module.QueueTreasureSightJobRestore(StartingJob));
 
         return chain;
     }

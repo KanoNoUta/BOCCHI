@@ -239,12 +239,14 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
         var rotationPopulation = rotation.CurrentPopulation?.ToString() ?? "--";
         DrawKeyValue("副本轮换状态", $"{rotationState} · 剩余 {rotationRemaining} · 人数 {rotationPopulation}");
 
-        var version = automator.GetVnavmeshVersionCheck();
+        var vnavmesh = automator.GetVnavmeshAvailability();
         DrawKeyValue(
             "vnavmesh",
-            version.IsCompatible
-                ? $"{version.ActualVersion}（可用）"
-                : $"{version.ActualVersion?.ToString() ?? "未加载"}（需要 {Pathfinding.VnavmeshVersionPolicy.RequiredVersion}）");
+            vnavmesh.IsAvailable
+                ? $"{vnavmesh.DisplayVersion?.ToString() ?? "版本未知"}（可用）"
+                : vnavmesh.Status == Pathfinding.VnavmeshAvailabilityStatus.Missing
+                    ? "未安装"
+                    : "未加载");
     }
 
     private void DrawIsland(
