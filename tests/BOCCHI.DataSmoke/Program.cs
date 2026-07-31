@@ -39,6 +39,13 @@ static Task<List<Vector3>> StraightPath(Vector3 start, Vector3 destination, Canc
 }
 
 var aggroZone = new AggroDangerZone(14857, Vector3.Zero, 5f);
+Assert(!AggroAvoidanceLevelPolicy.ShouldAvoid(playerLevel: 10, mobLevel: 9)
+       && AggroAvoidanceLevelPolicy.ShouldAvoid(playerLevel: 10, mobLevel: 10)
+       && AggroAvoidanceLevelPolicy.ShouldAvoid(playerLevel: 10, mobLevel: 11),
+    "Aggro avoidance must ignore confirmed lower-level mobs while retaining equal- and higher-level threats.");
+Assert(AggroAvoidanceLevelPolicy.ShouldAvoid(playerLevel: 0, mobLevel: 9)
+       && AggroAvoidanceLevelPolicy.ShouldAvoid(playerLevel: 10, mobLevel: 0),
+    "Transient unknown Occult Crescent levels must remain conservative during object loading.");
 var terminalAggroZones = AggroAvoidancePlanner.GetRelevantZones(
     [aggroZone, new AggroDangerZone(14858, new Vector3(20f, 0f, 0f), 5f)],
     new Vector3(1f, 0f, 0f));

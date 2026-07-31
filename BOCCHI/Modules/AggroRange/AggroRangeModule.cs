@@ -53,6 +53,12 @@ public sealed class AggroRangeModule(Plugin plugin, Config config) : Module(plug
             return;
         }
 
+        if (player.Address == IntPtr.Zero)
+        {
+            return;
+        }
+
+        var playerLevel = ((BattleChara*)player.Address)->ForayInfo.Level;
         var playerPosition = player.Position;
         var maximumDistance = Math.Max(1f, Config.MaxDrawDistance);
 
@@ -67,7 +73,9 @@ public sealed class AggroRangeModule(Plugin plugin, Config config) : Module(plug
             }
 
             var battleChara = (BattleChara*)mob.Address;
-            if (battleChara->FateId != 0 || Config.HideEngagedMobs && mob.HasTarget())
+            if (battleChara->FateId != 0
+                || Config.HideEngagedMobs && mob.HasTarget()
+                || !AggroAvoidanceLevelPolicy.ShouldAvoid(playerLevel, battleChara->ForayInfo.Level))
             {
                 continue;
             }

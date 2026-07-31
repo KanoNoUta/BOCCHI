@@ -25,6 +25,12 @@ public static class AggroDangerZoneProvider
             return zones;
         }
 
+        if (player.Address == IntPtr.Zero)
+        {
+            return zones;
+        }
+
+        var playerLevel = ((BattleChara*)player.Address)->ForayInfo.Level;
         var maximumDistanceSquared = MaximumRelevantDistance * MaximumRelevantDistance;
         foreach (var mob in Svc.Objects.OfType<IBattleNpc>())
         {
@@ -38,7 +44,9 @@ public static class AggroDangerZoneProvider
             }
 
             var battleChara = (BattleChara*)mob.Address;
-            if (battleChara->FateId != 0 || config.HideEngagedMobs && mob.HasTarget())
+            if (battleChara->FateId != 0
+                || config.HideEngagedMobs && mob.HasTarget()
+                || !AggroAvoidanceLevelPolicy.ShouldAvoid(playerLevel, battleChara->ForayInfo.Level))
             {
                 continue;
             }
