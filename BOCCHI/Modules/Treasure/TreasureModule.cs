@@ -6,6 +6,7 @@ using BOCCHI.Data;
 using Dalamud.Game.ClientState.Conditions;
 using ECommons.DalamudServices;
 using ECommons.GameHelpers;
+using Ocelot.IPC;
 using System;
 
 namespace BOCCHI.Modules.Treasure;
@@ -46,6 +47,8 @@ public class TreasureModule(Plugin _plugin, Config config) : Module(_plugin, con
     {
         get => Tracker.Treasures;
     }
+
+    public bool IsHuntRunning => hunter?.IsRunning == true;
 
     private readonly Panel panel = new();
 
@@ -148,6 +151,38 @@ public class TreasureModule(Plugin _plugin, Config config) : Module(_plugin, con
     public void StopHunt()
     {
         hunter?.Stop();
+    }
+
+    public bool TryStartHunt(out string error)
+    {
+        error = string.Empty;
+        if (!ZoneData.IsInOccultCrescent())
+        {
+            error = "宝箱猎人只能在南部或北部新月岛内启动。";
+            return false;
+        }
+
+        if (!TryGetIPCSubscriber<VNavmesh>(out var navigation)
+            || navigation == null
+            || !navigation.IsReady())
+        {
+            error = "vnavmesh 尚未准备完成。";
+            return false;
+        }
+
+        if (!TryGetIPCSubscriber<Lifestream>(out var lifestream)
+            || lifestream == null
+            || !lifestream.IsReady())
+        {
+            error = "Lifestream 尚未准备完成。";
+            return false;
+        }
+
+        Config.Enabled = true;
+        Config.EnableTreasureHunt = true;
+        PluginConfig.Save();
+        hunter.Start();
+        return true;
     }
 
     public override void Dispose()

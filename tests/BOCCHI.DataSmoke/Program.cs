@@ -1,5 +1,6 @@
 using BOCCHI;
 using BOCCHI.Chains;
+using BOCCHI.Commands;
 using BOCCHI.Data;
 using BOCCHI.Enums;
 using BOCCHI.Modules.Automator;
@@ -37,6 +38,11 @@ static Task<List<Vector3>> StraightPath(Vector3 start, Vector3 destination, Canc
 {
     return Task.FromResult(new List<Vector3> { start, destination });
 }
+
+Assert(TreasureHuntCommand.ShortAlias == "/ochth",
+    "The compact treasure-hunter command alias must remain stable for macros.");
+Assert(typeof(Hunter).GetMethod(nameof(Hunter.Start), BindingFlags.Instance | BindingFlags.Public) != null,
+    "Treasure commands and the UI must share Hunter's public start lifecycle.");
 
 var aggroZone = new AggroDangerZone(14857, Vector3.Zero, 5f);
 Assert(!AggroAvoidanceLevelPolicy.ShouldAvoid(playerLevel: 10, mobLevel: 9)

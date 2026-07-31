@@ -24,6 +24,7 @@ public class MainCommand(Plugin plugin) : OcelotCommand
  - /bocchi : 打开主界面
  - /bocchi config : 打开设置界面
  - /bocchi cfg : 打开设置界面
+ - /bocchi th : 切换宝箱猎人
 --------------------------------
 ".Trim();
     }
@@ -57,6 +58,12 @@ public class MainCommand(Plugin plugin) : OcelotCommand
         if (arguments == "buff")
         {
             new BuffCommand(plugin).Execute("/bocchibuff", "");
+            return;
+        }
+
+        if (arguments is "treasure" or "th")
+        {
+            new TreasureHuntCommand(plugin).Execute("/bocchitreasure", "");
             return;
         }
 
