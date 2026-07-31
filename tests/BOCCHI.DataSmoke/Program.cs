@@ -1,7 +1,9 @@
 using BOCCHI;
+using BOCCHI.Chains;
 using BOCCHI.Data;
 using BOCCHI.Enums;
 using BOCCHI.Modules.Automator;
+using BOCCHI.Modules.AggroRange;
 using BOCCHI.Modules.Carrots;
 using BOCCHI.Modules.CriticalEncounters;
 using BOCCHI.Modules.StateManager;
@@ -36,6 +38,56 @@ static Task<List<Vector3>> StraightPath(Vector3 start, Vector3 destination, Canc
     return Task.FromResult(new List<Vector3> { start, destination });
 }
 
+var aggroZone = new AggroDangerZone(14857, Vector3.Zero, 5f);
+var terminalAggroZones = AggroAvoidancePlanner.GetRelevantZones(
+    [aggroZone, new AggroDangerZone(14858, new Vector3(20f, 0f, 0f), 5f)],
+    new Vector3(1f, 0f, 0f));
+Assert(terminalAggroZones.Length == 1 && terminalAggroZones[0].NameId == 14858,
+    "A danger circle containing the requested destination must be excluded without hiding unrelated obstacles.");
+var straightAggroPath = new List<Vector3>
+{
+    new(-10f, 0f, 0f),
+    new(10f, 0f, 0f),
+};
+Assert(AggroAvoidancePlanner.TryAvoid(
+           straightAggroPath,
+           [aggroZone],
+           verticalTolerance: 6f,
+           point => point,
+           out var avoidedAggroPath)
+       && avoidedAggroPath.Count > straightAggroPath.Count
+       && AggroAvoidancePlanner.IsPathClear(avoidedAggroPath, [aggroZone], 6f),
+    "Aggro avoidance must insert a clear tangent/arc detour around a crossed ordinary-mob circle.");
+Assert(AggroAvoidancePlanner.TryAvoid(
+           [new Vector3(-10f, 0f, 8f), new Vector3(10f, 0f, 8f)],
+           [aggroZone],
+           6f,
+           point => point,
+           out var alreadyClearAggroPath)
+       && alreadyClearAggroPath.Count == 2,
+    "A clear route must remain unchanged instead of gaining unnecessary avoidance waypoints.");
+Assert(!AggroAvoidancePlanner.SegmentEntersZone(
+           new Vector3(-10f, 20f, 0f),
+           new Vector3(10f, 20f, 0f),
+           aggroZone,
+           verticalTolerance: 6f),
+    "Aggro avoidance must ignore circles on a different vertical floor.");
+Assert(!AggroAvoidancePlanner.SegmentEntersZone(
+           new Vector3(1f, 0f, 0f),
+           new Vector3(10f, 0f, 0f),
+           aggroZone,
+           verticalTolerance: 6f),
+    "A player already inside a circle must be allowed to leave directly without deadlocking navigation.");
+Assert(AggroAvoidancePlanner.TryAvoid(
+           [new Vector3(1f, 0f, 0f), new Vector3(-10f, 0f, 0f)],
+           [aggroZone],
+           6f,
+           point => point,
+           out var insideEscapePath)
+       && insideEscapePath.Count > 2
+       && AggroAvoidancePlanner.IsPathClear(insideEscapePath, [aggroZone], 6f),
+    "A route starting inside and initially travelling deeper must first escape outward, then detour without deadlock.");
+
 Assert(PostActivityReturnPolicy.ShouldQueue(EventType.Fate)
        && !PostActivityReturnPolicy.ShouldQueue(EventType.CriticalEncounter),
     "Completed FATEs must lock the automator into a base-camp return before selecting another activity.");
@@ -52,6 +104,15 @@ Assert(TreasureInteractionPolicy.CanAttempt(true, false, false)
        && !TreasureInteractionPolicy.CanAttempt(true, true, false)
        && !TreasureInteractionPolicy.CanAttempt(true, false, true),
     "Treasure interaction must remain available while mounted and only wait for combat/casting to clear.");
+Assert(TreasureSightRefreshPolicy.ShouldCast(true, false)
+       && !TreasureSightRefreshPolicy.ShouldCast(true, true)
+       && !TreasureSightRefreshPolicy.ShouldCast(false, false),
+    "Treasuresight must run only when requested and the current territory count has not been initialized.");
+Assert(TreasureHuntDataPolicy.ShouldReload(null, 1252, 60)
+       && TreasureHuntDataPolicy.ShouldReload(1252, 1253, 60)
+       && TreasureHuntDataPolicy.ShouldReload(1252, 1252, 0)
+       && !TreasureHuntDataPolicy.ShouldReload(1252, 1252, 60),
+    "Treasure layout data must be cached within one territory and reloaded only after a map change or empty load.");
 
 var legacyMobConfig = new Config
 {
@@ -750,6 +811,41 @@ Assert((uint)Mob.CrescentCliffkite == 14857 && (uint)Mob.CrescentFlame == 14923,
     "North Horn field-monster ID range is incorrect.");
 Assert((uint)Mob.CrescentBibliotaph == 14860 && (uint)Mob.CrescentOiseauRare == 14910,
     "North Horn field-monster semantic names are not aligned with the 7.55 BNpcName sheet.");
+
+foreach (var mob in northHornMobs)
+{
+    Assert(CommonMobCatalog.TryGet((uint)mob, out var profile),
+        $"North Horn ordinary mob {(uint)mob} is missing from the aggro catalog.");
+    Assert(MathF.Abs(profile.FallbackEdgeRange - 10f) < 0.001f,
+        $"North Horn ordinary mob {(uint)mob} still uses model scale as a fake aggro range.");
+}
+Assert(!CommonMobCatalog.TryGet(14856, out _) && !CommonMobCatalog.TryGet(14924, out _),
+    "Aggro catalog must not include actors outside the 67 ordinary North Horn BNpcName rows.");
+
+var calibration = new AggroRangeCalibration();
+Assert(!calibration.AddSample(3.9f) && !calibration.AddSample(20.1f),
+    "Aggro calibration must reject implausible passive-pull distances.");
+Assert(calibration.AddSample(8f) && calibration.AddSample(10f) && calibration.AddSample(9f),
+    "Aggro calibration rejected valid passive-pull samples.");
+Assert(MathF.Abs(calibration.ResolveEdgeRange(10f) - 10.5f) < 0.001f,
+    "Aggro calibration must use the conservative upper quartile plus frame-latency allowance.");
+var calibratedConfig = new AggroRangeConfig
+{
+    Calibrations = new Dictionary<uint, AggroRangeCalibration> { [14857] = calibration },
+};
+CommonMobCatalog.TryGet(14857, out var calibratedProfile);
+Assert(MathF.Abs(AggroRangeResolver.ResolveTriggerRadius(calibratedProfile, 2f, calibratedConfig) - 12.5f) < 0.001f,
+    "Resolved aggro radius must add the live monster hitbox exactly once.");
+
+var crystal = new Vector3(10f, 2f, 10f);
+var crystalApproach = KnowledgeCrystalApproachPolicy.GetDesiredApproachPosition(
+    new Vector3(20f, 2f, 10f),
+    crystal);
+Assert(MathF.Abs(Vector3.Distance(crystalApproach, crystal) - KnowledgeCrystalApproachPolicy.DesiredOffset) < 0.001f,
+    "Knowledge-crystal approach point must stay inside the verified cast range.");
+Assert(KnowledgeCrystalApproachPolicy.HasArrived(new Vector3(13f, 2f, 10f), crystal)
+       && !KnowledgeCrystalApproachPolicy.HasArrived(new Vector3(13.01f, 2f, 10f), crystal),
+    "Knowledge-crystal arrival must be based on real distance, not vnavmesh stopping.");
 
 var treasurePattern = LogMessageHelper.BuildPattern(
     "在当前区域中感知到了<num(lnum1)>个银宝箱、<num(lnum2)>个铜宝箱……！");

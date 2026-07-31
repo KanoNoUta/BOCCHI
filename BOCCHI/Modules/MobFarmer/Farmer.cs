@@ -127,6 +127,7 @@ public class Farmer : IDisposable
     public void DisableFarmerMode()
     {
         PromeRotationController.Stop();
+        BOCCHI.Pathfinding.AggroAvoidanceNavigation.Stop();
         Running = false;
         StartingPoint = Vector3.Zero;
         StateMachine.Reset();

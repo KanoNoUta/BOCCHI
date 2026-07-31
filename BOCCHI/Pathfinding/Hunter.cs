@@ -368,7 +368,7 @@ public abstract class Hunter
         AbortActiveTransitChild();
         if (m.TryGetIPCSubscriber<VNavmesh>(out var navigation) && navigation != null && navigation.IsReady())
         {
-            navigation.Stop();
+            AggroAvoidanceNavigation.Stop(navigation);
         }
         Plugin.Chain.Abort();
         StepProcessor.Abort();
@@ -515,7 +515,7 @@ public abstract class Hunter
 
         nodePathAttempts++;
         lastNodeProgress = DateTime.UtcNow;
-        vnav.PathfindAndMoveTo(destination, false);
+        AggroAvoidanceNavigation.PathfindAndMoveTo(vnav, destination, false);
         nodeFollowSubmittedAt = DateTime.UtcNow;
         return false;
     }
@@ -894,7 +894,7 @@ public abstract class Hunter
         transitAttempts++;
         lastTransitAttempt = now;
         lastTransitProgress = now;
-        vnav.PathfindAndMoveTo(destination, false);
+        AggroAvoidanceNavigation.PathfindAndMoveTo(vnav, destination, false);
         return false;
     }
 

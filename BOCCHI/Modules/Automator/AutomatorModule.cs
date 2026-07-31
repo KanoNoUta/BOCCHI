@@ -81,7 +81,7 @@ public class AutomatorModule : Module
         Plugin.Chain.Abort();
         if (TryGetIPCSubscriber<VNavmesh>(out var navigation) && navigation != null && navigation.IsReady())
         {
-            navigation.Stop();
+            AggroAvoidanceNavigation.Stop(navigation);
         }
         SetAiProviderEnabled(false);
         PromeRotationController.Stop();
@@ -186,7 +186,7 @@ public class AutomatorModule : Module
         {
             try
             {
-                navigation.Stop();
+                AggroAvoidanceNavigation.Stop(navigation);
             }
             catch (Exception exception)
             {
@@ -251,7 +251,7 @@ public class AutomatorModule : Module
                 && navigation != null
                 && navigation.IsReady())
             {
-                navigation.Stop();
+                AggroAvoidanceNavigation.Stop(navigation);
             }
             Plugin.Chain.Abort();
             ChainManager.AbortAll();

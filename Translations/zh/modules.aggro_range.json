@@ -1,0 +1,73 @@
+{
+  "modules": {
+    "aggro_range": {
+      "config": {
+        "title": "北岛普通怪仇恨范围",
+        "hide_engaged_mobs": {
+          "label": "隐藏已进入战斗的怪物",
+          "tooltip": "怪物已经拥有目标后不再绘制触发范围。"
+        },
+        "fill_circles": {
+          "label": "填充范围圈",
+          "tooltip": "使用低透明度颜色填充范围圈内部。"
+        },
+        "auto_calibrate": {
+          "label": "被动开怪自动校准",
+          "tooltip": "怪物首次主动锁定玩家时记录触发距离；主动攻击和 FATE 怪不会污染数据。"
+        },
+        "auto_avoidance": {
+          "label": "自动路线避开仇恨圈",
+          "tooltip": "北岛自动导航会预计算绕行点，避免路线进入未交战普通怪的触发范围。"
+        },
+        "avoidance_safety_margin": {
+          "label": "路线安全缓冲",
+          "tooltip": "在触发半径外额外保留的绕行距离。建议保持 2 yalms。"
+        },
+        "dynamic_replanning": {
+          "label": "移动怪物动态重算",
+          "tooltip": "怪物移动到剩余路线前方时后台计算替代路线；旧路线会持续行走直至新路线完成。"
+        },
+        "replan_cooldown_seconds": {
+          "label": "动态重算冷却（秒）",
+          "tooltip": "限制移动怪物触发重新计算的频率，避免频繁替换路线。"
+        },
+        "draw_avoidance_path": {
+          "label": "调试显示避让路线点",
+          "tooltip": "用青色小圆显示当前提交给 vnavmesh 的修正路线点。"
+        },
+        "max_draw_distance": {
+          "label": "最大绘制距离",
+          "tooltip": "只绘制玩家附近此距离内的普通怪范围圈。"
+        },
+        "near_boundary_distance": {
+          "label": "接近边缘预警距离",
+          "tooltip": "玩家距离范围边缘小于此值时将范围圈变为橙色。"
+        },
+        "radius_adjustment": {
+          "label": "范围半径修正",
+          "tooltip": "统一增减当前触发半径，实测范围偏大或偏小时使用。"
+        },
+        "vertical_tolerance": {
+          "label": "最大高低差",
+          "tooltip": "怪物与玩家超过此高低差时不绘制，避免把不同楼层判断为进入范围。"
+        },
+        "fill_opacity": {
+          "label": "填充透明度",
+          "tooltip": "范围圈内部填充的透明度。"
+        },
+        "outside_color": {
+          "label": "范围外颜色",
+          "tooltip": "玩家远离触发边缘时的范围圈颜色。"
+        },
+        "near_color": {
+          "label": "接近边缘颜色",
+          "tooltip": "玩家接近触发边缘时的范围圈颜色。"
+        },
+        "inside_color": {
+          "label": "范围内颜色",
+          "tooltip": "玩家进入估算触发范围后的范围圈颜色。"
+        }
+      }
+    }
+  }
+}

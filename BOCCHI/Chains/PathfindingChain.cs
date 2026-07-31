@@ -73,7 +73,7 @@ public class PathfindingChain : ChainFactory
         TransitAttempted = true;
         TransitReachedEnd = false;
         northHornTransitStartedAt = Environment.TickCount64;
-        vnav.FollowPath(transitRoute, false);
+        AggroAvoidanceNavigation.FollowPath(vnav, transitRoute, false);
     }
 
     private TaskManagerTask WaitForNorthHornTransit(VNavmesh vnav, Vector3 lastWaypoint)

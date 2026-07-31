@@ -104,7 +104,7 @@ public class ChainHelper
         return () => Chain.Create()
             .ConditionalThen(_ => Player.DistanceTo(destination) > distance, _ =>
                 Chain.Create()
-                    .Then(_ => vnav.FollowPath([destination], false))
+                    .Then(_ => BOCCHI.Pathfinding.AggroAvoidanceNavigation.FollowPath(vnav, [destination], false))
                     .WaitUntilNear(vnav, destination, distance)
                     .Then(_ => vnav.Stop())
             );

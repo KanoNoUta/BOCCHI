@@ -15,7 +15,9 @@ public class TreasureSightChain(TreasureModule module, bool force = false) : Cha
     protected override Chain Create(Chain chain)
     {
         chain.RunIf(() =>
-            (force || module.Config.CastTreasureSightUponReturn)
+            TreasureSightRefreshPolicy.ShouldCast(
+                force || module.Config.CastTreasureSightUponReturn,
+                module.Tracker.CountInitialised)
             && !Svc.Condition[ConditionFlag.InCombat]
             && Actions.Freelancer.Treasuresight.CanCast());
 
@@ -26,5 +28,16 @@ public class TreasureSightChain(TreasureModule module, bool force = false) : Cha
         chain.Then(StartingJob.ChangeToChain);
 
         return chain;
+    }
+}
+
+public static class TreasureSightRefreshPolicy
+{
+    public static bool ShouldCast(bool requested, bool countInitialised)
+    {
+        // The count is reset on territory changes and then maintained locally
+        // as coffers are opened. Recasting on every return/start only causes
+        // repeated Freelancer swaps without providing newer route data.
+        return requested && !countInitialised;
     }
 }

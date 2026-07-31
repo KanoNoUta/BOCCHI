@@ -41,7 +41,7 @@ public class PathfindAndMoveToChain : ChainFactory
     protected override Chain Create(Chain chain)
     {
         return chain
-            .PathfindAndMoveTo(vnav, destination);
+            .Then(_ => BOCCHI.Pathfinding.AggroAvoidanceNavigation.PathfindAndMoveTo(vnav, destination, false));
     }
 
     public override TaskManagerConfiguration? Config()

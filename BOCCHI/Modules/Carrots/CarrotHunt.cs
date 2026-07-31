@@ -171,7 +171,7 @@ public class CarrotHunt(CarrotsModule module) : Hunter(module)
 
                     if (!vnav.IsRunning())
                     {
-                        vnav.PathfindAndMoveTo(chest.Position, false);
+                        AggroAvoidanceNavigation.PathfindAndMoveTo(vnav, chest.Position, false);
                     }
 
                     return false;

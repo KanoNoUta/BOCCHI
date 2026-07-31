@@ -1,0 +1,73 @@
+{
+  "modules": {
+    "aggro_range": {
+      "config": {
+        "title": "North Horn Mob Aggro Ranges",
+        "hide_engaged_mobs": {
+          "label": "Hide engaged mobs",
+          "tooltip": "Stop drawing a trigger range after a mob has acquired a target."
+        },
+        "fill_circles": {
+          "label": "Fill range circles",
+          "tooltip": "Fill the inside of each range circle with a low-opacity color."
+        },
+        "auto_calibrate": {
+          "label": "Auto-calibrate passive pulls",
+          "tooltip": "Record the trigger distance when a mob first acquires the local player; active attacks and FATE mobs are rejected."
+        },
+        "auto_avoidance": {
+          "label": "Automatically avoid aggro circles",
+          "tooltip": "Precompute North Horn detours so automatic navigation avoids unengaged ordinary-mob trigger ranges."
+        },
+        "avoidance_safety_margin": {
+          "label": "Route safety margin",
+          "tooltip": "Extra clearance retained outside the trigger radius. The recommended value is 2 yalms."
+        },
+        "dynamic_replanning": {
+          "label": "Replan around moving mobs",
+          "tooltip": "Build a replacement route in the background when a mob moves into the remaining path; movement continues until it is ready."
+        },
+        "replan_cooldown_seconds": {
+          "label": "Replan cooldown (seconds)",
+          "tooltip": "Limit how often moving mobs can trigger a replacement route."
+        },
+        "draw_avoidance_path": {
+          "label": "Draw avoidance waypoints",
+          "tooltip": "Draw the corrected vnavmesh waypoints as small cyan circles for testing."
+        },
+        "max_draw_distance": {
+          "label": "Maximum draw distance",
+          "tooltip": "Only draw ordinary mobs within this distance of the player."
+        },
+        "near_boundary_distance": {
+          "label": "Boundary warning distance",
+          "tooltip": "Turn a circle orange when the player is this close to its boundary."
+        },
+        "radius_adjustment": {
+          "label": "Radius adjustment",
+          "tooltip": "Apply one correction to all trigger radii."
+        },
+        "vertical_tolerance": {
+          "label": "Maximum height difference",
+          "tooltip": "Ignore mobs beyond this vertical difference to avoid cross-floor warnings."
+        },
+        "fill_opacity": {
+          "label": "Fill opacity",
+          "tooltip": "Opacity used for the inside of range circles."
+        },
+        "outside_color": {
+          "label": "Outside color",
+          "tooltip": "Circle color while safely outside its boundary."
+        },
+        "near_color": {
+          "label": "Near-boundary color",
+          "tooltip": "Circle color while approaching its boundary."
+        },
+        "inside_color": {
+          "label": "Inside color",
+          "tooltip": "Circle color after entering the estimated trigger range."
+        }
+      }
+    }
+  }
+}

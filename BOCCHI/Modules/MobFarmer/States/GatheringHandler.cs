@@ -85,7 +85,7 @@ public class GatheringHandler(MobFarmerModule module) : FarmerPhaseHandler(modul
                 .Then(_ => path = task!.Result)
                 .BreakIf(() => path.Count <= 1)
                 .Then(_ => path.RemoveAt(0))
-                .Then(_ => vnav.FollowPath(path, false))
+                .Then(_ => BOCCHI.Pathfinding.AggroAvoidanceNavigation.FollowPath(vnav, path, false))
         );
 
         return null;

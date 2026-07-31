@@ -1,6 +1,8 @@
 ﻿using BOCCHI.Data;
+using BOCCHI.Chains;
 using ECommons.Automation.NeoTaskManager;
 using Ocelot.Chain;
+using Ocelot.Chain.ChainEx;
 
 namespace BOCCHI.Modules.Buff.Chains;
 
@@ -11,6 +13,7 @@ public class AllBuffsChain(BuffModule module) : ChainFactory
     protected override Chain Create(Chain chain)
     {
         chain
+            .BreakIf(() => !ZoneData.IsNearKnowledgeCrystal(KnowledgeCrystalApproachPolicy.MaximumCastDistance))
             .Then(new FreelancerBuffChain(module))
             .Then(new KnightBuffChain(module))
             .Then(new MonkBuffChain(module))

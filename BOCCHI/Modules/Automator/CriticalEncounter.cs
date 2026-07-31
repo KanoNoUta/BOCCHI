@@ -194,7 +194,10 @@ public class CriticalEncounter : Activity
                     IsCloseToZone(),
                     IsPathfindingInProgress()))
             {
-                if (vnav.PathfindAndMoveTo(finalDestination.Value, false))
+                if (BOCCHI.Pathfinding.AggroAvoidanceNavigation.PathfindAndMoveTo(
+                        vnav,
+                        finalDestination.Value,
+                        false))
                 {
                     module.Debug($"Pathfinding to CE final random point: {finalDestination.Value}");
                     finalDestinationSubmitted = true;
