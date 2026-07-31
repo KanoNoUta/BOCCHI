@@ -15,12 +15,12 @@
           "label": "显示宝藏搜索按钮"
         },
         "cast_treasure_sight_before_hunt": {
-          "label": "开始寻宝前使用魔寻宝",
-          "tooltip": "启动宝箱猎人时自动下坐骑、切换自由人、使用魔寻宝并恢复原辅助职"
+          "label": "首次开始寻宝时使用魔寻宝",
+          "tooltip": "本地图宝箱数量尚未初始化时，自动下坐骑、切换自由人、使用魔寻宝并恢复原辅助职；已初始化后不重复刷新"
         },
         "cast_treasure_sight_upon_return": {
-          "label": "返回时使用魔寻宝",
-          "tooltip": "在返回到起点时自动使用魔寻宝技能"
+          "label": "返回时补充初始化魔寻宝",
+          "tooltip": "仅当本地图宝箱数量尚未初始化时，在返回起点后使用一次魔寻宝；不会每次返回都刷新"
         },
         "show_percentage_active_treasure_count": {
           "label": "以百分比显示宝箱",

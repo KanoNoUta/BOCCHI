@@ -307,7 +307,7 @@ public abstract class Activity : IDisposable
                     : Vector3.Distance(target.Position, lastFateTargetPosition);
                 if (FateNavigationPolicy.ShouldRepath(IsNavigationActive(), targetMovement)
                     && EzThrottler.Throttle("Participating.FateApproach", 1000)
-                    && vnav.PathfindAndMoveTo(target.Position, false))
+                    && AggroAvoidanceNavigation.PathfindAndMoveTo(vnav, target.Position, false))
                 {
                     lastFateTargetPosition = target.Position;
                 }

@@ -26,11 +26,14 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
 
     private List<TreasureData.TreasureDatum> Treasure = [];
 
+    private uint? loadedTreasureTerritory;
+
     protected override void OnStarted()
     {
-        if (module.Config.CastTreasureSightBeforeHunt)
+        if (TreasureSightRefreshPolicy.ShouldCast(
+                module.Config.CastTreasureSightBeforeHunt,
+                module.Tracker.CountInitialised))
         {
-            module.Tracker.InvalidateCount();
             Plugin.Chain.Submit(new TreasureSightChain(module, force: true));
         }
     }
@@ -77,13 +80,24 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
 
     protected override unsafe IPathfinder CreatePathfinder()
     {
+        var territoryId = Svc.ClientState.TerritoryType;
+        if (!TreasureHuntDataPolicy.ShouldReload(
+                loadedTreasureTerritory,
+                territoryId,
+                Treasure.Count))
+        {
+            Svc.Log.Verbose(
+                $"Reusing {Treasure.Count} cached treasure nodes for territory {territoryId}.");
+            return CreateTreasurePathfinder();
+        }
+
         Treasure.Clear();
 
         // Prefer the packaged layout. ActiveLayout is streamed around the
         // player and is therefore only a partial snapshot on the much larger
         // North Horn map; using it as the route source silently omits coffers
         // that are not currently loaded.
-        var packagedTreasure = TreasureLayoutData.Read(Svc.ClientState.TerritoryType);
+        var packagedTreasure = TreasureLayoutData.Read(territoryId);
         if (packagedTreasure.Count > 0)
         {
             Treasure.AddRange(packagedTreasure.Select(node =>
@@ -91,11 +105,9 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
             Treasure = Treasure.OrderBy(node => node.Id).ToList();
             Svc.Log.Info(
                 $"Loaded {Treasure.Count} treasure nodes from packaged layout " +
-                $"for territory {Svc.ClientState.TerritoryType}.");
-            return new Pathfinder(
-                Treasure,
-                module.PluginConfig.PathfinderConfig.ReturnCost,
-                module.PluginConfig.PathfinderConfig.TeleportCost);
+                $"for territory {territoryId}.");
+            loadedTreasureTerritory = territoryId;
+            return CreateTreasurePathfinder();
         }
 
         // Keep the runtime reader as a compatibility fallback for unexpected
@@ -103,18 +115,18 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
         // better than making the hunt unavailable altogether.
         Svc.Log.Warning(
             $"Packaged treasure layout was unavailable for territory " +
-            $"{Svc.ClientState.TerritoryType}; falling back to ActiveLayout.");
+            $"{territoryId}; falling back to ActiveLayout.");
         var layout = LayoutWorld.Instance()->ActiveLayout;
         if (layout == null)
         {
             Svc.Log.Warning("No active layout");
-            return new Pathfinder(Treasure, module.PluginConfig.PathfinderConfig.ReturnCost, module.PluginConfig.PathfinderConfig.TeleportCost);
+            return CreateTreasurePathfinder();
         }
 
         if (!layout->InstancesByType.TryGetValue(InstanceType.Treasure, out var mapPtr, false))
         {
             Svc.Log.Warning("No active treasure map");
-            return new Pathfinder(Treasure, module.PluginConfig.PathfinderConfig.ReturnCost, module.PluginConfig.PathfinderConfig.TeleportCost);
+            return CreateTreasurePathfinder();
         }
 
         var treasureSheet = Svc.Data.GetExcelSheet<Lumina.Excel.Sheets.Treasure>();
@@ -146,7 +158,20 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
 
         Treasure = Treasure.OrderBy(t => t.Id).ToList();
 
-        return new Pathfinder(Treasure, module.PluginConfig.PathfinderConfig.ReturnCost, module.PluginConfig.PathfinderConfig.TeleportCost);
+        if (Treasure.Count > 0)
+        {
+            loadedTreasureTerritory = territoryId;
+        }
+
+        return CreateTreasurePathfinder();
+    }
+
+    private Pathfinder CreateTreasurePathfinder()
+    {
+        return new Pathfinder(
+            Treasure,
+            module.PluginConfig.PathfinderConfig.ReturnCost,
+            module.PluginConfig.PathfinderConfig.TeleportCost);
     }
 
     protected override Func<Chain> GetInteractionChain(
@@ -335,5 +360,13 @@ public static class TreasureInteractionPolicy
         // not block interaction or force a dismount/remount cycle per chest.
         _ = isMounted;
         return !inCombat && !isCasting;
+    }
+}
+
+public static class TreasureHuntDataPolicy
+{
+    public static bool ShouldReload(uint? loadedTerritory, uint currentTerritory, int cachedNodeCount)
+    {
+        return loadedTerritory != currentTerritory || cachedNodeCount <= 0;
     }
 }

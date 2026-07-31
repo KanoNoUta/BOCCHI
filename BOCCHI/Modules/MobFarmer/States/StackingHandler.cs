@@ -53,7 +53,7 @@ public class StackingHandler(MobFarmerModule module) : FarmerPhaseHandler(module
         }
 
         StackGoal = furthest.Position;
-        vnav.PathfindAndMoveTo(StackGoal.Value, false);
+        BOCCHI.Pathfinding.AggroAvoidanceNavigation.PathfindAndMoveTo(vnav, StackGoal.Value, false);
         HasRunStack = true;
         return null;
     }

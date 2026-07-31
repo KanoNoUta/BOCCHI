@@ -1,6 +1,7 @@
 ﻿using BOCCHI.Chains;
 using BOCCHI.Data;
 using BOCCHI.Modules.Automator;
+using BOCCHI.Pathfinding;
 using Dalamud.Game;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Plugin;
@@ -40,6 +41,8 @@ public sealed class Plugin : OcelotPlugin
         }
 
         SetupLanguage(plugin);
+
+        AggroAvoidanceNavigation.Configure(() => Config.AggroRangeConfig);
 
         OcelotInitialize(OcelotFeature.All);
 

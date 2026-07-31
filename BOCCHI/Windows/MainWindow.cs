@@ -1,5 +1,6 @@
 using BOCCHI.Data;
 using BOCCHI.Modules.Automator;
+using BOCCHI.Modules.AggroRange;
 using BOCCHI.Modules.Buff;
 using BOCCHI.Modules.Carrots;
 using BOCCHI.Modules.CriticalEncounters;
@@ -308,6 +309,15 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
                 Plugin.Modules.GetModule<ForkedTowerModule>().RenderMainUi(context);
             }, 230f);
             ImGui.EndTable();
+        }
+
+        if (territoryId == ZoneData.NORTHHORN)
+        {
+            ImGui.Spacing();
+            DrawCard($"AggroRange-{territoryId}", "普通怪仇恨范围", () =>
+            {
+                Plugin.Modules.GetModule<AggroRangeModule>().RenderMainUi(context);
+            }, 125f);
         }
     }
 

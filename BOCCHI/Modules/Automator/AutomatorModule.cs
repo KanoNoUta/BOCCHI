@@ -47,10 +47,16 @@ public class AutomatorModule : Module
 
     public override void PostUpdate(UpdateContext context)
     {
+        if (!Config.Enabled)
+        {
+            return;
+        }
+
         if (IsEnabled)
         {
             instanceRotation.PollDailyRoutinesCommandModules(this);
         }
+
         if (instanceRotation.PostUpdate(this))
         {
             return;
@@ -73,7 +79,7 @@ public class AutomatorModule : Module
         Plugin.Chain.Abort();
         if (TryGetIPCSubscriber<VNavmesh>(out var navigation) && navigation != null && navigation.IsReady())
         {
-            navigation.Stop();
+            AggroAvoidanceNavigation.Stop(navigation);
         }
         SetAiProviderEnabled(false);
         PromeRotationController.Stop();
@@ -175,7 +181,7 @@ public class AutomatorModule : Module
         {
             try
             {
-                navigation.Stop();
+                AggroAvoidanceNavigation.Stop(navigation);
             }
             catch (Exception exception)
             {

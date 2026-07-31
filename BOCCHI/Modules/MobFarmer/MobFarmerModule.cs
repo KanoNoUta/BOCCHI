@@ -58,7 +58,7 @@ public class MobFarmerModule : Module
 
         if (TryGetIPCSubscriber<VNavmesh>(out var navigation) && navigation != null && navigation.IsReady())
         {
-            navigation.Stop();
+            BOCCHI.Pathfinding.AggroAvoidanceNavigation.Stop(navigation);
         }
 
         Plugin.Chain.Abort();

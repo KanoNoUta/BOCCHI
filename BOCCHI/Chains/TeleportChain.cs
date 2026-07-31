@@ -85,7 +85,10 @@ public class TeleportChain(
             // the crystal's live position may have resolved after the initial
             // pathfind. Re-issue a path toward the best-known crystal position.
             if (now - lastRepathAt > 1500
-                && vnav.PathfindAndMoveTo(ZoneData.GetAethernetShardApproachPosition(source), false))
+                && AggroAvoidanceNavigation.PathfindAndMoveTo(
+                    vnav,
+                    ZoneData.GetAethernetShardApproachPosition(source),
+                    false))
             {
                 lastRepathAt = now;
                 sourceNavigationInactiveSince = null;

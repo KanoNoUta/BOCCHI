@@ -15,12 +15,12 @@
           "label": "Show Treasure Hunt Button"
         },
         "cast_treasure_sight_before_hunt": {
-          "label": "Cast Treasuresight before hunting",
-          "tooltip": "Unmount, switch to Freelancer, cast Treasuresight, and restore the previous support job when Treasure Hunter starts"
+          "label": "Cast Treasuresight on the first hunt",
+          "tooltip": "When this territory's coffer count is not initialized, unmount, switch to Freelancer, cast Treasuresight, and restore the previous support job; later starts reuse the tracked count"
         },
         "cast_treasure_sight_upon_return": {
-          "label": "Cast Treasuresight after returning",
-          "tooltip": "Cast Treasuresight to update the active chest count upon returning to basecamp after a fate/ce"
+          "label": "Initialize Treasuresight after returning",
+          "tooltip": "Cast Treasuresight after returning only when this territory's coffer count is not initialized; it is not recast on every return"
         },
         "show_percentage_active_treasure_count": {
           "label": "Show active treasure as percentage",

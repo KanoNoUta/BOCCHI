@@ -1,5 +1,7 @@
 ﻿using BOCCHI.Data;
 using BOCCHI.Modules.Buff.Chains;
+using BOCCHI.Chains;
+using ECommons.DalamudServices;
 using ECommons.GameHelpers;
 using Ocelot.Chain;
 using System.Collections.Generic;
@@ -37,6 +39,12 @@ public class BuffManager
 
     public void ApplyBuffs(BuffModule module)
     {
+        if (!ZoneData.IsNearKnowledgeCrystal(KnowledgeCrystalApproachPolicy.MaximumCastDistance))
+        {
+            Svc.Log.Warning("Buff request ignored because the player is outside knowledge-crystal range.");
+            return;
+        }
+
         var manager = ChainManager.Get("OCH##BuffManager");
         if (manager.IsRunning)
         {

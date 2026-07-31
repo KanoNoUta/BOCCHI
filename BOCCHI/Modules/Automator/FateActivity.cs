@@ -136,7 +136,7 @@ public class FateActivity(EventData data, Lifestream lifestream, VNavmesh vnav, 
                         IsNavigationActive(),
                         Vector3.Distance(target.Position, lastTargetPos))
                     && EzThrottler.Throttle("FatePathfindingWatcher.Repath", 1000)
-                    && vnav.PathfindAndMoveTo(target.Position, false))
+                    && BOCCHI.Pathfinding.AggroAvoidanceNavigation.PathfindAndMoveTo(vnav, target.Position, false))
                 {
                     lastTargetPos = target.Position;
                 }
@@ -149,7 +149,7 @@ public class FateActivity(EventData data, Lifestream lifestream, VNavmesh vnav, 
                 // activity route; never substitute an unrelated aggro target.
                 if (!IsNavigationActive()
                     && EzThrottler.Throttle("FatePathfindingWatcher.ResumeActivityRoute", 1000)
-                    && vnav.PathfindAndMoveTo(GetPosition(), false))
+                    && BOCCHI.Pathfinding.AggroAvoidanceNavigation.PathfindAndMoveTo(vnav, GetPosition(), false))
                 {
                     lastTargetPos = Vector3.Zero;
                     followingActivityTarget = false;

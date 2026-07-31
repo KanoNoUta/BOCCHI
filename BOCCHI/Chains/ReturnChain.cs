@@ -112,17 +112,23 @@ public class ReturnChain(TeleporterModule module, ReturnChainConfig config) : Ch
                     vnav.Stop();
                 },
             }));
-            chain.Then(_ =>
+            // A navigation stop is an expected outcome when the user presses
+            // emergency stop. End the return chain as unsuccessful without
+            // throwing from a stale nested chain after its parent was aborted.
+            chain.BreakIf(() =>
             {
-                if (!ZoneData.IsNearAethernetShard(
+                if (ZoneData.IsNearAethernetShard(
                         ZoneData.GetBaseCampAethernet(),
                         AethernetData.DISTANCE + 1f))
                 {
-                    vnav.Stop();
-                    throw new InvalidOperationException(
-                        FailureReason ?? "Return did not reach the base-camp aethernet.");
+                    return false;
                 }
 
+                AggroAvoidanceNavigation.Stop(vnav);
+                return true;
+            });
+            chain.Then(_ =>
+            {
                 Svc.Targets.Target = Svc.Objects.FirstOrDefault(
                     o => o.BaseId == AethernetData.GetClosestToPlayer().BaseId);
             });
@@ -263,14 +269,93 @@ public class ReturnChain(TeleporterModule module, ReturnChainConfig config) : Ch
         var buffs = module.GetModule<BuffModule>();
 
         var closestKnowledgeCrystal = ZoneData.GetNearbyKnowledgeCrystal(60f).FirstOrDefault();
+        var crystalPosition = closestKnowledgeCrystal?.Position ?? default;
+        var approachPosition = default(Vector3);
+        var approachStartedAt = 0L;
+        long? navigationInactiveSince = null;
 
         var chain = Chain.Create();
         chain.BreakIf(() => !buffs.ShouldRefreshBuffs() || !vnav.IsReady() || closestKnowledgeCrystal == null);
         chain.Then(_ => Actions.TryUnmount());
 
-        chain.Then(PathfindAndMoveToChain.RandomNearby(vnav, closestKnowledgeCrystal!.Position, 3));
-        chain.WaitUntilNear(vnav, closestKnowledgeCrystal!.Position, 3);
-        chain.Then(_ => vnav.Stop());
+        chain.Then(_ =>
+        {
+            approachPosition = KnowledgeCrystalApproachPolicy.GetDesiredApproachPosition(
+                Player.Position,
+                crystalPosition);
+            var projected = vnav.FindPointOnFloor(approachPosition, false, 1.5f);
+            if (projected.HasValue
+                && KnowledgeCrystalApproachPolicy.IsWithin(projected.Value, crystalPosition, 2.5f))
+            {
+                approachPosition = projected.Value;
+            }
+
+            approachStartedAt = Environment.TickCount64;
+            navigationInactiveSince = null;
+            AggroAvoidanceNavigation.PathfindAndMoveTo(vnav, approachPosition, false);
+            Svc.Log.Info(
+                $"Approaching knowledge crystal for buffs: "
+                + $"distance={Vector3.Distance(Player.Position, crystalPosition):F2}, "
+                + $"destination={approachPosition}.");
+        });
+        chain.Then(new TaskManagerTask(() =>
+        {
+            if (KnowledgeCrystalApproachPolicy.HasArrived(Player.Position, crystalPosition))
+            {
+                return true;
+            }
+
+            var now = Environment.TickCount64;
+            var navigationActive = vnav.IsRunning()
+                                   || vnav.IsSimpleMoveInProgress()
+                                   || vnav.IsPathfinding();
+            navigationInactiveSince = NavigationStopPolicy.UpdateInactiveSince(
+                navigationActive,
+                now,
+                navigationInactiveSince);
+            if (!NavigationStopPolicy.HasStopped(
+                    approachStartedAt,
+                    navigationInactiveSince,
+                    now))
+            {
+                return false;
+            }
+
+            var distance = Vector3.Distance(Player.Position, crystalPosition);
+            FailureReason =
+                $"vnavmesh stopped {distance:F2}y from the knowledge crystal; "
+                + $"buffs require <= {KnowledgeCrystalApproachPolicy.ArrivalDistance:F1}y.";
+            Svc.Log.Warning(FailureReason);
+            throw new InvalidOperationException(FailureReason);
+        }, new TaskManagerConfiguration
+        {
+            TimeLimitMS = 60000,
+            AbortOnTimeout = true,
+            ShowError = false,
+            OnTaskTimeout = (TaskManagerTask _, ref long _) =>
+            {
+                var distance = Vector3.Distance(Player.Position, crystalPosition);
+                FailureReason =
+                    $"Timed out approaching the knowledge crystal "
+                    + $"(distance={distance:F2}, required<={KnowledgeCrystalApproachPolicy.ArrivalDistance:F1}).";
+                vnav.Stop();
+            },
+        }));
+        chain.Then(_ =>
+        {
+            vnav.Stop();
+            var distance = Vector3.Distance(Player.Position, crystalPosition);
+            if (!KnowledgeCrystalApproachPolicy.HasArrived(Player.Position, crystalPosition)
+                || !ZoneData.IsNearKnowledgeCrystal(KnowledgeCrystalApproachPolicy.MaximumCastDistance))
+            {
+                FailureReason =
+                    $"Knowledge-crystal arrival validation failed before buffs "
+                    + $"(distance={distance:F2}).";
+                throw new InvalidOperationException(FailureReason);
+            }
+
+            Svc.Log.Info($"Knowledge crystal arrival confirmed for buffs: distance={distance:F2}.");
+        });
 
         chain.Then(new AllBuffsChain(buffs));
 

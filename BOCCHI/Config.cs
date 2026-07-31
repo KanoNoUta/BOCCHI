@@ -1,5 +1,6 @@
 ﻿using BOCCHI.Modules.Automator;
 using BOCCHI.Modules.Buff;
+using BOCCHI.Modules.AggroRange;
 using BOCCHI.Data;
 using BOCCHI.Modules.Carrots;
 using BOCCHI.Modules.CriticalEncounters;
@@ -57,6 +58,8 @@ public class Config : IOcelotConfig
 
     public BuffConfig BuffConfig { get; set; } = new();
 
+    public AggroRangeConfig AggroRangeConfig { get; set; } = new();
+
     // Trackers
     public CurrencyConfig CurrencyConfig { get; set; } = new();
 
@@ -88,6 +91,8 @@ public class Config : IOcelotConfig
         }
 
         MobFarmerConfig ??= new MobFarmerConfig();
+        AggroRangeConfig ??= new AggroRangeConfig();
+        AggroRangeConfig.Calibrations ??= [];
         MobFarmerConfig.Mobs ??= [];
         MobFarmerConfig.SouthHornMobs ??= [];
         MobFarmerConfig.NorthHornMobs ??= [];
