@@ -1,8 +1,13 @@
+using BOCCHI.Data;
+using Dalamud.Game.ClientState.Conditions;
+using ECommons.DalamudServices;
+using ECommons.GameHelpers;
 using Ocelot;
 using Ocelot.Chain;
 using Ocelot.IPC;
 using Ocelot.Modules;
 using Ocelot.Windows;
+using System;
 
 namespace BOCCHI.Modules.MobFarmer;
 
@@ -25,6 +30,10 @@ public class MobFarmerModule : Module
 
     public readonly Farmer Farmer;
 
+    private Job? pendingTreasureFindingJobRestore;
+
+    private long nextTreasureFindingJobRestoreAt;
+
     public MobFarmerModule(Plugin plugin, Config config)
         : base(plugin, config)
     {
@@ -34,6 +43,7 @@ public class MobFarmerModule : Module
 
     public override void Update(UpdateContext context)
     {
+        TryRestoreTreasureFindingJob();
         Scanner.Tick(context.Framework);
         Farmer.Update(context.ForModule(this));
     }
@@ -51,6 +61,9 @@ public class MobFarmerModule : Module
 
     public override void OnTerritoryChanged(uint id)
     {
+        pendingTreasureFindingJobRestore = null;
+        nextTreasureFindingJobRestoreAt = 0;
+
         if (!Farmer.Running)
         {
             return;
@@ -66,8 +79,64 @@ public class MobFarmerModule : Module
         Farmer.DisableFarmerMode();
     }
 
+    public void QueueTreasureFindingJobRestore(Job startingJob)
+    {
+        if (startingJob.id == BOCCHI.Enums.JobId.Freelancer)
+        {
+            return;
+        }
+
+        pendingTreasureFindingJobRestore = startingJob;
+        nextTreasureFindingJobRestoreAt = 0;
+    }
+
+    private void TryRestoreTreasureFindingJob()
+    {
+        var restoreJob = pendingTreasureFindingJobRestore;
+        if (restoreJob == null
+            || Svc.Condition[ConditionFlag.InCombat]
+            || Svc.Condition[ConditionFlag.BetweenAreas]
+            || Svc.Condition[ConditionFlag.BetweenAreas51]
+            || Player.IsCasting)
+        {
+            return;
+        }
+
+        var currentJob = Job.Current;
+        if (currentJob.id == restoreJob.id)
+        {
+            ClearPendingTreasureFindingJobRestore();
+            return;
+        }
+
+        // The fallback owns only the temporary Freelancer state created by
+        // Treasuresight. Never overwrite a support-job change made by the user.
+        if (currentJob.id != BOCCHI.Enums.JobId.Freelancer)
+        {
+            ClearPendingTreasureFindingJobRestore();
+            return;
+        }
+
+        var now = Environment.TickCount64;
+        if (now < nextTreasureFindingJobRestoreAt)
+        {
+            return;
+        }
+
+        restoreJob.ChangeTo();
+        nextTreasureFindingJobRestoreAt = now + 1000;
+        Svc.Log.Info($"Restoring support job {restoreJob.id} after mob-farmer Treasuresight.");
+    }
+
+    private void ClearPendingTreasureFindingJobRestore()
+    {
+        pendingTreasureFindingJobRestore = null;
+        nextTreasureFindingJobRestoreAt = 0;
+    }
+
     public override void Dispose()
     {
+        ClearPendingTreasureFindingJobRestore();
         Farmer.Dispose();
     }
 }

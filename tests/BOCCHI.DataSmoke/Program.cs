@@ -1281,17 +1281,12 @@ finally
     Directory.Delete(atomicDirectory, true);
 }
 
-var requiredVnavmeshVersion = new Version(0, 7, 6, 0);
-Assert(VnavmeshVersionPolicy.RequiredVersion == requiredVnavmeshVersion,
-    "Automator must pin the verified North Horn LAYERS vnavmesh build exactly.");
-Assert(VnavmeshVersionPolicy.Evaluate(true, true, requiredVnavmeshVersion).IsCompatible,
-    "The exact verified vnavmesh build must be accepted.");
-Assert(!VnavmeshVersionPolicy.Evaluate(true, true, new Version(0, 7, 6)).IsCompatible
-       && !VnavmeshVersionPolicy.Evaluate(true, true, new Version(0, 7, 6, 1)).IsCompatible
-       && !VnavmeshVersionPolicy.Evaluate(true, true, new Version(0, 7, 7, 0)).IsCompatible,
-    "vnavmesh validation must be exact, including the revision component.");
-Assert(VnavmeshVersionPolicy.Evaluate(false, false, null).Status == VnavmeshVersionStatus.Missing
-       && VnavmeshVersionPolicy.Evaluate(true, false, requiredVnavmeshVersion).Status == VnavmeshVersionStatus.NotLoaded,
-    "Missing and unloaded vnavmesh installations must fail closed.");
+Assert(VnavmeshAvailabilityPolicy.Evaluate(true, true, new Version(0, 7, 6, 0)).IsAvailable
+       && VnavmeshAvailabilityPolicy.Evaluate(true, true, new Version(0, 7, 7, 0)).IsAvailable
+       && VnavmeshAvailabilityPolicy.Evaluate(true, true, null).IsAvailable,
+    "Every loaded vnavmesh version must be accepted without an exact-version gate.");
+Assert(VnavmeshAvailabilityPolicy.Evaluate(false, false, null).Status == VnavmeshAvailabilityStatus.Missing
+       && VnavmeshAvailabilityPolicy.Evaluate(true, false, new Version(0, 7, 7, 0)).Status == VnavmeshAvailabilityStatus.NotLoaded,
+    "Missing and unloaded vnavmesh installations must still be reported.");
 
-Console.WriteLine("BOCCHI 7.55 North Horn data, lifecycle, config, translation, routing, precompute, and vnavmesh version smoke tests passed.");
+Console.WriteLine("BOCCHI 7.55 North Horn data, lifecycle, config, translation, routing, precompute, and vnavmesh availability smoke tests passed.");

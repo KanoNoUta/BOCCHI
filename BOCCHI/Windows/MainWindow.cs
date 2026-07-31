@@ -234,12 +234,14 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
         DrawKeyValue("当前目标", activityName);
         DrawKeyValue("目标阶段", activityState);
 
-        var version = automator.GetVnavmeshVersionCheck();
+        var vnavmesh = automator.GetVnavmeshAvailability();
         DrawKeyValue(
             "vnavmesh",
-            version.IsCompatible
-                ? $"{version.ActualVersion}（可用）"
-                : $"{version.ActualVersion?.ToString() ?? "未加载"}（需要 {Pathfinding.VnavmeshVersionPolicy.RequiredVersion}）");
+            vnavmesh.IsAvailable
+                ? $"{vnavmesh.DisplayVersion?.ToString() ?? "版本未知"}（可用）"
+                : vnavmesh.Status == Pathfinding.VnavmeshAvailabilityStatus.Missing
+                    ? "未安装"
+                    : "未加载");
     }
 
     private void DrawIsland(

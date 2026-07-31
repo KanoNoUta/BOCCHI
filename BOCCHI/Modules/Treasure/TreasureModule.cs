@@ -2,6 +2,11 @@
 using Ocelot.Windows;
 using System.Collections.Generic;
 using System.Numerics;
+using BOCCHI.Data;
+using Dalamud.Game.ClientState.Conditions;
+using ECommons.DalamudServices;
+using ECommons.GameHelpers;
+using System;
 
 namespace BOCCHI.Modules.Treasure;
 
@@ -33,6 +38,10 @@ public class TreasureModule(Plugin _plugin, Config config) : Module(_plugin, con
 
     private TreasureHunt hunter = null!;
 
+    private Job? pendingTreasureSightJobRestore;
+
+    private long nextTreasureSightJobRestoreAt;
+
     public List<Treasure> Treasures
     {
         get => Tracker.Treasures;
@@ -52,6 +61,7 @@ public class TreasureModule(Plugin _plugin, Config config) : Module(_plugin, con
         Tracker.Tick(Plugin);
         if (BOCCHI.Data.ZoneData.IsInOccultCrescent())
         {
+            TryRestoreTreasureSightJob();
             hunter.Update();
         }
     }
@@ -77,6 +87,62 @@ public class TreasureModule(Plugin _plugin, Config config) : Module(_plugin, con
     {
         StopHunt();
         Tracker.Reset();
+        if (!ZoneData.IsOccultCrescentTerritory(id))
+        {
+            pendingTreasureSightJobRestore = null;
+            nextTreasureSightJobRestoreAt = 0;
+        }
+    }
+
+    public void QueueTreasureSightJobRestore(Job startingJob)
+    {
+        if (startingJob.id == BOCCHI.Enums.JobId.Freelancer)
+        {
+            return;
+        }
+
+        pendingTreasureSightJobRestore = startingJob;
+        nextTreasureSightJobRestoreAt = 0;
+    }
+
+    private void TryRestoreTreasureSightJob()
+    {
+        var restoreJob = pendingTreasureSightJobRestore;
+        if (restoreJob == null
+            || Svc.Condition[ConditionFlag.InCombat]
+            || Svc.Condition[ConditionFlag.BetweenAreas]
+            || Svc.Condition[ConditionFlag.BetweenAreas51]
+            || Player.IsCasting)
+        {
+            return;
+        }
+
+        var currentJob = Job.Current;
+        if (currentJob.id == restoreJob.id)
+        {
+            pendingTreasureSightJobRestore = null;
+            nextTreasureSightJobRestoreAt = 0;
+            return;
+        }
+
+        // Do not overwrite a deliberate manual job change. The fallback owns
+        // only the temporary Freelancer state created by Treasuresight.
+        if (currentJob.id != BOCCHI.Enums.JobId.Freelancer)
+        {
+            pendingTreasureSightJobRestore = null;
+            nextTreasureSightJobRestoreAt = 0;
+            return;
+        }
+
+        var now = Environment.TickCount64;
+        if (now < nextTreasureSightJobRestoreAt)
+        {
+            return;
+        }
+
+        restoreJob.ChangeTo();
+        nextTreasureSightJobRestoreAt = now + 1000;
+        Svc.Log.Info($"Restoring support job {restoreJob.id} after Treasuresight.");
     }
 
     public void StopHunt()
@@ -87,6 +153,7 @@ public class TreasureModule(Plugin _plugin, Config config) : Module(_plugin, con
     public override void Dispose()
     {
         StopHunt();
+        pendingTreasureSightJobRestore = null;
         Tracker.Dispose();
         base.Dispose();
     }

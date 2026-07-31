@@ -54,7 +54,7 @@ public class AutomatorModule : Module
             return;
         }
 
-        if (!EnsureCompatibleVnavmesh())
+        if (!EnsureVnavmeshAvailable())
         {
             return;
         }
@@ -123,8 +123,8 @@ public class AutomatorModule : Module
 
     public void EnableIllegalMode()
     {
-        var vnavmesh = GetVnavmeshVersionCheck();
-        if (!vnavmesh.IsCompatible)
+        var vnavmesh = GetVnavmeshAvailability();
+        if (!vnavmesh.IsAvailable)
         {
             Config.Enabled = false;
             PluginConfig.Save();
@@ -220,21 +220,21 @@ public class AutomatorModule : Module
         }
     }
 
-    public VnavmeshVersionCheck GetVnavmeshVersionCheck()
+    public VnavmeshAvailabilityCheck GetVnavmeshAvailability()
     {
         var plugin = Svc.PluginInterface.InstalledPlugins.FirstOrDefault(p =>
-            string.Equals(p.InternalName, VnavmeshVersionPolicy.PluginInternalName, StringComparison.OrdinalIgnoreCase));
+            string.Equals(p.InternalName, VnavmeshAvailabilityPolicy.PluginInternalName, StringComparison.OrdinalIgnoreCase));
 
-        return VnavmeshVersionPolicy.Evaluate(
+        return VnavmeshAvailabilityPolicy.Evaluate(
             plugin != null,
             plugin?.IsLoaded == true,
             plugin?.Version);
     }
 
-    private bool EnsureCompatibleVnavmesh()
+    private bool EnsureVnavmeshAvailable()
     {
-        var check = GetVnavmeshVersionCheck();
-        if (check.IsCompatible)
+        var check = GetVnavmeshAvailability();
+        if (check.IsAvailable)
         {
             vnavmeshFailureReported = false;
             return true;
@@ -262,7 +262,7 @@ public class AutomatorModule : Module
         return false;
     }
 
-    private void ReportVnavmeshFailure(VnavmeshVersionCheck check)
+    private void ReportVnavmeshFailure(VnavmeshAvailabilityCheck check)
     {
         if (vnavmeshFailureReported)
         {
@@ -271,12 +271,11 @@ public class AutomatorModule : Module
 
         var reason = check.Status switch
         {
-            VnavmeshVersionStatus.Missing => "未安装 vnavmesh",
-            VnavmeshVersionStatus.NotLoaded => "vnavmesh 未加载",
-            VnavmeshVersionStatus.VersionMismatch => $"当前版本为 {check.ActualVersion?.ToString() ?? "未知"}",
+            VnavmeshAvailabilityStatus.Missing => "未安装 vnavmesh",
+            VnavmeshAvailabilityStatus.NotLoaded => "vnavmesh 未加载",
             _ => "vnavmesh 状态未知",
         };
-        var message = $"自动化已停用：{reason}，必须精确使用 vnavmesh {VnavmeshVersionPolicy.RequiredVersion}。";
+        var message = $"自动化已停用：{reason}。";
         Svc.Log.Warning(message);
         Svc.Chat.PrintError(message);
         vnavmeshFailureReported = true;

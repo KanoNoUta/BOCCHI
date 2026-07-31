@@ -27,18 +27,27 @@ public static class AggroAvoidanceNavigation
         CancellationTokenSource Cancellation,
         Task<PlannedRoute> Task,
         bool Dynamic,
-        bool PreserveTopology);
+        bool PreserveTopology,
+        List<Vector3> FallbackPath);
 
     private sealed record ActiveRoute(
         VNavmesh Vnav,
         Vector3 Destination,
         bool Fly,
         long SubmittedAt,
-        bool PreserveTopology);
+        bool PreserveTopology,
+        bool Avoided,
+        List<Vector3>? FallbackPath,
+        Vector3 LastProgressPosition,
+        long LastProgressAt);
 
     private const float SameDestinationDistanceSquared = 1f;
     private const long NavigationStartGraceMs = 2500;
     private const long FailedDetourRetryBackoffMs = 5000;
+    private const long BlockedCorridorSuppressionMs = 30000;
+    private const long AvoidedRouteStallTimeoutMs = 6000;
+    private const float AvoidedRouteProgressDistanceSquared = 1f;
+    private const float MaximumProjectionDisplacementSquared = 6.25f;
 
     private static Func<AggroRangeConfig>? configProvider;
     private static PendingRoute? pending;
@@ -46,6 +55,8 @@ public static class AggroAvoidanceNavigation
     private static List<Vector3> debugPath = [];
     private static long lastReplanAt;
     private static long retrySuppressedUntil;
+    private static Vector3? avoidanceSuppressedDestination;
+    private static long avoidanceSuppressedUntil;
 
     public static IReadOnlyList<Vector3> DebugPath => debugPath;
 
@@ -68,7 +79,8 @@ public static class AggroAvoidanceNavigation
         }
 
         PumpCompletedPlan();
-
+        var now = Environment.TickCount64;
+        ClearSuppressionForDifferentDestination(destination, now);
         if (pending is { } currentPending
             && IsSameDestination(currentPending.Destination, destination))
         {
@@ -78,9 +90,32 @@ public static class AggroAvoidanceNavigation
         if (active is { } currentActive
             && IsSameDestination(currentActive.Destination, destination)
             && (IsNavigationActive(vnav)
-                || Environment.TickCount64 - currentActive.SubmittedAt < NavigationStartGraceMs))
+                || now - currentActive.SubmittedAt < NavigationStartGraceMs))
         {
             return true;
+        }
+
+        if (IsAvoidanceSuppressed(destination, now))
+        {
+            CancelPending();
+            var acceptedWithoutAvoidance = vnav.PathfindAndMoveTo(destination, fly);
+            if (acceptedWithoutAvoidance)
+            {
+                var position = Svc.Objects.LocalPlayer?.Position ?? destination;
+                active = new ActiveRoute(
+                    vnav,
+                    destination,
+                    fly,
+                    now,
+                    true,
+                    false,
+                    null,
+                    position,
+                    now);
+                debugPath = [];
+            }
+
+            return acceptedWithoutAvoidance;
         }
 
         CancelPending();
@@ -92,7 +127,17 @@ public static class AggroAvoidanceNavigation
         var accepted = vnav.PathfindAndMoveTo(destination, fly);
         if (accepted)
         {
-            active = new ActiveRoute(vnav, destination, fly, Environment.TickCount64, true);
+            var position = Svc.Objects.LocalPlayer?.Position ?? destination;
+            active = new ActiveRoute(
+                vnav,
+                destination,
+                fly,
+                now,
+                true,
+                false,
+                null,
+                position,
+                now);
             debugPath = [];
             retrySuppressedUntil = 0;
         }
@@ -112,8 +157,13 @@ public static class AggroAvoidanceNavigation
         }
 
         var config = configProvider?.Invoke();
+        var now = Environment.TickCount64;
+        ClearSuppressionForDifferentDestination(route[^1], now);
         var finalPath = route.ToList();
-        if (ShouldAvoid(config) && Svc.Objects.LocalPlayer is { } player)
+        var avoidedApplied = false;
+        if (ShouldAvoid(config)
+            && !IsAvoidanceSuppressed(route[^1], now)
+            && Svc.Objects.LocalPlayer is { } player)
         {
             var zones = AggroDangerZoneProvider.Capture(config!);
             var source = new List<Vector3>(route.Count + 1) { player.Position };
@@ -126,18 +176,30 @@ public static class AggroAvoidanceNavigation
                     out var avoided))
             {
                 finalPath = RemoveCurrentPosition(avoided, player.Position);
+                avoidedApplied = !PathsEquivalent(source, avoided);
                 retrySuppressedUntil = 0;
             }
             else
             {
                 retrySuppressedUntil = Environment.TickCount64 + FailedDetourRetryBackoffMs;
+                SuppressAvoidance(route[^1], BlockedCorridorSuppressionMs);
                 Svc.Log.Warning("Aggro avoidance could not safely modify the verified route; keeping its original waypoints.");
             }
         }
 
         CancelPending();
         vnav.FollowPath(finalPath, fly);
-        active = new ActiveRoute(vnav, route[^1], fly, Environment.TickCount64, true);
+        var playerPosition = Svc.Objects.LocalPlayer?.Position ?? route[0];
+        active = new ActiveRoute(
+            vnav,
+            route[^1],
+            fly,
+            now,
+            true,
+            avoidedApplied,
+            avoidedApplied ? route.ToList() : null,
+            playerPosition,
+            now);
         debugPath = finalPath;
     }
 
@@ -159,7 +221,16 @@ public static class AggroAvoidanceNavigation
             return;
         }
 
-        if (!IsNavigationActive(current.Vnav))
+        var now = Environment.TickCount64;
+        var navigationActive = IsNavigationActive(current.Vnav);
+        if (navigationActive
+            && Svc.Objects.LocalPlayer is { } currentPlayer
+            && RecoverStalledAvoidance(current, currentPlayer.Position, now))
+        {
+            return;
+        }
+
+        if (!navigationActive)
         {
             if (pending == null && Environment.TickCount64 - current.SubmittedAt >= NavigationStartGraceMs)
             {
@@ -175,10 +246,10 @@ public static class AggroAvoidanceNavigation
             return;
         }
 
-        var now = Environment.TickCount64;
         var cooldownMs = (long)(Math.Max(0.5f, config.ReplanCooldownSeconds) * 1000f);
         if (now - lastReplanAt < cooldownMs
             || now < retrySuppressedUntil
+            || IsAvoidanceSuppressed(current.Destination, now)
             || Svc.Objects.LocalPlayer is not { } player)
         {
             return;
@@ -221,6 +292,8 @@ public static class AggroAvoidanceNavigation
         active = null;
         debugPath = [];
         retrySuppressedUntil = 0;
+        avoidanceSuppressedDestination = null;
+        avoidanceSuppressedUntil = 0;
         if (vnav == null)
         {
             return;
@@ -273,7 +346,15 @@ public static class AggroAvoidanceNavigation
             }
         }, cancellation.Token);
 
-        pending = new PendingRoute(vnav, destination, fly, cancellation, task, true, true);
+        pending = new PendingRoute(
+            vnav,
+            destination,
+            fly,
+            cancellation,
+            task,
+            true,
+            true,
+            remainingPath.ToList());
         lastReplanAt = Environment.TickCount64;
     }
 
@@ -296,9 +377,11 @@ public static class AggroAvoidanceNavigation
             if (result.Path.Count < 2)
             {
                 retrySuppressedUntil = Environment.TickCount64 + FailedDetourRetryBackoffMs;
+                SuppressAvoidance(completed.Destination, BlockedCorridorSuppressionMs);
                 Svc.Log.Warning(
                     $"Dynamic aggro avoidance could not modify the preserved route " +
-                    $"({result.Failure ?? "unknown"}); keeping the route already in progress.");
+                    $"({result.Failure ?? "unknown"}); the corridor is treated as blocked and " +
+                    $"the original vnavmesh route is kept temporarily.");
                 return;
             }
 
@@ -329,12 +412,17 @@ public static class AggroAvoidanceNavigation
             }
 
             completed.Vnav.FollowPath(route, completed.Fly);
+            var now = Environment.TickCount64;
             active = new ActiveRoute(
                 completed.Vnav,
                 completed.Destination,
                 completed.Fly,
-                Environment.TickCount64,
-                completed.PreserveTopology);
+                now,
+                completed.PreserveTopology,
+                true,
+                completed.FallbackPath,
+                playerPosition,
+                now);
             debugPath = route;
             retrySuppressedUntil = 0;
             if (result.Avoided)
@@ -362,7 +450,18 @@ public static class AggroAvoidanceNavigation
     {
         try
         {
-            return vnav.FindNearestPointOnMesh(point, 4f, 8f);
+            var projected = vnav.FindNearestPointOnMesh(point, 4f, 8f);
+            if (projected == null
+                || DistanceSquaredXZ(projected.Value, point) > MaximumProjectionDisplacementSquared)
+            {
+                // A large sideways projection normally means the requested arc
+                // is on the other side of a wall. Accepting it creates a direct
+                // FollowPath segment through that wall and leaves the player
+                // permanently pushing against collision.
+                return null;
+            }
+
+            return projected;
         }
         catch (Exception exception)
         {
@@ -419,6 +518,146 @@ public static class AggroAvoidanceNavigation
         }
 
         return result;
+    }
+
+    private static bool RecoverStalledAvoidance(
+        ActiveRoute current,
+        Vector3 playerPosition,
+        long now)
+    {
+        if (!current.Avoided)
+        {
+            return false;
+        }
+
+        if (DistanceSquaredXZ(playerPosition, current.LastProgressPosition)
+            >= AvoidedRouteProgressDistanceSquared)
+        {
+            active = current with
+            {
+                LastProgressPosition = playerPosition,
+                LastProgressAt = now,
+            };
+            return false;
+        }
+
+        if (now - current.LastProgressAt < AvoidedRouteStallTimeoutMs)
+        {
+            return false;
+        }
+
+        CancelPending();
+        SuppressAvoidance(current.Destination, BlockedCorridorSuppressionMs);
+        var fallback = PrepareFallbackPath(current.FallbackPath, playerPosition);
+
+        try
+        {
+            if (fallback.Count > 0)
+            {
+                current.Vnav.FollowPath(fallback, current.Fly);
+            }
+            else
+            {
+                current.Vnav.Stop();
+                current.Vnav.PathfindAndMoveTo(current.Destination, current.Fly);
+            }
+
+            active = new ActiveRoute(
+                current.Vnav,
+                current.Destination,
+                current.Fly,
+                now,
+                current.PreserveTopology,
+                false,
+                null,
+                playerPosition,
+                now);
+            debugPath = fallback;
+            // IsAvoidanceSuppressed already protects this destination. Keep
+            // the generic retry timer clear so a new destination can plan
+            // immediately instead of inheriting this corridor's 30s block.
+            retrySuppressedUntil = 0;
+            Svc.Log.Warning(
+                "Avoided route made no movement progress and was probably pushing into a wall; " +
+                "restored the original vnavmesh route and temporarily ignored monster avoidance " +
+                "for this destination.");
+        }
+        catch (Exception exception)
+        {
+            active = current with { LastProgressAt = now };
+            Svc.Log.Warning(exception, "Could not restore the original route after an avoided-route stall.");
+        }
+
+        return true;
+    }
+
+    private static List<Vector3> PrepareFallbackPath(
+        IReadOnlyList<Vector3>? fallbackPath,
+        Vector3 playerPosition)
+    {
+        if (fallbackPath == null || fallbackPath.Count == 0)
+        {
+            return [];
+        }
+
+        var result = fallbackPath.ToList();
+        while (result.Count > 1
+               && DistanceSquaredXZ(playerPosition, result[1]) + 0.25f
+               < DistanceSquaredXZ(playerPosition, result[0]))
+        {
+            result.RemoveAt(0);
+        }
+
+        while (result.Count > 1
+               && DistanceSquaredXZ(playerPosition, result[0]) <= 1f)
+        {
+            result.RemoveAt(0);
+        }
+
+        return result;
+    }
+
+    private static void SuppressAvoidance(Vector3 destination, long durationMs)
+    {
+        avoidanceSuppressedDestination = destination;
+        avoidanceSuppressedUntil = Math.Max(
+            avoidanceSuppressedUntil,
+            Environment.TickCount64 + Math.Max(0, durationMs));
+    }
+
+    private static bool IsAvoidanceSuppressed(Vector3 destination, long now)
+    {
+        if (avoidanceSuppressedDestination is not { } suppressed
+            || now >= avoidanceSuppressedUntil)
+        {
+            if (now >= avoidanceSuppressedUntil)
+            {
+                avoidanceSuppressedDestination = null;
+                avoidanceSuppressedUntil = 0;
+            }
+
+            return false;
+        }
+
+        return IsSameDestination(suppressed, destination);
+    }
+
+    private static void ClearSuppressionForDifferentDestination(Vector3 destination, long now)
+    {
+        if (avoidanceSuppressedDestination is not { } suppressed
+            || now >= avoidanceSuppressedUntil
+            || !IsSameDestination(suppressed, destination))
+        {
+            avoidanceSuppressedDestination = null;
+            avoidanceSuppressedUntil = 0;
+        }
+    }
+
+    private static float DistanceSquaredXZ(Vector3 left, Vector3 right)
+    {
+        var x = left.X - right.X;
+        var z = left.Z - right.Z;
+        return x * x + z * z;
     }
 
     private static bool PathsEquivalent(IReadOnlyList<Vector3> left, IReadOnlyList<Vector3> right)
