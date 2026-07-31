@@ -889,11 +889,13 @@ Assert(northFateIds.All(id => !automatorConfig.FatesMap[id]),
 Assert(northCriticalEncounterIds.All(id => !automatorConfig.CriticalEncountersMap[id]),
     "The master CE switch must suppress all North Horn CE settings.");
 
-Assert(!automatorConfig.AutoRotateInstance && automatorConfig.InstanceStayMinutes == 90f
+Assert(automatorConfig.InitialInstanceArea == InstanceEntryArea.NorthHorn
+       && !automatorConfig.AutoRotateInstance && automatorConfig.InstanceStayMinutes == 90f
        && !automatorConfig.RotateWhenPopulationLow && automatorConfig.MinimumInstancePopulation == 10,
     "Unattended instance rotation must remain opt-in with conservative defaults.");
 foreach (var propertyName in new[]
          {
+             nameof(AutomatorConfig.InitialInstanceArea),
              nameof(AutomatorConfig.AutoRotateInstance), nameof(AutomatorConfig.InstanceStayMinutes),
              nameof(AutomatorConfig.RotateWhenPopulationLow), nameof(AutomatorConfig.MinimumInstancePopulation),
          })
@@ -903,11 +905,69 @@ foreach (var propertyName in new[]
 }
 
 var rotationStart = new DateTimeOffset(2026, 7, 30, 0, 0, 0, TimeSpan.Zero);
+var initialNorthEntry = new InstanceRotationStateMachine();
+Assert(initialNorthEntry.BeginEntryFromOutside(rotationStart, ZoneData.NORTHHORN)
+       == InstanceRotationAction.EnterNorthHorn
+       && initialNorthEntry.State == InstanceRotationState.WaitingForEntry
+       && initialNorthEntry.OriginalTerritoryId == ZoneData.NORTHHORN,
+    "Starting automation outside must request North Horn exactly once when configured.");
+Assert(initialNorthEntry.BeginEntryFromOutside(rotationStart.AddSeconds(1), ZoneData.NORTHHORN)
+       == InstanceRotationAction.None,
+    "An in-progress outside entry must not emit the entry command again.");
+var initialOutsideInput = new InstanceRotationInput(
+    true,
+    0,
+    false,
+    TimeSpan.MaxValue,
+    false);
+Assert(initialNorthEntry.Update(rotationStart.AddSeconds(2), initialOutsideInput)
+       == InstanceRotationAction.None,
+    "Waiting outside must remain command-silent after the initial North Horn request.");
+Assert(initialNorthEntry.Update(
+           rotationStart.AddSeconds(3),
+           initialOutsideInput with { TerritoryId = ZoneData.NORTHHORN }) == InstanceRotationAction.None
+       && initialNorthEntry.State == InstanceRotationState.Monitoring,
+    "Arriving in the configured North Horn territory must complete initial entry.");
+
+var initialSouthEntry = new InstanceRotationStateMachine();
+Assert(initialSouthEntry.BeginEntryFromOutside(rotationStart, ZoneData.SOUTHHORN)
+       == InstanceRotationAction.EnterSouthHorn
+       && initialSouthEntry.OriginalTerritoryId == ZoneData.SOUTHHORN,
+    "Starting automation outside must support the configured South Horn entry command.");
+var invalidInitialEntry = new InstanceRotationStateMachine();
+Assert(invalidInitialEntry.BeginEntryFromOutside(rotationStart, 0) == InstanceRotationAction.None
+       && invalidInitialEntry.State == InstanceRotationState.Failed
+       && invalidInitialEntry.FailureReason == "invalid_entry_territory",
+    "Outside entry must reject an unknown territory without emitting a command.");
+
 var rotation = new InstanceRotationStateMachine();
-var monitoringInput = new InstanceRotationInput(true, ZoneData.SOUTHHORN, true, TimeSpan.FromMinutes(90), false);
+Assert(InstanceDutyTimerProvider.AddonName == "_ToDoList"
+       && InstanceDutyTimerPolicy.TryParse("\uE0BB 153:02", out var parsedDutyTime)
+       && parsedDutyTime == TimeSpan.FromMinutes(153) + TimeSpan.FromSeconds(2)
+       && !InstanceDutyTimerPolicy.TryParse("153:60", out _)
+       && !InstanceDutyTimerPolicy.TryParse("181:00", out _),
+    "Instance rotation must parse the actual _ToDoList duty timer and reject invalid values.");
+Assert(!InstanceDutyTimerPolicy.HasStayDurationElapsed(TimeSpan.FromMinutes(165).Add(TimeSpan.FromSeconds(1)), TimeSpan.FromMinutes(15))
+       && InstanceDutyTimerPolicy.HasStayDurationElapsed(TimeSpan.FromMinutes(165), TimeSpan.FromMinutes(15)),
+    "Actual duty time must drive the configured stay-duration boundary.");
+
+var monitoringInput = new InstanceRotationInput(
+    true,
+    ZoneData.SOUTHHORN,
+    true,
+    TimeSpan.FromMinutes(90),
+    false,
+    TimeSpan.FromMinutes(153).Add(TimeSpan.FromSeconds(2)));
 Assert(rotation.Update(rotationStart, monitoringInput) == InstanceRotationAction.None
        && rotation.State == InstanceRotationState.Monitoring,
     "Instance rotation must begin by monitoring the current Occult Crescent territory.");
+
+var missingTimerRotation = new InstanceRotationStateMachine();
+var missingTimerInput = monitoringInput with { InstanceTimeRemaining = null };
+missingTimerRotation.Update(rotationStart, missingTimerInput);
+Assert(missingTimerRotation.Update(rotationStart.AddHours(3), missingTimerInput) == InstanceRotationAction.None
+       && missingTimerRotation.State == InstanceRotationState.Monitoring,
+    "A missing Duty Information addon timer must fail closed instead of using BOCCHI's local uptime.");
 
 var unsafeLowPopulationInput = monitoringInput with { CanStart = false, PopulationLow = true };
 Assert(rotation.Update(rotationStart.AddMinutes(1), unsafeLowPopulationInput) == InstanceRotationAction.None
@@ -941,11 +1001,18 @@ Assert(rotation.Update(leftAt.AddSeconds(20), monitoringInput) == InstanceRotati
     "Returning to the original territory must reset the stay timer for the next cycle.");
 
 var northRotation = new InstanceRotationStateMachine();
-var northInput = new InstanceRotationInput(true, ZoneData.NORTHHORN, true, TimeSpan.FromMinutes(15), false);
+var northInput = new InstanceRotationInput(
+    true,
+    ZoneData.NORTHHORN,
+    true,
+    TimeSpan.FromMinutes(15),
+    false,
+    InstanceDutyTimerPolicy.OccultCrescentDuration);
 northRotation.Update(rotationStart, northInput);
-Assert(northRotation.Update(rotationStart.AddMinutes(15), northInput) == InstanceRotationAction.RequestExit
+Assert(northRotation.Update(rotationStart.AddMinutes(15), northInput with { InstanceTimeRemaining = TimeSpan.FromMinutes(165) })
+       == InstanceRotationAction.RequestExit
        && northRotation.Reason == InstanceRotationReason.StayTimeElapsed,
-    "The configured stay duration must trigger a time-based rotation.");
+    "The configured stay duration must use the actual duty timer rather than time since BOCCHI was enabled.");
 northRotation.Update(rotationStart.AddMinutes(15).AddSeconds(1), northInput with { TerritoryId = 0 });
 Assert(northRotation.Update(rotationStart.AddMinutes(15).AddSeconds(16), northInput with { TerritoryId = 0 })
        == InstanceRotationAction.EnterNorthHorn,
@@ -954,10 +1021,20 @@ Assert(InstanceRotationController.LeaveCommand == "/pdr leaveduty"
        && InstanceRotationController.SouthHornEntryCommand == "/pdrfe ocs"
        && InstanceRotationController.NorthHornEntryCommand == "/pdrfe ocn",
     "DailyRoutines rotation commands must remain aligned with the verified local command modules.");
+Assert(DailyRoutinesModuleBridge.PluginInternalName == "DailyRoutines"
+       && DailyRoutinesModuleBridge.IsModuleEnabledIpcName == "DailyRoutines.IsModuleEnabled"
+       && DailyRoutinesModuleBridge.LoadModuleIpcName == "DailyRoutines.LoadModule"
+       && DailyRoutinesModuleBridge.RequiredModuleNames.SequenceEqual(
+           new[] { "AutoTalkSkip", "FieldEntryCommand" }),
+    "pdrfe startup must enable its verified DailyRoutines prerequisite before the command module.");
+Assert(!CriticalEncounterTracker.CanReadOccultCrescentEvents(false, true)
+       && !CriticalEncounterTracker.CanReadOccultCrescentEvents(true, false)
+       && CriticalEncounterTracker.CanReadOccultCrescentEvents(true, true),
+    "CE tracking must stop reading PublicContentOccultCrescent after leaving the island.");
 
 var cancelledRotation = new InstanceRotationStateMachine();
 cancelledRotation.Update(rotationStart, monitoringInput);
-cancelledRotation.Update(rotationStart.AddMinutes(90), monitoringInput);
+cancelledRotation.Update(rotationStart.AddMinutes(90), monitoringInput with { InstanceTimeRemaining = TimeSpan.FromMinutes(90) });
 Assert(cancelledRotation.Update(rotationStart.AddMinutes(90).AddSeconds(1), monitoringInput with { Enabled = false })
        == InstanceRotationAction.None
        && cancelledRotation.State == InstanceRotationState.Idle,
@@ -965,7 +1042,7 @@ Assert(cancelledRotation.Update(rotationStart.AddMinutes(90).AddSeconds(1), moni
 
 var timedOutRotation = new InstanceRotationStateMachine();
 timedOutRotation.Update(rotationStart, monitoringInput);
-timedOutRotation.Update(rotationStart.AddMinutes(90), monitoringInput);
+timedOutRotation.Update(rotationStart.AddMinutes(90), monitoringInput with { InstanceTimeRemaining = TimeSpan.FromMinutes(90) });
 Assert(timedOutRotation.Update(rotationStart.AddMinutes(90) + InstanceRotationStateMachine.ExitTimeout,
            monitoringInput) == InstanceRotationAction.None
        && timedOutRotation.State == InstanceRotationState.Failed,
@@ -975,7 +1052,7 @@ Assert(timedOutRotation.Update(rotationStart.AddHours(3), monitoringInput) == In
 
 var entryTimedOutRotation = new InstanceRotationStateMachine();
 entryTimedOutRotation.Update(rotationStart, monitoringInput);
-entryTimedOutRotation.Update(rotationStart.AddMinutes(90), monitoringInput);
+entryTimedOutRotation.Update(rotationStart.AddMinutes(90), monitoringInput with { InstanceTimeRemaining = TimeSpan.FromMinutes(90) });
 var entryTimeoutLeftAt = rotationStart.AddMinutes(90).AddSeconds(1);
 entryTimedOutRotation.Update(entryTimeoutLeftAt, outsideInput);
 entryTimedOutRotation.Update(entryTimeoutLeftAt + InstanceRotationStateMachine.ReentryCooldown, outsideInput);
@@ -1011,13 +1088,21 @@ foreach (var language in new[] { "en", "fr", "jp", "zh" })
         $"{language} Automator translation still exposes dead Forked Tower controls.");
     foreach (var key in new[]
              {
-                 "auto_rotate_instance", "instance_stay_minutes", "rotate_when_population_low",
+                 "initial_instance_area", "auto_rotate_instance", "instance_stay_minutes", "rotate_when_population_low",
                  "minimum_instance_population",
              })
     {
         Assert(configKeys.TryGetProperty(key, out _),
             $"{language} Automator translation is missing instance rotation key {key}.");
     }
+
+    var rotationMessages = document.RootElement
+        .GetProperty("modules")
+        .GetProperty("automator")
+        .GetProperty("messages")
+        .GetProperty("rotation");
+    Assert(rotationMessages.TryGetProperty("modules_enabling", out _),
+        $"{language} Automator translation is missing the DailyRoutines module-enable message.");
 
     var criticalFile = Path.Combine(translationRoot, language, "modules.critical_encounters.json");
     using var criticalDocument = JsonDocument.Parse(File.ReadAllText(criticalFile));

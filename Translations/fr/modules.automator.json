@@ -137,13 +137,21 @@
           "label": "Portée d'engagement",
           "tooltip": "Portée à laquelle se trouver d'un monstre d'aléa avant de descendre de monture et de laisser votre rotation/plugin d'IA prendre le relais"
         },
+        "initial_instance_area": {
+          "label": "Zone à rejoindre depuis l'extérieur",
+          "tooltip": "Lorsque le mode illégal démarre hors du Croissant occulte, demande l'entrée dans cette zone via DailyRoutines",
+          "options": {
+            "south_horn": "Corne sud",
+            "north_horn": "Corne nord"
+          }
+        },
         "auto_rotate_instance": {
           "label": "Changer automatiquement d'instance",
           "tooltip": "Quitte l'instance du Croissant occulte puis retourne automatiquement dans la même zone"
         },
         "instance_stay_minutes": {
           "label": "Temps dans l'instance (minutes)",
-          "tooltip": "Change d'instance après cette durée, dès qu'aucun aléa, CE, combat ou déplacement automatique n'est actif"
+          "tooltip": "Utilise le compte à rebours réel de l'interface d'objectif ; change d'instance après cette durée dès qu'aucun aléa, CE, combat ou déplacement automatique n'est actif"
         },
         "rotate_when_population_low": {
           "label": "Changer si la population est faible",
@@ -322,6 +330,9 @@
         "rotation": {
           "exit": "[BOCCHI] Changement d'instance : sortie de la zone actuelle.",
           "entry": "[BOCCHI] Changement d'instance : retour dans la zone précédente.",
+          "initial_entry": "[BOCCHI] Mode illégal : demande d'entrée dans la zone configurée du Croissant occulte.",
+          "entry_unavailable": "[BOCCHI] Le mode illégal est activé, mais l'entrée n'a pas pu être demandée. Vérifiez que DailyRoutines est chargé, puis désactivez et réactivez le mode illégal.",
+          "modules_enabling": "[BOCCHI] Activation des modules DailyRoutines requis par les commandes d'entrée pdr.",
           "failed": "[BOCCHI] Changement d'instance arrêté après un délai dépassé ou une commande DailyRoutines indisponible."
         }
       }

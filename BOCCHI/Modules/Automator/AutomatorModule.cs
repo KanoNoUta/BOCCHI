@@ -47,6 +47,10 @@ public class AutomatorModule : Module
 
     public override void PostUpdate(UpdateContext context)
     {
+        if (IsEnabled)
+        {
+            instanceRotation.PollDailyRoutinesCommandModules(this);
+        }
         if (instanceRotation.PostUpdate(this))
         {
             return;
@@ -123,6 +127,12 @@ public class AutomatorModule : Module
         {
             Svc.Chat.Print(T("messages.on"));
             ReportVnavmeshVersionCheck();
+            instanceRotation.EnsureDailyRoutinesCommandModules(this);
+
+            if (!BOCCHI.Data.ZoneData.IsInOccultCrescent())
+            {
+                instanceRotation.TryStartFromOutside(this);
+            }
         }
     }
 

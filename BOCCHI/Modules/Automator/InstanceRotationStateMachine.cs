@@ -33,7 +33,8 @@ public readonly record struct InstanceRotationInput(
     uint TerritoryId,
     bool CanStart,
     TimeSpan StayDuration,
-    bool PopulationLow);
+    bool PopulationLow,
+    TimeSpan? InstanceTimeRemaining = null);
 
 /// <summary>
 /// Pure command-once state machine for unattended Occult Crescent instance rotation.
@@ -61,6 +62,33 @@ public sealed class InstanceRotationStateMachine
     public bool IsBusy => State is InstanceRotationState.WaitingForExit
         or InstanceRotationState.Cooldown
         or InstanceRotationState.WaitingForEntry;
+
+    public InstanceRotationAction BeginEntryFromOutside(DateTimeOffset now, uint targetTerritoryId)
+    {
+        if (State != InstanceRotationState.Idle)
+        {
+            return InstanceRotationAction.None;
+        }
+
+        if (!ZoneData.IsOccultCrescentTerritory(targetTerritoryId))
+        {
+            return FailWithNoAction("invalid_entry_territory");
+        }
+
+        State = InstanceRotationState.WaitingForEntry;
+        Reason = InstanceRotationReason.None;
+        OriginalTerritoryId = targetTerritoryId;
+        IslandEnteredAt = null;
+        Deadline = now + EntryTimeout;
+        FailureReason = null;
+
+        return targetTerritoryId switch
+        {
+            ZoneData.SOUTHHORN => InstanceRotationAction.EnterSouthHorn,
+            ZoneData.NORTHHORN => InstanceRotationAction.EnterNorthHorn,
+            _ => FailWithNoAction("invalid_entry_territory"),
+        };
+    }
 
     public InstanceRotationAction Update(DateTimeOffset now, InstanceRotationInput input)
     {
@@ -93,7 +121,8 @@ public sealed class InstanceRotationStateMachine
                     return InstanceRotationAction.None;
                 }
 
-                var stayTimeElapsed = now - IslandEnteredAt.GetValueOrDefault(now) >= input.StayDuration;
+                var stayTimeElapsed = input.InstanceTimeRemaining is { } remaining
+                                      && InstanceDutyTimerPolicy.HasStayDurationElapsed(remaining, input.StayDuration);
                 if (!input.CanStart || (!stayTimeElapsed && !input.PopulationLow))
                 {
                     return InstanceRotationAction.None;

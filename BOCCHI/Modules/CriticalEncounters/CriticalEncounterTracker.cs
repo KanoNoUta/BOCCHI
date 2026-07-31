@@ -38,6 +38,11 @@ public class CriticalEncounterTracker
 
     public event Action<CriticalEncounterSnapshot>? OnCompletedState;
 
+    public static bool CanReadOccultCrescentEvents(bool inOccultCrescent, bool instanceAvailable)
+    {
+        return inOccultCrescent && instanceAvailable;
+    }
+
     public void Reset()
     {
         CriticalEncounters.Clear();
@@ -49,7 +54,21 @@ public class CriticalEncounterTracker
 
     public unsafe void Tick(IFramework _)
     {
-        CriticalEncounters = PublicContentOccultCrescent.GetInstance()->DynamicEventContainer.Events
+        var inOccultCrescent = ZoneData.IsInOccultCrescent();
+        if (!inOccultCrescent)
+        {
+            Reset();
+            return;
+        }
+
+        var instance = PublicContentOccultCrescent.GetInstance();
+        if (!CanReadOccultCrescentEvents(inOccultCrescent, instance != null))
+        {
+            Reset();
+            return;
+        }
+
+        CriticalEncounters = instance->DynamicEventContainer.Events
             .ToArray()
             .Select(CriticalEncounterSnapshot.From)
             .ToDictionary(ev => ev.DynamicEventId);
