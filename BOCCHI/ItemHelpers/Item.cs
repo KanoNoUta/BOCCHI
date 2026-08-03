@@ -7,13 +7,27 @@ public unsafe class Item(uint id)
 {
     public int Count()
     {
+        return TryCount(out var count) ? count : 0;
+    }
+
+    public bool TryCount(out int count)
+    {
         try
         {
-            return InventoryManager.Instance()->GetInventoryItemCount(id);
+            var inventoryManager = InventoryManager.Instance();
+            if (inventoryManager == null)
+            {
+                count = 0;
+                return false;
+            }
+
+            count = inventoryManager->GetInventoryItemCount(id);
+            return true;
         }
         catch
         {
-            return 0;
+            count = 0;
+            return false;
         }
     }
 

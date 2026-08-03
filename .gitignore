@@ -6,3 +6,6 @@ plugins
 **/bin/
 **/obj/
 artifacts/
+.qoder/
+.superpowers/
+docs/superpowers/

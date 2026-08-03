@@ -39,6 +39,8 @@
       "panel": {
         "title": "Fates",
         "none": "No active fates.",
+        "outside_detail": "Active FATEs appear after entering the Occult Crescent.",
+        "waiting_detail": "New FATEs will be ordered here as they appear.",
         "estimated": "Est."
       }
     }

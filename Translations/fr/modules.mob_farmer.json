@@ -51,6 +51,21 @@
           "label": null,
           "tooltip": null
         }
+      },
+      "panel": {
+        "title": "Chasse aux monstres",
+        "state": "État",
+        "stopped": "Arrêté",
+        "not_in_combat": "Non engagés",
+        "in_combat": "Engagés",
+        "states": {
+          "waiting": "En attente",
+          "buffing": "Application des buffs",
+          "gathering": "Regroupement des monstres",
+          "stacking": "Accumulation des monstres",
+          "fighting": "Combat",
+          "treasure_finding": "Recherche de coffres"
+        }
       }
     }
   }

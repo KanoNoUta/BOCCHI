@@ -5,6 +5,8 @@
         "title": "Carrots",
         "none": "No nearby carrots.",
         "label": "Carrot",
+        "empty_detail": "Detected carrots will appear here with their live positions.",
+        "found": "Found {0} carrots",
         "hunt": {
           "title": "Carrot Hunter",
           "distance_node": "Distance to next carrot"

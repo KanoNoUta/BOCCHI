@@ -291,7 +291,8 @@
         "title": "不正モード",
         "activity": {
           "label": "アクティビティ",
-          "none": "なし"
+          "none": "なし",
+          "refreshing": "対象データを更新中"
         },
         "activity_state": {
           "label": "アクティビティ状態",
@@ -324,9 +325,23 @@
           "disabled": "不正モードが有効ではありません。"
         }
       },
+      "run_state": {
+        "vnavmesh_missing": "vnavmesh がインストールされていません",
+        "vnavmesh_not_loaded": "vnavmesh が読み込まれていません",
+        "vnavmesh_unknown": "vnavmesh の状態を確認できません",
+        "lifestream_not_loaded": "Lifestream が読み込まれていません",
+        "waiting_dependencies": "ナビゲーション依存関係を待機中",
+        "preparing_entry": "蜃気楼の島への入場を準備中",
+        "waiting_vnavmesh": "vnavmesh を待機中",
+        "waiting_lifestream": "Lifestream を待機中",
+        "entry_request_failed": "設定された蜃気楼の島への入場を申請できませんでした",
+        "entry_preparation_failed": "エリア入場の準備に失敗しました"
+      },
       "messages": {
         "off": "[BOCCHI] 不正モード OFF",
         "on": "[BOCCHI] 不正モード ON",
+        "start_failed": "[BOCCHI] 自動化を開始できませんでした：{0}。",
+        "automation_disabled": "[BOCCHI] 自動化を無効化しました：{0}。",
         "rotation": {
           "exit": "[BOCCHI] インスタンス更新：現在のエリアから退出します。",
           "entry": "[BOCCHI] インスタンス更新：前のエリアへ再入場します。",

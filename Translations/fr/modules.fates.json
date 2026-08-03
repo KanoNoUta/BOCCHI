@@ -38,6 +38,8 @@
       },
       "panel": {
         "estimated": "Estimé",
+        "outside_detail": "Les ALÉA actifs apparaissent après l'entrée dans le Croissant occulte.",
+        "waiting_detail": "Les nouveaux ALÉA seront classés ici dès leur apparition.",
         "none": "Pas d'Aléa actifs.",
         "title": "Aléas"
       }

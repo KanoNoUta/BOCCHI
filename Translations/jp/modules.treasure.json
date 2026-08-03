@@ -30,9 +30,23 @@
       "panel": {
         "title": "宝箱",
         "none": "近くに宝箱はありません。",
+        "detecting_title": "宝箱を検出中",
+        "detecting_detail": "最初のリアルタイム読み取り後に宝箱数を表示します。",
         "hunt": {
           "title": "トレジャーハンター",
-          "distance_node": "次の宝箱までの距離"
+          "distance_node": "現在の目標までの距離",
+          "start": "開始",
+          "stop": "停止",
+          "start_mode": "開始地点",
+          "nearest_start": "最寄り",
+          "manual_start": "番号指定",
+          "start_number": "開始番号",
+          "show_map": "ルートマップを表示",
+          "hide_map": "ルートマップを隠す",
+          "route_point": "ルート地点",
+          "live_count": "検出した宝箱",
+          "elapsed": "経過時間",
+          "map_missing": "ルートマップを読み込めません"
         },
         "active_bronze": {
           "label": "銅の宝箱"

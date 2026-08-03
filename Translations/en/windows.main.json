@@ -5,7 +5,123 @@
       "buttons": {
         "toggle_config": "Toggle config window",
         "emergency_stop": "Emergency Stop",
-        "toggle_illegal_mode": "Toggle Illegal Mode"
+        "toggle_illegal_mode": "Toggle automatic mode",
+        "open_settings": "Open settings",
+        "enter_compact": "Switch to compact mode",
+        "leave_compact": "Return to full mode",
+        "start_automatic": "Start automation",
+        "cancel_start": "Cancel startup",
+        "stop_automatic": "Stop automation",
+        "stopping": "Stopping",
+        "stop_all": "Stop all",
+        "stop_all_tooltip": "Stop automation, treasure and carrot hunts, mob farming, navigation, and queued tasks."
+      },
+      "nav": {
+        "workspace": "Workspace",
+        "overview": "Overview",
+        "events": "Events",
+        "explore": "Explore",
+        "farming": "Farming",
+        "statistics": "Statistics",
+        "tower": "Forked Tower",
+        "aggro_range": "Aggro range"
+      },
+      "area": {
+        "south": "South Horn",
+        "north": "North Horn",
+        "outside": "Outside Occult Crescent"
+      },
+      "state": {
+        "starting": "Starting",
+        "running": "Running",
+        "stopping": "Stopping",
+        "completed": "Completed",
+        "failed": "Startup failed",
+        "stopped": "Stopped"
+      },
+      "source": {
+        "automatic": "Automatic",
+        "manual": "Manual"
+      },
+      "operation": {
+        "automatic": "Automation",
+        "treasure": "Treasure hunt",
+        "carrot": "Carrot hunt",
+        "farming": "Mob farming",
+        "none": "No active operation",
+        "preparing": "Preparing",
+        "waiting_target": "Waiting for target",
+        "refreshing": "Refreshing target data"
+      },
+      "pages": {
+        "overview": {
+          "title": "Runtime overview",
+          "subtitle": "Area, task, navigation, and instance rotation status",
+          "current_area": "Current area",
+          "outside_title": "Outside Occult Crescent",
+          "outside_detail": "Start automation to enter the configured area. Event, exploration, and farming workspaces appear after entry.",
+          "open_source": "Free and open source. Do not purchase this plugin from resellers."
+        },
+        "events": {
+          "title": "Events",
+          "subtitle": "FATEs and critical encounters in the current area",
+          "empty_title": "No area events",
+          "empty_detail": "Enter South Horn or North Horn to view events."
+        },
+        "explore": {
+          "title": "Explore",
+          "subtitle": "Treasure route, live coffers, and carrots",
+          "empty_title": "Exploration unavailable",
+          "empty_detail": "Enter Occult Crescent to start a treasure or carrot route."
+        },
+        "farming": {
+          "title": "Farming",
+          "subtitle": "Manual farming controls and area targets",
+          "empty_title": "Farming unavailable",
+          "empty_detail": "Enter Occult Crescent to start the current area's targets."
+        },
+        "statistics": {
+          "title": "Statistics and buffs",
+          "subtitle": "Currency, experience, and knowledge crystal buffs for this run"
+        },
+        "tower": {
+          "title": "Forked Tower",
+          "subtitle": "Party, timer, and mechanism status"
+        },
+        "aggro_range": {
+          "title": "Aggro range",
+          "subtitle": "North Horn normal-enemy navigation reference"
+        }
+      },
+      "runtime": {
+        "not_enabled": "Not enabled",
+        "version_unknown": "Unknown version",
+        "vnav_available": "{0} (available)",
+        "not_installed": "Not installed",
+        "not_loaded": "Not loaded",
+        "game_state": "Game state",
+        "current_target": "Current target",
+        "target_stage": "Target stage",
+        "rotation": "Instance rotation",
+        "rotation_value": "{0} · remaining {1} · players {2}"
+      },
+      "metrics": {
+        "disabled": "Master switch off",
+        "target_mobs": "Target mobs",
+        "area_status": "Area status",
+        "current_area": "Current area",
+        "not_entered": "Not entered"
+      },
+      "mobs": {
+        "summary": "Targets: South {0} · North {1} (Settings → Farming)",
+        "empty_title": "No target mobs selected",
+        "empty_detail": "Configure targets for this area under Settings → Farming.",
+        "selected": "{0} selected"
+      },
+      "automator_window": {
+        "title": "Automation",
+        "subtitle": "Dedicated runtime and instance rotation status",
+        "outside_detail": "Start automation to prepare entry using the configured area."
       }
     }
   }

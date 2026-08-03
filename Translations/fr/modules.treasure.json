@@ -29,11 +29,25 @@
       },
       "panel": {
         "hunt": {
-          "distance_node": null,
-          "title": "Chasseur de coffres"
+          "distance_node": "Distance de la cible",
+          "title": "Chasseur de coffres",
+          "start": "Demarrer",
+          "stop": "Arreter",
+          "start_mode": "Point de depart",
+          "nearest_start": "Le plus proche",
+          "manual_start": "Numero",
+          "start_number": "Numero de depart",
+          "show_map": "Afficher la carte",
+          "hide_map": "Masquer la carte",
+          "route_point": "Point de route",
+          "live_count": "Coffres visibles",
+          "elapsed": "Temps ecoule",
+          "map_missing": "La carte de route est indisponible"
         },
         "none": "Pas de coffre à proximité.",
         "title": "Coffres",
+        "detecting_title": "Détection des coffres",
+        "detecting_detail": "Le nombre de coffres apparaîtra après la première analyse en temps réel.",
         "active_bronze": {
           "label": null
         },

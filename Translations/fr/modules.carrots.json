@@ -22,7 +22,9 @@
         },
         "label": "Carotte",
         "none": "Pas de carottes à proximité.",
-        "title": "Carottes"
+        "title": "Carottes",
+        "empty_detail": "Les carottes détectées apparaîtront ici avec leur position en temps réel.",
+        "found": "{0} carottes trouvées"
       }
     }
   }

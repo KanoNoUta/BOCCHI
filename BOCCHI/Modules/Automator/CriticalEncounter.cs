@@ -98,6 +98,35 @@ public static class CriticalEncounterNavigationPolicy
     }
 }
 
+public static class CriticalEncounterSelectionPolicy
+{
+    public static bool HasEnoughRegistrationTime(
+        TimeSpan remaining,
+        bool delayEnabled,
+        float maximumDelaySeconds,
+        double transitReserveSeconds)
+    {
+        if (remaining <= TimeSpan.Zero
+            || !float.IsFinite(maximumDelaySeconds)
+            || !double.IsFinite(transitReserveSeconds))
+        {
+            return false;
+        }
+
+        var delaySeconds = delayEnabled ? Math.Max(0d, maximumDelaySeconds) : 0d;
+        var reserveSeconds = Math.Max(0d, transitReserveSeconds);
+        return remaining >= TimeSpan.FromSeconds(delaySeconds + reserveSeconds);
+    }
+
+    public static bool ShouldPreferBaseCampReturn(
+        bool delayEnabled,
+        bool isAtBaseCampAethernet,
+        bool isNearDestinationAethernet)
+    {
+        return delayEnabled && !isAtBaseCampAethernet && !isNearDestinationAethernet;
+    }
+}
+
 public class CriticalEncounter : Activity
 {
     private readonly CriticalEncountersModule source;
@@ -362,7 +391,7 @@ public class CriticalEncounter : Activity
 
     protected override Vector3 GetPosition()
     {
-        return Encounter.MapMarker.Position;
+        return data.NavigationPositionOverride ?? Encounter.MapMarker.Position;
     }
 
     public override string GetName()

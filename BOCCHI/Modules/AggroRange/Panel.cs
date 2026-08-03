@@ -1,7 +1,7 @@
 using BOCCHI.Data;
 using BOCCHI.Pathfinding;
+using BOCCHI.Ui;
 using Dalamud.Bindings.ImGui;
-using Ocelot.Ui;
 
 namespace BOCCHI.Modules.AggroRange;
 
@@ -9,21 +9,34 @@ public sealed class Panel
 {
     public void Draw(AggroRangeModule module)
     {
-        OcelotUi.Title("普通怪仇恨范围：");
-        OcelotUi.Indent(() =>
+        BocchiUi.SectionHeading(module.T("panel.title"));
+        if (!ZoneData.IsInNorthHorn())
         {
-            if (!ZoneData.IsInNorthHorn())
-            {
-                ImGui.TextDisabled("进入北部新月岛后显示实时范围圈。");
-                return;
-            }
+            BocchiUi.EmptyState(module.T("panel.outside_title"), module.T("panel.outside_detail"));
+            return;
+        }
 
-            OcelotUi.LabelledValue("当前绘制", module.VisibleMobCount);
-            OcelotUi.LabelledValue("已进入范围", module.InsideRangeCount);
-            OcelotUi.LabelledValue("已实测校准", module.CalibratedMobCount);
-            OcelotUi.LabelledValue("路线预计算", AggroAvoidanceNavigation.IsPlanning ? "计算中" : "空闲");
-            ImGui.TextDisabled($"目录 {CommonMobCatalog.Count} 种；基准为 10 yalms + 怪物实时 Hitbox。");
-            ImGui.TextDisabled("视觉/听觉均绘制最大半径；被动开怪后自动校准该怪数据。");
-        });
+        var availableWidth = ImGui.GetContentRegionAvail().X;
+        var columns = availableWidth >= 800f ? 4 : BocchiUiPolicy.GetWorkspaceColumns(availableWidth);
+        if (ImGui.BeginTable(
+                "##AggroRangeMetrics",
+                columns,
+                ImGuiTableFlags.SizingStretchSame | (columns > 1 ? ImGuiTableFlags.BordersInnerV : ImGuiTableFlags.None)))
+        {
+            ImGui.TableNextColumn();
+            BocchiUi.Metric(module.T("panel.visible"), module.VisibleMobCount.ToString());
+            ImGui.TableNextColumn();
+            BocchiUi.Metric(module.T("panel.inside"), module.InsideRangeCount.ToString());
+            ImGui.TableNextColumn();
+            BocchiUi.Metric(module.T("panel.calibrated"), module.CalibratedMobCount.ToString());
+            ImGui.TableNextColumn();
+            BocchiUi.Metric(
+                module.T("panel.route_planning"),
+                AggroAvoidanceNavigation.IsPlanning
+                    ? module.T("panel.planning")
+                    : module.T("panel.idle"));
+            ImGui.EndTable();
+        }
+        ImGui.TextDisabled(string.Format(module.T("panel.catalog_summary"), CommonMobCatalog.Count));
     }
 }

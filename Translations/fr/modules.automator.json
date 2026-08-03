@@ -290,7 +290,8 @@
       "panel": {
         "activity": {
           "label": "Activité",
-          "none": "Aucune"
+          "none": "Aucune",
+          "refreshing": "Actualisation des données de la cible"
         },
         "activity_state": {
           "label": "État",
@@ -324,9 +325,23 @@
           "disabled": "Le mode illégal n'est pas activé."
         }
       },
+      "run_state": {
+        "vnavmesh_missing": "vnavmesh n'est pas installé",
+        "vnavmesh_not_loaded": "vnavmesh n'est pas chargé",
+        "vnavmesh_unknown": "l'état de vnavmesh est inconnu",
+        "lifestream_not_loaded": "Lifestream n'est pas chargé",
+        "waiting_dependencies": "Attente des dépendances de navigation",
+        "preparing_entry": "Préparation de l'entrée dans le Croissant occulte",
+        "waiting_vnavmesh": "Attente de vnavmesh",
+        "waiting_lifestream": "Attente de Lifestream",
+        "entry_request_failed": "Impossible de demander l'entrée dans la zone configurée du Croissant occulte",
+        "entry_preparation_failed": "Échec de la préparation de l'entrée dans la zone"
+      },
       "messages": {
         "off": null,
         "on": null,
+        "start_failed": "[BOCCHI] Échec du démarrage de l'automatisation : {0}.",
+        "automation_disabled": "[BOCCHI] Automatisation désactivée : {0}.",
         "rotation": {
           "exit": "[BOCCHI] Changement d'instance : sortie de la zone actuelle.",
           "entry": "[BOCCHI] Changement d'instance : retour dans la zone précédente.",

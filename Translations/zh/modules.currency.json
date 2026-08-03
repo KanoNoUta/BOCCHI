@@ -6,6 +6,12 @@
       },
       "panel": {
         "title": "货币",
+        "reset": {
+          "tooltip": "清零{0}统计",
+          "confirm": "清零{0}统计？",
+          "action": "清零",
+          "cancel": "取消"
+        },
         "silver": {
           "label": "每小时银币"
         },

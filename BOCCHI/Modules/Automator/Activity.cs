@@ -47,6 +47,11 @@ public abstract class Activity : IDisposable
         18123,//封印恶魔火球
     ];
 
+    // When a delayed CE's nearest shard is already where the player is, a
+    // forced base-camp Return just to wait out 5-15s is wasteful and, when the
+    // Return cast cannot complete, turns into an infinite reselect loop.
+    private const float BaseCampReturnDestinationProximityYalms = 60f;
+
     protected unsafe Activity(EventData data, Lifestream lifestream, VNavmesh vnav, AutomatorModule module)
     {
         this.data = data;
@@ -124,7 +129,19 @@ public abstract class Activity : IDisposable
                 pathfinderConfig.TeleportCost,
                 "Fast runtime selection; candidate precomputation is not allowed to block movement.");
             var delayCriticalEncounter = !isFate && module.Config.ShouldDelayCriticalEncounters;
-            var plan = delayCriticalEncounter
+            var isAtBaseCampAethernet = delayCriticalEncounter
+                                        && ZoneData.IsNearAethernetShard(
+                                            ZoneData.GetBaseCampAethernet(),
+                                            AethernetData.DISTANCE);
+            var isNearDestinationAethernet = selectedPlan.DestinationAethernet != Aethernet.Unknown
+                                             && ZoneData.IsNearAethernetShard(
+                                                 selectedPlan.DestinationAethernet,
+                                                 BaseCampReturnDestinationProximityYalms);
+            var preferBaseCampReturn = CriticalEncounterSelectionPolicy.ShouldPreferBaseCampReturn(
+                delayCriticalEncounter,
+                isAtBaseCampAethernet,
+                isNearDestinationAethernet);
+            var plan = preferBaseCampReturn
                 ? SmartNavigation.PreferBaseCampReturn(selectedPlan, baseCamp)
                 : selectedPlan;
             var pathfinding = new PathfindingChain(vnav, destination, data);

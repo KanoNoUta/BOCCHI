@@ -39,6 +39,8 @@
       "panel": {
         "title": "FATE",
         "none": "当前无活跃的FATE",
+        "outside_detail": "进入新月岛后显示。",
+        "waiting_detail": "新的 FATE 出现后会自动排到这里。",
         "estimated": "预计"
       }
     }

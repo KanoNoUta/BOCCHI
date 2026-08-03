@@ -3,6 +3,7 @@ using Ocelot.Windows;
 using System.Collections.Generic;
 using System.Numerics;
 using BOCCHI.Data;
+using BOCCHI.Modules.Automator;
 using Dalamud.Game.ClientState.Conditions;
 using ECommons.DalamudServices;
 using ECommons.GameHelpers;
@@ -181,6 +182,10 @@ public class TreasureModule(Plugin _plugin, Config config) : Module(_plugin, con
         Config.Enabled = true;
         Config.EnableTreasureHunt = true;
         PluginConfig.Save();
+        if (TryGetModule<AutomatorModule>(out var automator) && automator != null)
+        {
+            automator.PrepareForIndependentNavigation("treasure hunt");
+        }
         hunter.Start();
         return true;
     }

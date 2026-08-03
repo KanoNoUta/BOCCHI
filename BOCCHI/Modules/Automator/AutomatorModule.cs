@@ -21,6 +21,16 @@ public class AutomatorModule : Module
 {
     private bool vnavmeshFailureReported;
 
+    private readonly AutomatorRunStateMachine runState = new();
+
+    private bool disableAiProviderOnStop;
+
+    private bool startSideEffectsPrepared;
+
+    private int stopDrainAttempts;
+
+    private bool movementProvidersStopped;
+
     public override AutomatorConfig Config
     {
         get => PluginConfig.AutomatorConfig;
@@ -39,6 +49,26 @@ public class AutomatorModule : Module
 
     public readonly Random random = new();
 
+    public AutomatorRunState RunState => runState.State;
+
+    public string? RunStateDetail => runState.Detail;
+
+    public bool RequestedEnabled => runState.TargetEnabled;
+
+    public bool IsIndependentNavigationRunning
+    {
+        get
+        {
+            var treasureRunning = TryGetModule<TreasureModule>(out var treasure)
+                                  && treasure?.IsHuntRunning == true;
+            var carrotsRunning = TryGetModule<CarrotsModule>(out var carrots)
+                                 && carrots?.IsHuntRunning == true;
+            var mobFarmerRunning = TryGetModule<MobFarmerModule>(out var mobFarmer)
+                                   && mobFarmer?.Farmer.Running == true;
+            return treasureRunning || carrotsRunning || mobFarmerRunning;
+        }
+    }
+
     public AutomatorModule(Plugin plugin, Config config)
         : base(plugin, config)
     {
@@ -54,7 +84,23 @@ public class AutomatorModule : Module
             return;
         }
 
+        if (IsIndependentNavigationRunning)
+        {
+            automator.SuspendForIndependentNavigation("independent navigation");
+            return;
+        }
+
         if (!EnsureVnavmeshAvailable())
+        {
+            return;
+        }
+
+        if (RunState == AutomatorRunState.Starting && !AdvanceStartRequest())
+        {
+            return;
+        }
+
+        if (!runState.CanRunWork)
         {
             return;
         }
@@ -80,9 +126,10 @@ public class AutomatorModule : Module
         // Navigation and submitted activity chains are territory-bound. Always
         // terminate them before refreshing, including South Horn <-> North Horn.
         Plugin.Chain.Abort();
-        if (TryGetIPCSubscriber<VNavmesh>(out var navigation) && navigation != null && navigation.IsReady())
+        AggroAvoidanceNavigation.Stop();
+        if (TryGetIPCSubscriber<VNavmesh>(out var navigation) && navigation != null)
         {
-            AggroAvoidanceNavigation.Stop(navigation);
+            TryStopStep(() => AggroAvoidanceNavigation.Stop(navigation), "stop vnavmesh after territory change");
         }
         SetAiProviderEnabled(false);
         PromeRotationController.Stop();
@@ -100,140 +147,309 @@ public class AutomatorModule : Module
             return;
         }
 
-        Config.Enabled = false;
-        PluginConfig.Save();
+        RequestEnabled(false);
     }
 
     public static void ToggleIllegalMode(OcelotPlugin plugin)
     {
         var module = plugin.Modules.GetModule<AutomatorModule>();
-        if (!module.Config.Enabled)
-        {
-            module.EnableIllegalMode();
-        }
-        else
-        {
-            module.DisableIllegalMode();
-        }
+        module.RequestEnabled(!module.RequestedEnabled);
 
         if (Svc.PluginInterface.InstalledPlugins.Any(p => p.InternalName == "AEAssistV3" && p.IsLoaded))
         {
             Chat.ExecuteCommand("/aeTargetSelector off");
+        }
+    }
+
+    public void RequestEnabled(bool enabled)
+    {
+        var action = runState.RequestEnabled(enabled);
+        switch (action)
+        {
+            case AutomatorRunAction.BeginStart:
+                BeginStartRequest();
+                break;
+            case AutomatorRunAction.BeginStop:
+                BeginStopRequest();
+                break;
         }
     }
 
     public void EnableIllegalMode()
     {
-        var vnavmesh = GetVnavmeshAvailability();
-        if (!vnavmesh.IsAvailable)
-        {
-            Config.Enabled = false;
-            PluginConfig.Save();
-            ReportVnavmeshFailure(vnavmesh);
-            return;
-        }
-
-        vnavmeshFailureReported = false;
-        var wasDisabled = !Config.Enabled;
-        Config.Enabled = true;
-        if (!Svc.Condition[Dalamud.Game.ClientState.Conditions.ConditionFlag.InCombat])
-        {
-            SetAiProviderEnabled(false);
-        }
-        PromeRotationController.Stop();
-
-        if (wasDisabled)
-        {
-            if (!BOCCHI.Data.ZoneData.IsInOccultCrescent())
-            {
-                instanceRotation.EnsureDailyRoutinesCommandModules(this);
-                if (!instanceRotation.TryStartFromOutside(this))
-                {
-                    Config.Enabled = false;
-                    instanceRotation.Reset();
-                    PluginConfig.Save();
-                    return;
-                }
-            }
-            else if (Config.ShouldAutoRotateInstance)
-            {
-                instanceRotation.EnsureDailyRoutinesCommandModules(this);
-            }
-
-            Svc.Chat.Print(T("messages.on"));
-        }
+        RequestEnabled(true);
     }
 
     public void DisableIllegalMode()
     {
-        var wasEnabled = Config.Enabled;
-        // Do this before clearing Enabled: ShouldToggleAiProvider is a
-        // configuration-dependent property and the plugin must release any
-        // BossMod AI state it owns while the module is still active.
-        SetAiProviderEnabled(false);
-        Config.Enabled = false;
-        instanceRotation.Reset();
-        automator.Refresh();
+        RequestEnabled(false);
+    }
 
-        // Stop persistent feature state before aborting queues. Hunters and
-        // the mob farmer otherwise remain marked as running and submit fresh
-        // work on the frame after an emergency stop.
+    private void BeginStartRequest()
+    {
+        var vnavmesh = GetVnavmeshAvailability();
+        var readiness = AutomatorStartPolicy.Evaluate(
+            vnavmesh.IsAvailable,
+            IsPluginLoaded("Lifestream"));
+        if (readiness != AutomatorStartReadiness.Ready)
+        {
+            var reason = readiness == AutomatorStartReadiness.VnavmeshUnavailable
+                ? vnavmesh.Status == VnavmeshAvailabilityStatus.Missing
+                    ? T("run_state.vnavmesh_missing")
+                    : T("run_state.vnavmesh_not_loaded")
+                : T("run_state.lifestream_not_loaded");
+            FailStartRequest(reason, cleanupRuntime: false);
+            if (readiness == AutomatorStartReadiness.VnavmeshUnavailable)
+            {
+                ReportVnavmeshFailure(vnavmesh);
+            }
+            else
+            {
+                var message = string.Format(T("messages.start_failed"), reason);
+                Svc.Log.Warning(message);
+                Svc.Chat.PrintError(message);
+            }
+            return;
+        }
+
+        vnavmeshFailureReported = false;
+        Config.Enabled = true;
+        startSideEffectsPrepared = false;
+        runState.SetStartingDetail(BOCCHI.Data.ZoneData.IsInOccultCrescent()
+            ? T("run_state.waiting_dependencies")
+            : T("run_state.preparing_entry"));
+    }
+
+    private bool AdvanceStartRequest()
+    {
+        if (!TryGetIPCSubscriber<VNavmesh>(out var navigation)
+            || navigation == null
+            || !navigation.IsReady())
+        {
+            runState.SetStartingDetail(T("run_state.waiting_vnavmesh"));
+            return false;
+        }
+
+        if (!TryGetIPCSubscriber<Lifestream>(out var lifestream)
+            || lifestream == null
+            || !lifestream.IsReady())
+        {
+            runState.SetStartingDetail(T("run_state.waiting_lifestream"));
+            return false;
+        }
+
+        if (!startSideEffectsPrepared)
+        {
+            if (!Svc.Condition[Dalamud.Game.ClientState.Conditions.ConditionFlag.InCombat])
+            {
+                SetAiProviderEnabled(false);
+            }
+            PromeRotationController.Stop();
+            startSideEffectsPrepared = true;
+        }
+
+        if (!BOCCHI.Data.ZoneData.IsInOccultCrescent())
+        {
+            runState.SetStartingDetail(T("run_state.preparing_entry"));
+            if (!instanceRotation.TryStartFromOutside(this))
+            {
+                FailStartRequest(T("run_state.entry_request_failed"));
+                return false;
+            }
+
+            instanceRotation.PollDailyRoutinesCommandModules(this);
+            instanceRotation.PostUpdate(this);
+            if (instanceRotation.State == InstanceRotationState.Failed)
+            {
+                FailStartRequest(instanceRotation.FailureReason ?? T("run_state.entry_preparation_failed"));
+            }
+            return false;
+        }
+
+        runState.CompleteStart();
+        Svc.Chat.Print(T("messages.on"));
+        return true;
+    }
+
+    private void FailStartRequest(string reason, bool cleanupRuntime = true)
+    {
+        Config.Enabled = false;
+        if (cleanupRuntime)
+        {
+            instanceRotation.Reset();
+            automator.Refresh();
+            PromeRotationController.Stop();
+        }
+        startSideEffectsPrepared = false;
+        runState.FailStart(reason);
+        PluginConfig.Save();
+    }
+
+    private void BeginStopRequest()
+    {
+        disableAiProviderOnStop = Config.ShouldToggleAiProvider;
+        Config.Enabled = false;
+        startSideEffectsPrepared = false;
+        stopDrainAttempts = 0;
+        movementProvidersStopped = false;
+        Svc.Log.Info("Automation stop requested; cancelling local work immediately.");
+        StopLocalAutomation();
+        movementProvidersStopped = TryStopMovementProviders();
+        _ = Svc.Framework.RunOnTick(CompleteStopRequest);
+    }
+
+    private void StopLocalAutomation()
+    {
+        AggroAvoidanceNavigation.Stop();
+        TryStopStep(instanceRotation.Reset, "reset instance rotation");
+        TryStopStep(automator.Refresh, "refresh the automator");
+
         if (TryGetModule<TreasureModule>(out var treasure) && treasure != null)
         {
-            treasure.StopHunt();
+            TryStopStep(treasure.StopHunt, "stop treasure hunting");
         }
         if (TryGetModule<CarrotsModule>(out var carrots) && carrots != null)
         {
-            carrots.StopHunt();
+            TryStopStep(carrots.StopHunt, "stop carrot hunting");
         }
         if (TryGetModule<MobFarmerModule>(out var mobFarmer) && mobFarmer != null)
         {
-            mobFarmer.Farmer.DisableFarmerMode();
+            TryStopStep(mobFarmer.Farmer.DisableFarmerMode, "stop mob farming");
         }
         if (TryGetModule<BuffModule>(out var buffs) && buffs != null)
         {
-            buffs.BuffManager.CancelPending();
+            TryStopStep(buffs.BuffManager.CancelPending, "cancel pending buffs");
         }
 
-        PromeRotationController.Stop();
-        Plugin.Chain.Abort();
-        ChainManager.AbortAll();
+        TryStopStep(PromeRotationController.Stop, "stop rotation");
+        TryStopStep(Plugin.Chain.Abort, "abort the plugin chain");
+        TryStopStep(ChainManager.AbortAll, "abort automation queues");
+        TryStopStep(() => Svc.Targets.Target = null, "clear the current target");
+    }
 
-        if (TryGetIPCSubscriber<VNavmesh>(out var navigation) && navigation != null && navigation.IsReady())
+    private void CompleteStopRequest()
+    {
+        if (!movementProvidersStopped)
         {
-            try
+            stopDrainAttempts++;
+            movementProvidersStopped = TryStopMovementProviders();
+            if (AutomatorStopPolicy.ShouldRetry(movementProvidersStopped, stopDrainAttempts))
             {
-                AggroAvoidanceNavigation.Stop(navigation);
+                _ = Svc.Framework.RunOnTick(CompleteStopRequest);
+                return;
             }
-            catch (Exception exception)
+
+            if (!movementProvidersStopped)
             {
-                Svc.Log.Warning(exception, "Emergency stop could not stop vnavmesh because its IPC became unavailable.");
+                Svc.Log.Warning(
+                    $"Automation stop exhausted {AutomatorStopPolicy.MaxAttempts} IPC drain attempts; "
+                    + "local work remains cancelled.");
             }
         }
-        if (TryGetIPCSubscriber<Lifestream>(out var lifestream) && lifestream != null && lifestream.IsReady())
+
+        try
         {
-            try
+            if (disableAiProviderOnStop)
             {
-                lifestream.Abort();
+                TryStopStep(() => Config.AiProvider.Off(), "release the AI provider");
             }
-            catch (Exception exception)
+
+            if (Svc.PluginInterface.InstalledPlugins.Any(p => p.InternalName == "AEAssistV3" && p.IsLoaded))
             {
-                Svc.Log.Warning(exception, "Emergency stop could not abort Lifestream because its IPC became unavailable.");
+                TryStopStep(() => Chat.ExecuteCommand("/aeTargetSelector off"), "disable AE target selection");
+                TryStopStep(() => Chat.ExecuteCommand("/aepull off"), "disable AE pulling");
             }
+
+            PluginConfig.Save();
         }
-
-        if (Svc.PluginInterface.InstalledPlugins.Any(p => p.InternalName == "AEAssistV3" && p.IsLoaded))
+        finally
         {
-            Chat.ExecuteCommand("/aeTargetSelector off");
-            Chat.ExecuteCommand("/aepull off");
-        }
-
-        Svc.Targets.Target = null;
-        PluginConfig.Save();
-
-        if (wasEnabled)
-        {
+            disableAiProviderOnStop = false;
+            stopDrainAttempts = 0;
+            movementProvidersStopped = false;
+            runState.CompleteStop();
+            Svc.Log.Info("Automation stop completed.");
             Svc.Chat.Print(T("messages.off"));
+        }
+    }
+
+    public void RequestStopAll()
+    {
+        if (runState.RequestStopAll() == AutomatorRunAction.BeginStop)
+        {
+            BeginStopRequest();
+        }
+    }
+
+    public void PrepareForIndependentNavigation(string owner)
+    {
+        Svc.Log.Info($"{owner} is taking navigation ownership; cancelling automatic activity and return work.");
+        automator.SuspendForIndependentNavigation(owner);
+        TryStopStep(instanceRotation.Reset, "reset instance rotation for independent navigation");
+        TryStopStep(() => { AggroAvoidanceNavigation.Stop(); }, "stop automatic pathfinding for independent navigation");
+        TryStopStep(PromeRotationController.Stop, "stop automatic combat for independent navigation");
+        TryStopStep(() => SetAiProviderEnabled(false), "release the AI provider for independent navigation");
+        TryStopStep(Plugin.Chain.Abort, "abort the automatic chain for independent navigation");
+        TryStopStep(ChainManager.AbortAll, "abort automatic queues for independent navigation");
+        _ = TryStopMovementProviders();
+    }
+
+    private bool TryStopMovementProviders()
+    {
+        var navigationStopped = !IsPluginLoaded(VnavmeshAvailabilityPolicy.PluginInternalName);
+        if (!navigationStopped)
+        {
+            try
+            {
+                if (TryGetIPCSubscriber<VNavmesh>(out var navigation) && navigation != null)
+                {
+                    AggroAvoidanceNavigation.Stop(navigation);
+                    navigationStopped = true;
+                }
+            }
+            catch (Exception exception)
+            {
+                LogStopDrainFailure(exception, "vnavmesh");
+            }
+        }
+
+        var lifestreamStopped = !IsPluginLoaded("Lifestream");
+        if (!lifestreamStopped)
+        {
+            try
+            {
+                if (TryGetIPCSubscriber<Lifestream>(out var lifestream) && lifestream != null)
+                {
+                    lifestream.Abort();
+                    lifestreamStopped = true;
+                }
+            }
+            catch (Exception exception)
+            {
+                LogStopDrainFailure(exception, "Lifestream");
+            }
+        }
+
+        return navigationStopped && lifestreamStopped;
+    }
+
+    private void LogStopDrainFailure(Exception exception, string provider)
+    {
+        if (stopDrainAttempts is 0 or 1 || stopDrainAttempts == AutomatorStopPolicy.MaxAttempts)
+        {
+            Svc.Log.Warning(exception, $"Automation stop is waiting for {provider} IPC to become available.");
+        }
+    }
+
+    private static void TryStopStep(Action action, string description)
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception exception)
+        {
+            Svc.Log.Warning(exception, $"Could not {description} while stopping automation.");
         }
     }
 
@@ -259,24 +475,18 @@ public class AutomatorModule : Module
 
         if (Config.Enabled)
         {
-            SetAiProviderEnabled(false);
-            Config.Enabled = false;
-            instanceRotation.Reset();
-            automator.Refresh();
-            PromeRotationController.Stop();
-            if (TryGetIPCSubscriber<VNavmesh>(out var navigation)
-                && navigation != null
-                && navigation.IsReady())
-            {
-                AggroAvoidanceNavigation.Stop(navigation);
-            }
-            Plugin.Chain.Abort();
-            ChainManager.AbortAll();
-            PluginConfig.Save();
+            RequestEnabled(false);
         }
 
         ReportVnavmeshFailure(check);
         return false;
+    }
+
+    private static bool IsPluginLoaded(string internalName)
+    {
+        return Svc.PluginInterface.InstalledPlugins.Any(plugin =>
+            string.Equals(plugin.InternalName, internalName, StringComparison.OrdinalIgnoreCase)
+            && plugin.IsLoaded);
     }
 
     private void ReportVnavmeshFailure(VnavmeshAvailabilityCheck check)
@@ -288,11 +498,11 @@ public class AutomatorModule : Module
 
         var reason = check.Status switch
         {
-            VnavmeshAvailabilityStatus.Missing => "未安装 vnavmesh",
-            VnavmeshAvailabilityStatus.NotLoaded => "vnavmesh 未加载",
-            _ => "vnavmesh 状态未知",
+            VnavmeshAvailabilityStatus.Missing => T("run_state.vnavmesh_missing"),
+            VnavmeshAvailabilityStatus.NotLoaded => T("run_state.vnavmesh_not_loaded"),
+            _ => T("run_state.vnavmesh_unknown"),
         };
-        var message = $"自动化已停用：{reason}。";
+        var message = string.Format(T("messages.automation_disabled"), reason);
         Svc.Log.Warning(message);
         Svc.Chat.PrintError(message);
         vnavmeshFailureReported = true;

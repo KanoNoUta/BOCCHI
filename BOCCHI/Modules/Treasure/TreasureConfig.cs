@@ -48,4 +48,10 @@ public class TreasureConfig : ModuleConfig
     [Checkbox] public bool CastTreasureSightUponReturn { get; set; } = false;
 
     [Checkbox] public bool ShowPercentageActiveTreasureCount { get; set; } = false;
+
+    public TreasureRouteStartMode NorthHornRouteStartMode { get; set; } = TreasureRouteStartMode.Nearest;
+
+    public int NorthHornManualRouteStart { get; set; } = 1;
+
+    public bool ShowNorthHornRouteMap { get; set; } = true;
 }

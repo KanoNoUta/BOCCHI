@@ -32,7 +32,12 @@
         "button": {
           "tooltip": "Applique l'ensemble des buffs fantôme, puis retourne sur votre job."
         },
-        "title": "Buffs"
+        "title": "Buffs",
+        "status": {
+          "queued": "En file d'attente ; application des buffs",
+          "available": "Prêt à appliquer",
+          "move_near_crystal": "Approchez-vous d'un cristal de connaissance pour appliquer les buffs"
+        }
       }
     }
   }

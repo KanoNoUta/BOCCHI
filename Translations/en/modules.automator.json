@@ -291,7 +291,8 @@
         "title": "Illegal Mode",
         "activity": {
           "label": "Activity",
-          "none": "None"
+          "none": "None",
+          "refreshing": "Refreshing target data"
         },
         "activity_state": {
           "label": "Activity State",
@@ -324,9 +325,23 @@
           "disabled": "Illegal Mode is not enabled."
         }
       },
+      "run_state": {
+        "vnavmesh_missing": "vnavmesh is not installed",
+        "vnavmesh_not_loaded": "vnavmesh is not loaded",
+        "vnavmesh_unknown": "vnavmesh status is unknown",
+        "lifestream_not_loaded": "Lifestream is not loaded",
+        "waiting_dependencies": "Waiting for navigation dependencies",
+        "preparing_entry": "Preparing to enter the Occult Crescent",
+        "waiting_vnavmesh": "Waiting for vnavmesh",
+        "waiting_lifestream": "Waiting for Lifestream",
+        "entry_request_failed": "Could not request entry to the configured Occult Crescent area",
+        "entry_preparation_failed": "Area entry preparation failed"
+      },
       "messages": {
         "on": "[BOCCHI] Illegal Mode On",
         "off": "[BOCCHI] Illegal Mode Off",
+        "start_failed": "[BOCCHI] Automation failed to start: {0}.",
+        "automation_disabled": "[BOCCHI] Automation was disabled: {0}.",
         "rotation": {
           "exit": "[BOCCHI] Instance rotation: leaving the current area.",
           "entry": "[BOCCHI] Instance rotation: requesting entry to the previous area.",

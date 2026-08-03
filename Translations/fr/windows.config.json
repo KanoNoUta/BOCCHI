@@ -1,7 +1,68 @@
 {
   "windows": {
     "config": {
-      "title": "BOCCHI Configuration"
+      "title": "Configuration BOCCHI",
+      "search_hint": "Rechercher un paramètre ou un module...",
+      "groups": {
+        "automation": "Automatisation",
+        "events": "Événements",
+        "explore": "Exploration",
+        "farming": "Farm",
+        "display_notifications": "Affichage et notifications",
+        "advanced": "Avancé"
+      },
+      "no_matches": {
+        "title": "Aucun paramètre correspondant",
+        "detail": "Essayez un autre terme."
+      },
+      "no_modules": {
+        "title": "Aucun module de paramètres disponible",
+        "detail": "Effacez la recherche et réessayez."
+      },
+      "advanced": {
+        "title": "Affichage avancé",
+        "toggle": "Afficher les identifiants, coordonnées et outils de capture",
+        "help": "Utilisé pour collecter les routes et le terrain, masqué par défaut pendant l'utilisation courante."
+      },
+      "editors": {
+        "automation": {
+          "title": "Automatisation",
+          "subtitle": "Les comportements communs et les événements sud/nord sont séparés et enregistrés immédiatement.",
+          "common_tab": "Commun",
+          "south_events": "Événements sud ({0}/{1})",
+          "north_events": "Événements nord ({0}/{1})",
+          "combat_targets": "Combat et cibles",
+          "event_behavior": "Comportement commun ALÉA / RC",
+          "instance_rotation": "Rotation d'instance",
+          "island_help": "Cette page affiche les événements d'une zone. Le combat, la navigation et la rotation sont sous Commun."
+        },
+        "farming": {
+          "title": "Paramètres de farm",
+          "subtitle": "Le sud et le nord ont des listes distinctes ; distance, niveau et attraction sont communs.",
+          "south_mobs": "Monstres sud ({0})",
+          "north_mobs": "Monstres nord ({0})",
+          "common_tab": "Paramètres communs",
+          "search_hint": "Rechercher un monstre...",
+          "selection_summary": "Sélectionnés {0} / {1}, affichés {2}",
+          "basic": "Base",
+          "loop_return": "Boucle et retour",
+          "battle_bell": "Cloche de combat",
+          "debug_display": "Affichage de débogage"
+        }
+      },
+      "actions": {
+        "enable_all": "Tout activer",
+        "disable_all": "Tout désactiver",
+        "confirm_disable_all": "Désactiver tous les {0} de cette zone ?",
+        "cancel": "Annuler",
+        "select_visible": "Sélectionner les résultats visibles",
+        "clear": "Effacer",
+        "confirm_clear_mobs": "Effacer toutes les cibles de farm de cette zone ?"
+      },
+      "units": {
+        "seconds_1": "%.1f secondes",
+        "minutes_0": "%.0f minutes"
+      }
     }
   }
 }

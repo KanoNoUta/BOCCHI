@@ -1,5 +1,6 @@
-﻿using BOCCHI.Data;
+using BOCCHI.Data;
 using BOCCHI.Modules.Teleporter;
+using BOCCHI.Ui;
 using Dalamud.Bindings.ImGui;
 using Ocelot.Ui;
 using System;
@@ -11,53 +12,52 @@ public class Panel
 {
     public void Draw(FatesModule module)
     {
-        OcelotUi.Title($"{module.T("panel.title")}:");
-        OcelotUi.Indent(() =>
+        BocchiUi.SectionHeading(module.T("panel.title"));
+        if (!ZoneData.IsInOccultCrescent())
         {
-            if (module.tracker.Fates.Count <= 0)
+            module.fates.Clear();
+            BocchiUi.EmptyState(module.T("panel.none"), module.T("panel.outside_detail"));
+            return;
+        }
+
+        if (module.fates.Count <= 0)
+        {
+            BocchiUi.EmptyState(module.T("panel.none"), module.T("panel.waiting_detail"));
+            return;
+        }
+
+        foreach (var fate in module.fates.Values.ToArray())
+        {
+            try
             {
-                ImGui.TextUnformatted(module.T("panel.none"));
-                return;
-            }
-
-            foreach (var fate in module.fates.Values)
-            {
-                if (!ZoneData.IsInOccultCrescent())
-                {
-                    module.fates.Clear();
-                    return;
-                }
-
-                try
-                {
-                    ImGui.TextUnformatted($"{fate.Name} ({fate.CurrentProgress}%)");
-                }
-                catch (AccessViolationException)
-                {
-                    continue;
-                }
-
+                ImGui.TextUnformatted(fate.Name);
+                ImGui.SameLine();
+                ImGui.TextDisabled($"{fate.CurrentProgress}%");
 
                 var estimate = fate.Progress.EstimateTimeToCompletion();
                 if (estimate != null)
                 {
                     ImGui.SameLine();
-                    ImGui.TextUnformatted($"({module.T("panel.estimated")} {estimate.Value:mm\\:ss})");
+                    ImGui.TextDisabled($"{module.T("panel.estimated")} {estimate.Value:mm\\:ss}");
                 }
-
 
                 if (module.TryGetModule<TeleporterModule>(out var teleporter) && teleporter!.IsReady())
                 {
-                    teleporter.teleporter.Button(fate.Data.Aethernet, fate.StartPosition, fate.Name, $"fate_{fate.Id}", fate.Data);
+                    teleporter.teleporter.Button(
+                        fate.Data.Aethernet,
+                        fate.StartPosition,
+                        fate.Name,
+                        $"fate_{fate.Id}",
+                        fate.Data);
                 }
 
                 OcelotUi.Indent(() => EventIconRenderer.Drops(fate.Data, module.PluginConfig.EventDropConfig));
-
-                if (!fate.Equals(module.fates.Values.Last()))
-                {
-                    OcelotUi.VSpace();
-                }
+                ImGui.Separator();
             }
-        });
+            catch (AccessViolationException)
+            {
+                // Event objects can disappear while Dalamud refreshes the table.
+            }
+        }
     }
 }

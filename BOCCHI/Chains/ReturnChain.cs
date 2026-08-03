@@ -1,4 +1,4 @@
-﻿using BOCCHI.ActionHelpers;
+using BOCCHI.ActionHelpers;
 using BOCCHI.Data;
 using BOCCHI.Enums;
 using BOCCHI.Modules.Automator;
@@ -44,6 +44,12 @@ public class ReturnChain(TeleporterModule module, ReturnChainConfig config) : Ch
             // A stale delayed-CE teleport must not race Return and provide the
             // BetweenAreas cycle that this chain is waiting for.
             chain.Then(_ => lifestream.Abort());
+            // Residual vnavmesh movement or a mount interrupts the Return cast
+            // and leaves the player where they were, which later fails the
+            // landing verification and loops the CE back into reselection.
+            var vnav = module.GetIPCSubscriber<VNavmesh>();
+            chain.Then(_ => vnav.Stop());
+            chain.Then(_ => Actions.TryUnmount());
             chain.Then(new TaskManagerTask(
                 () => ActionManager.Instance()->GetActionStatus(ActionType.GeneralAction, 8) == 0,
                 new TaskManagerConfiguration
@@ -72,38 +78,76 @@ public class ReturnChain(TeleporterModule module, ReturnChainConfig config) : Ch
             chain.Then(new PathfindAndMoveToChain(vnav, position));
             chain.Then(new TaskManagerTask(() =>
             {
-                var range = AethernetData.DISTANCE + 1f;
-                if (ZoneData.IsNearAethernetShard(ZoneData.GetBaseCampAethernet(), range))
+                try
                 {
+                    if (!ZoneData.IsInOccultCrescent())
+                    {
+                        FailureReason = "Left the Occult Crescent while approaching the base-camp aethernet.";
+                        AggroAvoidanceNavigation.Stop(vnav);
+                        return true;
+                    }
+
+                    // Match the automator's idle "am I home" acceptance (4.5y).
+                    // DISTANCE (4.2y) forces the walk onto the navigation point
+                    // (~2.9y from the shard), inside both checks and the game's
+                    // interaction range.
+                    var range = AethernetData.DISTANCE;
+                    if (ZoneData.IsNearAethernetShard(ZoneData.GetBaseCampAethernet(), range))
+                    {
+                        return true;
+                    }
+
+                    var now = Environment.TickCount64;
+                    if (approachStartedAt == 0)
+                    {
+                        approachStartedAt = now;
+                    }
+
+                    bool navigationActive;
+                    try
+                    {
+                        navigationActive = vnav.IsRunning()
+                                           || vnav.IsSimpleMoveInProgress()
+                                           || vnav.IsPathfinding();
+                    }
+                    catch (Exception exception)
+                    {
+                        // vnavmesh can briefly unregister its IPC methods while
+                        // reloading. Treat that as "navigation state unknown"
+                        // and keep waiting without advancing the stop timer.
+                        Svc.Log.Warning(exception, "vnavmesh IPC unavailable while approaching the base-camp aethernet.");
+                        return false;
+                    }
+
+                    navigationInactiveSince = NavigationStopPolicy.UpdateInactiveSince(
+                        navigationActive,
+                        now,
+                        navigationInactiveSince);
+                    if (!NavigationStopPolicy.HasStopped(
+                            approachStartedAt,
+                            navigationInactiveSince,
+                            now))
+                    {
+                        return false;
+                    }
+
+                    FailureReason = "vnavmesh stopped before reaching the base-camp aethernet.";
                     return true;
                 }
-
-                var now = Environment.TickCount64;
-                if (approachStartedAt == 0)
+                catch (Exception exception)
                 {
-                    approachStartedAt = now;
-                }
-
-                var navigationActive = vnav.IsRunning()
-                                       || vnav.IsSimpleMoveInProgress()
-                                       || vnav.IsPathfinding();
-                navigationInactiveSince = NavigationStopPolicy.UpdateInactiveSince(
-                    navigationActive,
-                    now,
-                    navigationInactiveSince);
-                if (!NavigationStopPolicy.HasStopped(
-                        approachStartedAt,
-                        navigationInactiveSince,
-                        now))
-                {
+                    // Any transient fault (object-table churn while scanning
+                    // aethernet objects, game state transitions, etc.) must not
+                    // AbortOnError the whole return chain - that stranded the
+                    // player at the knowledge crystal for over a dozen
+                    // releases. Log it, keep waiting, and re-evaluate next frame.
+                    Svc.Log.Warning(exception, "Transient fault while approaching the base-camp aethernet; retrying.");
                     return false;
                 }
-
-                FailureReason = "vnavmesh stopped before reaching the base-camp aethernet.";
-                return true;
             }, new TaskManagerConfiguration
             {
                 TimeLimitMS = 60000,
+                AbortOnError = false,
                 AbortOnTimeout = true,
                 ShowError = false,
                 OnTaskTimeout = (TaskManagerTask _, ref long _) =>
@@ -115,11 +159,20 @@ public class ReturnChain(TeleporterModule module, ReturnChainConfig config) : Ch
             // A navigation stop is an expected outcome when the user presses
             // emergency stop. End the return chain as unsuccessful without
             // throwing from a stale nested chain after its parent was aborted.
+            // BreakIf runs sequentially after the navigation wait above, so it
+            // only fires when navigation already stopped without reaching the
+            // shard - it cannot interrupt an in-progress approach.
             chain.BreakIf(() =>
             {
+                if (!ZoneData.IsInOccultCrescent())
+                {
+                    AggroAvoidanceNavigation.Stop(vnav);
+                    return true;
+                }
+
                 if (ZoneData.IsNearAethernetShard(
                         ZoneData.GetBaseCampAethernet(),
-                        AethernetData.DISTANCE + 1f))
+                        AethernetData.DISTANCE))
                 {
                     return false;
                 }
@@ -140,7 +193,7 @@ public class ReturnChain(TeleporterModule module, ReturnChainConfig config) : Ch
             if (config.ApproachAetheryte
                 && !ZoneData.IsNearAethernetShard(
                     ZoneData.GetBaseCampAethernet(),
-                    AethernetData.DISTANCE + 1f))
+                    AethernetData.DISTANCE))
             {
                 FailureReason = "Return chain finished outside the base-camp aethernet range.";
                 throw new InvalidOperationException(FailureReason);
@@ -300,36 +353,61 @@ public class ReturnChain(TeleporterModule module, ReturnChainConfig config) : Ch
         });
         chain.Then(new TaskManagerTask(() =>
         {
-            if (KnowledgeCrystalApproachPolicy.HasArrived(Player.Position, crystalPosition))
+            try
             {
-                return true;
-            }
+                if (KnowledgeCrystalApproachPolicy.HasArrived(Player.Position, crystalPosition))
+                {
+                    return true;
+                }
 
-            var now = Environment.TickCount64;
-            var navigationActive = vnav.IsRunning()
-                                   || vnav.IsSimpleMoveInProgress()
-                                   || vnav.IsPathfinding();
-            navigationInactiveSince = NavigationStopPolicy.UpdateInactiveSince(
-                navigationActive,
-                now,
-                navigationInactiveSince);
-            if (!NavigationStopPolicy.HasStopped(
-                    approachStartedAt,
-                    navigationInactiveSince,
-                    now))
+                var now = Environment.TickCount64;
+                bool navigationActive;
+                try
+                {
+                    navigationActive = vnav.IsRunning()
+                                       || vnav.IsSimpleMoveInProgress()
+                                       || vnav.IsPathfinding();
+                }
+                catch (Exception exception)
+                {
+                    // Same reload-window guard as the aethernet approach: do
+                    // not let a transient IPC failure tear down the buff chain.
+                    Svc.Log.Warning(exception, "vnavmesh IPC unavailable while approaching the knowledge crystal.");
+                    return false;
+                }
+
+                navigationInactiveSince = NavigationStopPolicy.UpdateInactiveSince(
+                    navigationActive,
+                    now,
+                    navigationInactiveSince);
+                if (!NavigationStopPolicy.HasStopped(
+                        approachStartedAt,
+                        navigationInactiveSince,
+                        now))
+                {
+                    return false;
+                }
+
+                var distance = Vector3.Distance(Player.Position, crystalPosition);
+                FailureReason =
+                    $"vnavmesh stopped {distance:F2}y from the knowledge crystal; "
+                    + $"buffs require <= {KnowledgeCrystalApproachPolicy.ArrivalDistance:F1}y.";
+                Svc.Log.Warning(FailureReason);
+                throw new InvalidOperationException(FailureReason);
+            }
+            catch (InvalidOperationException)
             {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                Svc.Log.Warning(exception, "Transient fault while approaching the knowledge crystal; retrying.");
                 return false;
             }
-
-            var distance = Vector3.Distance(Player.Position, crystalPosition);
-            FailureReason =
-                $"vnavmesh stopped {distance:F2}y from the knowledge crystal; "
-                + $"buffs require <= {KnowledgeCrystalApproachPolicy.ArrivalDistance:F1}y.";
-            Svc.Log.Warning(FailureReason);
-            throw new InvalidOperationException(FailureReason);
         }, new TaskManagerConfiguration
         {
             TimeLimitMS = 60000,
+            AbortOnError = false,
             AbortOnTimeout = true,
             ShowError = false,
             OnTaskTimeout = (TaskManagerTask _, ref long _) =>

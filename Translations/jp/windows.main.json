@@ -3,9 +3,125 @@
     "main": {
       "title": "BOCCHI",
       "buttons": {
-        "toggle_config": "設定ウィンドウ 開く/閉じる",
+        "toggle_config": "設定ウィンドウを切替",
         "emergency_stop": "緊急停止",
-        "toggle_illegal_mode": "不正モード 有効/無効"
+        "toggle_illegal_mode": "自動運転を切替",
+        "open_settings": "設定を開く",
+        "enter_compact": "コンパクト表示に切替",
+        "leave_compact": "通常表示に戻す",
+        "start_automatic": "自動運転を開始",
+        "cancel_start": "開始をキャンセル",
+        "stop_automatic": "自動運転を停止",
+        "stopping": "停止中",
+        "stop_all": "すべて停止",
+        "stop_all_tooltip": "自動運転、宝箱・ニンジン探索、モブ狩り、移動、待機タスクを停止します。"
+      },
+      "nav": {
+        "workspace": "ワークスペース",
+        "overview": "概要",
+        "events": "イベント",
+        "explore": "探索",
+        "farming": "モブ狩り",
+        "statistics": "統計",
+        "tower": "フォークタワー",
+        "aggro_range": "感知範囲"
+      },
+      "area": {
+        "south": "サウスホーン",
+        "north": "ノースホーン",
+        "outside": "蜃気楼の島外"
+      },
+      "state": {
+        "starting": "開始中",
+        "running": "実行中",
+        "stopping": "停止中",
+        "completed": "完了",
+        "failed": "開始失敗",
+        "stopped": "停止済み"
+      },
+      "source": {
+        "automatic": "自動",
+        "manual": "手動"
+      },
+      "operation": {
+        "automatic": "自動運転",
+        "treasure": "宝箱探索",
+        "carrot": "ニンジン探索",
+        "farming": "モブ狩り",
+        "none": "実行中のタスクなし",
+        "preparing": "準備中",
+        "waiting_target": "対象待機中",
+        "refreshing": "対象データ更新中"
+      },
+      "pages": {
+        "overview": {
+          "title": "実行概要",
+          "subtitle": "エリア、タスク、移動、インスタンス切替の状態",
+          "current_area": "現在のエリア",
+          "outside_title": "蜃気楼の島外です",
+          "outside_detail": "自動運転を開始すると設定したエリアへ入場します。入場後にイベント、探索、モブ狩りを表示します。",
+          "open_source": "無料のオープンソースです。転売品を購入しないでください。"
+        },
+        "events": {
+          "title": "イベント",
+          "subtitle": "現在のエリアのFATEとクリティカルエンカウント",
+          "empty_title": "エリアイベントなし",
+          "empty_detail": "サウスホーンまたはノースホーンで表示されます。"
+        },
+        "explore": {
+          "title": "探索",
+          "subtitle": "宝箱ルート、出現中の宝箱、ニンジン",
+          "empty_title": "探索できません",
+          "empty_detail": "蜃気楼の島に入ると探索ルートを開始できます。"
+        },
+        "farming": {
+          "title": "モブ狩り",
+          "subtitle": "手動操作と現在エリアの対象",
+          "empty_title": "モブ狩りを利用できません",
+          "empty_detail": "蜃気楼の島に入ると現在エリアの対象を開始できます。"
+        },
+        "statistics": {
+          "title": "統計とバフ",
+          "subtitle": "今回の通貨、経験値、知見の結晶バフ"
+        },
+        "tower": {
+          "title": "フォークタワー",
+          "subtitle": "パーティ、タイマー、ギミック状態"
+        },
+        "aggro_range": {
+          "title": "感知範囲",
+          "subtitle": "ノースホーン通常モブの移動参考"
+        }
+      },
+      "runtime": {
+        "not_enabled": "無効",
+        "version_unknown": "バージョン不明",
+        "vnav_available": "{0}（利用可能）",
+        "not_installed": "未インストール",
+        "not_loaded": "未ロード",
+        "game_state": "ゲーム状態",
+        "current_target": "現在の対象",
+        "target_stage": "対象の段階",
+        "rotation": "インスタンス切替",
+        "rotation_value": "{0} · 残り {1} · 人数 {2}"
+      },
+      "metrics": {
+        "disabled": "全体設定OFF",
+        "target_mobs": "対象モブ",
+        "area_status": "エリア状態",
+        "current_area": "現在のエリア",
+        "not_entered": "未入場"
+      },
+      "mobs": {
+        "summary": "対象：南 {0} · 北 {1}（設定 → モブ狩り）",
+        "empty_title": "対象モブ未選択",
+        "empty_detail": "設定 → モブ狩りで現在エリアの対象を選択してください。",
+        "selected": "{0}体選択中"
+      },
+      "automator_window": {
+        "title": "自動運転",
+        "subtitle": "実行状態とインスタンス切替",
+        "outside_detail": "開始すると設定したエリアへの入場を準備します。"
       }
     }
   }

@@ -206,6 +206,9 @@ public class FateActivity(EventData data, Lifestream lifestream, VNavmesh vnav, 
 
     public override bool IsValid()
     {
+        // Presence in the FATE table is the authoritative liveness signal.
+        // The classic timer fields are not populated for every North Horn
+        // FATE, so requiring TimeRemaining > 0 despawned them prematurely.
         return Svc.Fates.Any(f => f.FateId == fate.Id);
     }
 

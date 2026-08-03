@@ -51,6 +51,21 @@
           "label": "Minimum mobs to fight",
           "tooltip": "How many mobs to gather before stopping to fight them.\n Note if there are no more out of combat mobs around you, it will start combat regardless."
         }
+      },
+      "panel": {
+        "title": "Mob farming",
+        "state": "State",
+        "stopped": "Stopped",
+        "not_in_combat": "Not engaged",
+        "in_combat": "Engaged",
+        "states": {
+          "waiting": "Waiting",
+          "buffing": "Applying buffs",
+          "gathering": "Gathering mobs",
+          "stacking": "Stacking mobs",
+          "fighting": "Fighting",
+          "treasure_finding": "Finding treasure"
+        }
       }
     }
   }

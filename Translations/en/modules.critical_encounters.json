@@ -91,6 +91,8 @@
       "panel": {
         "title": "Critical Encounters",
         "none": "No active critical encounters.",
+        "outside_detail": "Active critical encounters appear after entering the Occult Crescent.",
+        "waiting_detail": "Critical encounters accepting registration or in battle will appear here.",
         "register": "Preparing",
         "warmup": "Starting",
         "estimated": "Est."

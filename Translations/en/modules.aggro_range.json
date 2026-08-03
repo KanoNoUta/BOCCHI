@@ -67,6 +67,18 @@
           "label": "Inside color",
           "tooltip": "Circle color after entering the estimated trigger range."
         }
+      },
+      "panel": {
+        "title": "Ordinary mob aggro ranges",
+        "outside_title": "Not in North Horn",
+        "outside_detail": "Enter North Horn to display live aggro range circles.",
+        "visible": "Currently drawn",
+        "inside": "Inside range",
+        "calibrated": "Calibrated",
+        "route_planning": "Route precomputation",
+        "planning": "Planning",
+        "idle": "Idle",
+        "catalog_summary": "{0} catalog entries · 10-yalm baseline + live hitbox · auto-calibrated from passive aggro"
       }
     }
   }

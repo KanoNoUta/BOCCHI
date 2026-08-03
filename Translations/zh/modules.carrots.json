@@ -5,6 +5,8 @@
         "title": "胡萝卜",
         "none": "附近没有胡萝卜。",
         "label": "胡萝卜",
+        "empty_detail": "实时检测到胡萝卜后会显示位置。",
+        "found": "已发现 {0} 处",
         "hunt": {
           "title": "胡萝卜猎人",
           "distance_node": "到下一个胡萝卜的距离"

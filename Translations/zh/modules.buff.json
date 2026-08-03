@@ -32,6 +32,11 @@
         "title": "Buff",
         "button": {
           "tooltip": "切换到启用的每个Buff的辅助职业，使用Buff技能，然后切换回原来的辅助职业。"
+        },
+        "status": {
+          "queued": "已排队，正在申请 Buff",
+          "available": "可申请",
+          "move_near_crystal": "靠近知识水晶后可申请"
         }
       }
     }

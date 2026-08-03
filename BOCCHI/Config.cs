@@ -33,6 +33,8 @@ public class Config : IOcelotConfig
 
     public bool CompactMainWindow { get; set; } = false;
 
+    public bool ShowAdvancedUi { get; set; } = false;
+
     // Core
     public MountConfig MountConfig { get; set; } = new();
 

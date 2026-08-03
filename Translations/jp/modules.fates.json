@@ -39,6 +39,8 @@
       "panel": {
         "title": "F.A.T.E.",
         "none": "アクティブなF.A.T.E.はありません。",
+        "outside_detail": "蜃気楼の島に入るとアクティブなF.A.T.E.が表示されます。",
+        "waiting_detail": "新しいF.A.T.E.が出現すると、ここに順番に表示されます。",
         "estimated": "推定"
       }
     }

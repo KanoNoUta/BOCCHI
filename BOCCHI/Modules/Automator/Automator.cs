@@ -20,6 +20,12 @@ public class Automator
 {
     private const int MaxPostActivityReturnAttempts = 3;
 
+    // A CE must still be open after the optional randomized delay and the
+    // return/aethernet transit. Selecting one during its final seconds makes
+    // Activity.IsValid() abort the route while the player is standing at the
+    // base-camp crystal.
+    private const double CriticalEncounterTransitReserveSeconds = 45d;
+
     private static readonly TimeSpan PostActivityReturnRetryDelay = TimeSpan.FromSeconds(5);
 
     private static bool IsChainActive
@@ -27,6 +33,8 @@ public class Automator
         get => AutomatorChainPolicy.IsActive(
             ChainManager.Queues.Values.Select(queue => (queue.IsRunning, queue.QueueCount)));
     }
+
+    private static long lastFateDiagnosticAt;
 
     public Activity? Activity { get; private set; } = null;
 
@@ -39,6 +47,8 @@ public class Automator
     private DateTime nextPostActivityReturnAttempt = DateTime.MinValue;
 
     private string postActivityReturnReason = "activity completed";
+
+    private bool preferFateAfterCriticalEncounter;
 
     public void PostUpdate(AutomatorModule module, IFramework framework)
     {
@@ -90,6 +100,9 @@ public class Automator
 
                 if (Activity != null)
                 {
+                    preferFateAfterCriticalEncounter = ActivitySelectionPolicy.AfterActivitySelected(
+                        preferFateAfterCriticalEncounter,
+                        Activity.data.Type);
                     module.Debug($"Resuming running activity: {Activity.GetName()}");
                 }
 
@@ -102,6 +115,9 @@ public class Automator
 
                 if (Activity != null)
                 {
+                    preferFateAfterCriticalEncounter = ActivitySelectionPolicy.AfterActivitySelected(
+                        preferFateAfterCriticalEncounter,
+                        Activity.data.Type);
                     module.Debug($"Resuming running activity: {Activity.GetName()}");
                 }
 
@@ -111,13 +127,33 @@ public class Automator
 
         if (Activity != null && !Activity.IsValid())
         {
-            var shouldReturn = PostActivityReturnPolicy.ShouldQueue(Activity.data.Type);
+            var endedActivityType = Activity.data.Type;
+            var shouldReturn = PostActivityReturnPolicy.ShouldQueue(
+                Activity.data.Type,
+                module.IsIndependentNavigationRunning);
             var returnReason = $"FATE {Activity.data.Id} ended";
             Plugin.Chain.Abort();
             vnav.Stop();
+            // A teleport may already have been accepted by Lifestream before
+            // the activity expired. Abort it so the player is not stranded at
+            // the destination shard with no activity to continue.
+            try
+            {
+                if (lifestream.IsReady())
+                {
+                    lifestream.Abort();
+                }
+            }
+            catch (Exception exception)
+            {
+                Svc.Log.Warning(exception, "Could not abort Lifestream after the activity expired.");
+            }
             module.SetAiProviderEnabled(false);
             PromeRotationController.Stop();
             ClearActivity();
+            preferFateAfterCriticalEncounter = ActivitySelectionPolicy.AfterActivityEnded(
+                preferFateAfterCriticalEncounter,
+                endedActivityType);
             if (shouldReturn)
             {
                 QueuePostActivityReturn(returnReason);
@@ -137,11 +173,17 @@ public class Automator
         {
             if (Activity.state == ActivityState.Done)
             {
-                var shouldReturn = PostActivityReturnPolicy.ShouldQueue(Activity.data.Type);
+                var endedActivityType = Activity.data.Type;
+                var shouldReturn = PostActivityReturnPolicy.ShouldQueue(
+                    Activity.data.Type,
+                    module.IsIndependentNavigationRunning);
                 var returnReason = $"FATE {Activity.data.Id} completed";
                 module.SetAiProviderEnabled(false);
                 PromeRotationController.Stop();
                 ClearActivity();
+                preferFateAfterCriticalEncounter = ActivitySelectionPolicy.AfterActivityEnded(
+                    preferFateAfterCriticalEncounter,
+                    endedActivityType);
                 if (shouldReturn)
                 {
                     QueuePostActivityReturn(returnReason);
@@ -164,17 +206,41 @@ public class Automator
             return;
         }
 
-        // Try and get the next activity
-        Activity ??= module.Config.ShouldDoCriticalEncounters ? FindCriticalEncounter(module, lifestream, vnav) : null;
-        Activity ??= module.Config.ShouldDoFates ? FindFate(module, lifestream, vnav) : null;
+        // Keep CE as the default priority, but after any CE ends give one
+        // eligible FATE the first chance. If none exists, retain that chance
+        // while continuing to process available CEs.
+        foreach (var activityType in ActivitySelectionPolicy.GetOrder(preferFateAfterCriticalEncounter))
+        {
+            Activity = activityType switch
+            {
+                EventType.CriticalEncounter when module.Config.ShouldDoCriticalEncounters
+                    => FindCriticalEncounter(module, lifestream, vnav),
+                EventType.Fate when module.Config.ShouldDoFates
+                    => FindFate(module, lifestream, vnav),
+                _ => null,
+            };
+
+            if (Activity == null)
+            {
+                continue;
+            }
+
+            preferFateAfterCriticalEncounter = ActivitySelectionPolicy.AfterActivitySelected(
+                preferFateAfterCriticalEncounter,
+                Activity.data.Type);
+            break;
+        }
         if (Activity != null)
         {
             Svc.Log.Info($"Selected activity: {Activity.GetName()}");
             return;
         }
 
-        var closest = AethernetData.GetClosestToPlayer();
-        if (closest.DistanceToPlayer() <= 4.5f)
+        // North Horn's maintained aethernet coordinates can sit a few yalms
+        // away from the physical crystal. Prefer the live object table the
+        // same way ReturnChain does; otherwise the automator keeps resubmitting
+        // the return chain while the player is already standing at the shard.
+        if (ZoneData.IsNearAnyAethernetShard(4.5f))
         {
             return;
         }
@@ -212,6 +278,16 @@ public class Automator
                 continue;
             }
 
+            var registrationRemaining = source.Tracker.TowerTimer.GetTimeRemainingToRegister(encounter);
+            if (!CriticalEncounterSelectionPolicy.HasEnoughRegistrationTime(
+                    registrationRemaining,
+                    module.Config.ShouldDelayCriticalEncounters,
+                    module.Config.MaxDelay,
+                    CriticalEncounterTransitReserveSeconds))
+            {
+                continue;
+            }
+
             if (!EventData.CriticalEncounters.TryGetValue(encounter.DynamicEventId, out var data))
             {
                 continue;
@@ -231,6 +307,7 @@ public class Automator
         }
 
         var liveFateIds = Svc.Fates.Select(fate => (uint)fate.FateId).ToHashSet();
+        Fate? best = null;
         foreach (var fate in source.fates.Values)
         {
             if (!liveFateIds.Contains(fate.Id))
@@ -243,10 +320,36 @@ public class Automator
                 continue;
             }
 
-            return new FateActivity(fate.Data, lifestream, vnav, module, fate);
+            // IFate.TimeRemaining is unreliable for the custom North Horn
+            // FATEs (a live FATE can read ~1.1s for its whole lifetime), so it
+            // must not gate eligibility. Presence in Svc.Fates plus the user's
+            // FatesMap checkbox is the liveness contract; a FATE that actually
+            // despawns mid-travel is handled by Activity.IsValid().
+            if (best == null)
+            {
+                best = fate;
+            }
         }
 
-        return null;
+        if (best == null)
+        {
+            var now = Environment.TickCount64;
+            if (now - lastFateDiagnosticAt > 10000)
+            {
+                lastFateDiagnosticAt = now;
+                var live = Svc.Fates
+                    .Select(f => $"#{f.FateId} t={f.TimeRemaining}ms p={f.Progress}%")
+                    .ToArray();
+                var tracked = source.fates.Values
+                    .Select(f => $"#{f.Id} t={f.TimeRemaining}ms name={f.Name}")
+                    .ToArray();
+                Svc.Log.Info(
+                    $"FindFate returned no activity: live=[{string.Join(", ", live)}] " +
+                    $"tracked=[{string.Join(", ", tracked)}]");
+            }
+        }
+
+        return best == null ? null : new FateActivity(best.Data, lifestream, vnav, module, best);
     }
 
     public void Refresh()
@@ -257,10 +360,46 @@ public class Automator
         postActivityReturnAttempts = 0;
         nextPostActivityReturnAttempt = DateTime.MinValue;
         postActivityReturnReason = "activity completed";
+        preferFateAfterCriticalEncounter = false;
     }
 
-    public void QueuePostActivityReturn(string reason)
+    public void SuspendForIndependentNavigation(string reason)
     {
+        var hadActivity = Activity != null;
+        ClearActivity();
+        var cancelledReturn = CancelPostActivityReturn(reason);
+        idleTime = 0;
+        preferFateAfterCriticalEncounter = false;
+
+        if (hadActivity && !cancelledReturn)
+        {
+            Svc.Log.Info($"Cleared active FATE/CE state because {reason} owns navigation.");
+        }
+    }
+
+    public bool CancelPostActivityReturn(string reason)
+    {
+        if (!postActivityReturnPending)
+        {
+            return false;
+        }
+
+        postActivityReturnPending = false;
+        postActivityReturnAttempts = 0;
+        nextPostActivityReturnAttempt = DateTime.MinValue;
+        idleTime = 0;
+        Svc.Log.Info($"Cancelled forced base-camp return because {reason} owns navigation.");
+        return true;
+    }
+
+    public void QueuePostActivityReturn(string reason, bool independentNavigationRunning = false)
+    {
+        if (independentNavigationRunning)
+        {
+            CancelPostActivityReturn("independent navigation");
+            return;
+        }
+
         if (postActivityReturnPending)
         {
             return;
@@ -284,6 +423,12 @@ public class Automator
     {
         if (!postActivityReturnPending)
         {
+            return false;
+        }
+
+        if (module.IsIndependentNavigationRunning)
+        {
+            CancelPostActivityReturn("independent navigation");
             return false;
         }
 
@@ -321,6 +466,12 @@ public class Automator
             return false;
         }
 
+        if (module.IsIndependentNavigationRunning)
+        {
+            CancelPostActivityReturn("independent navigation");
+            return false;
+        }
+
         var returnChain = ChainHelper.ReturnChain(new ReturnChainConfig
         {
             ApproachAetheryte = true,
@@ -337,6 +488,11 @@ public class Automator
                 .Then(returnChain)
                 .OnFinally(() =>
                 {
+                    if (!postActivityReturnPending)
+                    {
+                        return;
+                    }
+
                     if (returnChain.Succeeded)
                     {
                         postActivityReturnPending = false;
@@ -370,8 +526,32 @@ public static class AutomatorChainPolicy
 
 public static class PostActivityReturnPolicy
 {
-    public static bool ShouldQueue(EventType eventType)
+    public static bool ShouldQueue(EventType eventType, bool independentNavigationRunning = false)
     {
-        return eventType == EventType.Fate;
+        return !independentNavigationRunning && eventType == EventType.Fate;
+    }
+}
+
+public static class ActivitySelectionPolicy
+{
+    private static readonly IReadOnlyList<EventType> CriticalEncounterFirst =
+        Array.AsReadOnly([EventType.CriticalEncounter, EventType.Fate]);
+
+    private static readonly IReadOnlyList<EventType> FateFirst =
+        Array.AsReadOnly([EventType.Fate, EventType.CriticalEncounter]);
+
+    public static IReadOnlyList<EventType> GetOrder(bool preferFate)
+    {
+        return preferFate ? FateFirst : CriticalEncounterFirst;
+    }
+
+    public static bool AfterActivityEnded(bool preferFate, EventType activityType)
+    {
+        return preferFate || activityType == EventType.CriticalEncounter;
+    }
+
+    public static bool AfterActivitySelected(bool preferFate, EventType activityType)
+    {
+        return activityType == EventType.Fate ? false : preferFate;
     }
 }

@@ -51,6 +51,21 @@
           "label": null,
           "tooltip": null
         }
+      },
+      "panel": {
+        "title": "モブ狩り",
+        "state": "状態",
+        "stopped": "停止中",
+        "not_in_combat": "未交戦",
+        "in_combat": "交戦中",
+        "states": {
+          "waiting": "待機中",
+          "buffing": "バフ適用中",
+          "gathering": "モブ収集中",
+          "stacking": "モブ集結中",
+          "fighting": "戦闘中",
+          "treasure_finding": "宝箱を探索中"
+        }
       }
     }
   }

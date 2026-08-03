@@ -67,6 +67,18 @@
           "label": "范围内颜色",
           "tooltip": "玩家进入估算触发范围后的范围圈颜色。"
         }
+      },
+      "panel": {
+        "title": "普通怪仇恨范围",
+        "outside_title": "当前不在北岛",
+        "outside_detail": "进入北部新月岛后显示实时范围圈。",
+        "visible": "当前绘制",
+        "inside": "已进入范围",
+        "calibrated": "已实测校准",
+        "route_planning": "路线预计算",
+        "planning": "计算中",
+        "idle": "空闲",
+        "catalog_summary": "目录 {0} 种 · 10 yalms 基准 + 实时 Hitbox · 被动开怪后自动校准"
       }
     }
   }

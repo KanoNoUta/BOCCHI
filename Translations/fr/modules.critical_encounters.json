@@ -90,6 +90,8 @@
       },
       "panel": {
         "estimated": "Estimé",
+        "outside_detail": "Les confrontations critiques actives apparaissent après l'entrée dans le Croissant occulte.",
+        "waiting_detail": "Les confrontations critiques en inscription ou en combat apparaîtront ici.",
         "none": "Pas de confrontations critiques actives.",
         "register": "Préparation",
         "title": "Confrontations Critiques",

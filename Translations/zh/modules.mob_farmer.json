@@ -55,6 +55,21 @@
           "label": "开始拉怪前额外等待秒数",
           "tooltip": "每次循环开始拉怪前，额外等待的秒数\n用于等待怪物的刷新"
         }
+      },
+      "panel": {
+        "title": "刷怪",
+        "state": "状态",
+        "stopped": "已停止",
+        "not_in_combat": "未开怪",
+        "in_combat": "已开怪",
+        "states": {
+          "waiting": "等待中",
+          "buffing": "正在申请 Buff",
+          "gathering": "正在拉怪",
+          "stacking": "正在聚怪",
+          "fighting": "战斗中",
+          "treasure_finding": "正在寻找宝箱"
+        }
       }
     }
   }

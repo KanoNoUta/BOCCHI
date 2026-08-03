@@ -30,9 +30,23 @@
       "panel": {
         "title": "Treasure",
         "none": "No nearby Treasure.",
+        "detecting_title": "Detecting treasure coffers",
+        "detecting_detail": "Coffer counts will appear after the first live scan completes.",
         "hunt": {
           "title": "Treasure Hunter",
-          "distance_node": "Distance to next chest"
+          "distance_node": "Current target distance",
+          "start": "Start",
+          "stop": "Stop",
+          "start_mode": "Start mode",
+          "nearest_start": "Nearest",
+          "manual_start": "Numbered",
+          "start_number": "Start number",
+          "show_map": "Show route map",
+          "hide_map": "Hide route map",
+          "route_point": "Route point",
+          "live_count": "Live coffers",
+          "elapsed": "Elapsed",
+          "map_missing": "Route map asset is unavailable"
         },
         "active_bronze": {
           "label": "Active Bronze"

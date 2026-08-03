@@ -6,6 +6,12 @@
       },
       "panel": {
         "title": "通貨",
+        "reset": {
+          "tooltip": "{0}の統計をリセット",
+          "confirm": "{0}の統計をリセットしますか？",
+          "action": "リセット",
+          "cancel": "キャンセル"
+        },
         "silver": {
           "label": "1時間あたりの銀貨"
         },

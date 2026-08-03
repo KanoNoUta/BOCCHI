@@ -319,7 +319,8 @@
         "title": "非法模式",
         "activity": {
           "label": "运行",
-          "none": "无"
+          "none": "无",
+          "refreshing": "目标数据刷新中"
         },
         "activity_state": {
           "label": "运行状态",
@@ -352,9 +353,23 @@
           "disabled": "非法模式尚未启用。"
         }
       },
+      "run_state": {
+        "vnavmesh_missing": "未安装 vnavmesh",
+        "vnavmesh_not_loaded": "vnavmesh 未加载",
+        "vnavmesh_unknown": "vnavmesh 状态未知",
+        "lifestream_not_loaded": "Lifestream 未加载",
+        "waiting_dependencies": "正在等待导航依赖",
+        "preparing_entry": "正在准备入岛",
+        "waiting_vnavmesh": "正在等待 vnavmesh",
+        "waiting_lifestream": "正在等待 Lifestream",
+        "entry_request_failed": "无法申请进入配置的蜃景岛区域",
+        "entry_preparation_failed": "入岛准备失败"
+      },
       "messages": {
         "off": "[BOCCHI] 非法模式关闭",
         "on": "[BOCCHI] 非法模式启动",
+        "start_failed": "[BOCCHI] 自动化启动失败：{0}。",
+        "automation_disabled": "[BOCCHI] 自动化已停用：{0}。",
         "rotation": {
           "exit": "[BOCCHI] 副本轮换：正在退出当前区域。",
           "entry": "[BOCCHI] 副本轮换：正在申请重新进入之前的区域。",

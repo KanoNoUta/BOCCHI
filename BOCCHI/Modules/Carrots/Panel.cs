@@ -1,5 +1,6 @@
+using BOCCHI.Ui;
 using Dalamud.Bindings.ImGui;
-using Ocelot.Ui;
+using System.Linq;
 
 namespace BOCCHI.Modules.Carrots;
 
@@ -7,25 +8,19 @@ public class Panel
 {
     public void Draw(CarrotsModule module)
     {
-        OcelotUi.Title($"{module.T("panel.title")}:");
-        OcelotUi.Indent(() =>
+        BocchiUi.SectionHeading(module.T("panel.title"));
+        var validCarrots = module.carrots.Where(carrot => carrot.IsValid()).ToList();
+        if (validCarrots.Count == 0)
         {
-            if (module.carrots.Count <= 0)
-            {
-                ImGui.TextUnformatted(module.T("panel.none"));
-                return;
-            }
+            BocchiUi.EmptyState(module.T("panel.none"), module.T("panel.empty_detail"));
+            return;
+        }
 
-            foreach (var carrot in module.carrots)
-            {
-                if (!carrot.IsValid())
-                {
-                    continue;
-                }
-
-                var pos = carrot.GetPosition();
-                ImGui.TextUnformatted($"{module.T("panel.label")}: ({pos.X:F2}, {pos.Y:F2}, {pos.Z:F2})");
-            }
-        });
+        ImGui.TextDisabled(string.Format(module.T("panel.found"), validCarrots.Count));
+        foreach (var carrot in validCarrots)
+        {
+            var position = carrot.GetPosition();
+            ImGui.BulletText($"{module.T("panel.label")}  {position.X:F1}, {position.Y:F1}, {position.Z:F1}");
+        }
     }
 }

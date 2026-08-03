@@ -5,7 +5,123 @@
       "buttons": {
         "toggle_config": "设置窗口",
         "emergency_stop": "紧急停止",
-        "toggle_illegal_mode": "切换非法模式状态"
+        "toggle_illegal_mode": "切换自动运行",
+        "open_settings": "打开设置",
+        "enter_compact": "切换到精简模式",
+        "leave_compact": "恢复完整模式",
+        "start_automatic": "启动自动运行",
+        "cancel_start": "取消启动",
+        "stop_automatic": "停止自动运行",
+        "stopping": "正在停止",
+        "stop_all": "停止全部",
+        "stop_all_tooltip": "停止自动运行、挖宝、胡萝卜、刷怪、导航和排队任务。"
+      },
+      "nav": {
+        "workspace": "工作区",
+        "overview": "概览",
+        "events": "事件",
+        "explore": "探索",
+        "farming": "刷怪",
+        "statistics": "统计",
+        "tower": "分歧之塔",
+        "aggro_range": "仇恨范围"
+      },
+      "area": {
+        "south": "南部新月岛",
+        "north": "北部新月岛",
+        "outside": "新月岛外"
+      },
+      "state": {
+        "starting": "启动中",
+        "running": "运行中",
+        "stopping": "停止中",
+        "completed": "已完成",
+        "failed": "启动失败",
+        "stopped": "已停止"
+      },
+      "source": {
+        "automatic": "自动",
+        "manual": "手动"
+      },
+      "operation": {
+        "automatic": "自动运行",
+        "treasure": "挖宝",
+        "carrot": "胡萝卜探索",
+        "farming": "刷怪",
+        "none": "无活动任务",
+        "preparing": "准备中",
+        "waiting_target": "等待目标",
+        "refreshing": "目标数据刷新中"
+      },
+      "pages": {
+        "overview": {
+          "title": "运行概览",
+          "subtitle": "区域、任务、导航与副本轮换状态",
+          "current_area": "当前区域",
+          "outside_title": "当前不在新月岛",
+          "outside_detail": "启动自动运行可按设置的区域入岛；进入后会自动显示事件、探索和刷怪工作区。",
+          "open_source": "开源免费 · 请勿从任何小店购买本插件"
+        },
+        "events": {
+          "title": "事件",
+          "subtitle": "当前区域的 FATE 与 CE",
+          "empty_title": "暂无区域事件",
+          "empty_detail": "进入南部或北部新月岛后查看。"
+        },
+        "explore": {
+          "title": "探索",
+          "subtitle": "宝箱路线、实时宝箱与胡萝卜",
+          "empty_title": "探索尚未可用",
+          "empty_detail": "进入新月岛后可启动宝箱或胡萝卜路线。"
+        },
+        "farming": {
+          "title": "刷怪",
+          "subtitle": "手动刷怪控制与本岛目标",
+          "empty_title": "刷怪尚未可用",
+          "empty_detail": "进入新月岛后可按当前区域目标启动。"
+        },
+        "statistics": {
+          "title": "统计与 Buff",
+          "subtitle": "本次运行的收益、经验和水晶增益"
+        },
+        "tower": {
+          "title": "分歧之塔",
+          "subtitle": "队伍、计时与机关状态"
+        },
+        "aggro_range": {
+          "title": "仇恨范围",
+          "subtitle": "北部新月岛普通怪导航参考"
+        }
+      },
+      "runtime": {
+        "not_enabled": "未启用",
+        "version_unknown": "版本未知",
+        "vnav_available": "{0}（可用）",
+        "not_installed": "未安装",
+        "not_loaded": "未加载",
+        "game_state": "游戏状态",
+        "current_target": "当前目标",
+        "target_stage": "目标阶段",
+        "rotation": "副本轮换",
+        "rotation_value": "{0} · 剩余 {1} · 人数 {2}"
+      },
+      "metrics": {
+        "disabled": "总开关关闭",
+        "target_mobs": "目标怪物",
+        "area_status": "区域状态",
+        "current_area": "当前区域",
+        "not_entered": "未进入"
+      },
+      "mobs": {
+        "summary": "目标怪物：南岛 {0} 只 · 北岛 {1} 只（设置 → 刷怪）",
+        "empty_title": "尚未选择目标怪物",
+        "empty_detail": "在设置 → 刷怪中配置当前区域的目标。",
+        "selected": "已选择 {0} 只"
+      },
+      "automator_window": {
+        "title": "自动运行",
+        "subtitle": "独立运行状态与副本轮换",
+        "outside_detail": "启动后会按设置准备入岛。"
       }
     }
   }

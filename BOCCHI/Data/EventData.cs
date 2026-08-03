@@ -29,6 +29,8 @@ public struct EventData
 
     public Vector3? StartPosition;
 
+    public Vector3? NavigationPositionOverride;
+
     public float? Radius;
 
     public readonly uint EffectiveTerritoryId
@@ -364,7 +366,9 @@ public struct EventData
                 TerritoryId = ZoneData.NORTHHORN,
                 Type = EventType.Fate,
                 InternalName = "高傲的雷兽——新月女王",
-                StartPosition = new Vector3(140f, 37f, -708f),
+                // 官方 planmap.lgb FATE11_base 布局位置即 (140,37,-708)，
+                // 与旧硬编码一致。留空让 Fate.Refresh 回落 IFate.Position 实时坐标，
+                // 位置始终跟随服务器数据，避免后续布局调整时再次偏移。
             }
         },
     };
@@ -645,6 +649,7 @@ public struct EventData
                 Type = EventType.CriticalEncounter,
                 InternalName = "叛逆使魔——负隅宝石兽",
                 StartPosition = new Vector3(238f, 15f, 367f),
+                NavigationPositionOverride = new Vector3(238f, 15f, 352f),
             }
         },
         {

@@ -1,6 +1,6 @@
 using BOCCHI.Data;
-using BOCCHI.Modules.Automator;
 using BOCCHI.Modules.AggroRange;
+using BOCCHI.Modules.Automator;
 using BOCCHI.Modules.Buff;
 using BOCCHI.Modules.Carrots;
 using BOCCHI.Modules.CriticalEncounters;
@@ -11,14 +11,15 @@ using BOCCHI.Modules.ForkedTower;
 using BOCCHI.Modules.MobFarmer;
 using BOCCHI.Modules.StateManager;
 using BOCCHI.Modules.Treasure;
+using BOCCHI.Ui;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
-using Dalamud.Interface.Colors;
 using Dalamud.Interface.Windowing;
 using ECommons.DalamudServices;
 using Ocelot;
 using Ocelot.Windows;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 
@@ -27,14 +28,10 @@ namespace BOCCHI.Windows;
 [OcelotMainWindow]
 public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(primaryPlugin, config)
 {
-    private static readonly Vector4 SouthHornAccent = new(0.31f, 0.72f, 0.48f, 1f);
-    private static readonly Vector4 NorthHornAccent = new(0.42f, 0.68f, 0.95f, 1f);
-    private static readonly Vector4 ReadyAccent = new(0.35f, 0.82f, 0.82f, 1f);
-    private static readonly Vector4 WaitingAccent = new(0.48f, 0.53f, 0.61f, 1f);
-    private static readonly Vector4 CardBackground = new(0.055f, 0.085f, 0.12f, 0.72f);
-    private static readonly Vector4 CardBorder = new(0.24f, 0.34f, 0.45f, 0.72f);
-    private DateTimeOffset nextCompactDependencyCheck = DateTimeOffset.MinValue;
-    private DailyRoutinesModuleStatus compactDailyRoutinesStatus = DailyRoutinesModuleStatus.Unavailable;
+    private MainWindowPage selectedPage = MainWindowPage.Overview;
+    private Vector2? fullWindowSize;
+    private Vector2? compactWindowSize;
+    private bool initialLayoutApplied;
 
     public override void PostInitialize()
     {
@@ -42,545 +39,600 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
 
         SizeConstraints = new WindowSizeConstraints
         {
-            MinimumSize = new Vector2(360, 260),
+            MinimumSize = new Vector2(520, 110),
             MaximumSize = new Vector2(float.MaxValue, float.MaxValue),
         };
-
-        TitleBarButtons.Add(new TitleBarButton
-        {
-            Click = m =>
-            {
-                if (m == ImGuiMouseButton.Left)
-                {
-                    Plugin.Modules.GetModule<AutomatorModule>().DisableIllegalMode();
-                }
-            },
-            Icon = FontAwesomeIcon.Stop,
-            IconOffset = new Vector2(2, 2),
-            ShowTooltip = () => ImGui.SetTooltip(I18N.T("windows.main.buttons.emergency_stop")),
-        });
-
-        TitleBarButtons.Add(new TitleBarButton
-        {
-            Click = m =>
-            {
-                if (m == ImGuiMouseButton.Left)
-                {
-                    AutomatorModule.ToggleIllegalMode(Plugin);
-                }
-            },
-            Icon = FontAwesomeIcon.Skull,
-            IconOffset = new Vector2(2, 2),
-            ShowTooltip = () => ImGui.SetTooltip(I18N.T("windows.main.buttons.toggle_illegal_mode")),
-        });
+        Size = new Vector2(860, 680);
+        SizeCondition = ImGuiCond.FirstUseEver;
     }
 
     protected override void Render(RenderContext context)
     {
-        DrawCompactModeSwitch();
+        if (!initialLayoutApplied)
+        {
+            initialLayoutApplied = true;
+            if (config.CompactMainWindow)
+            {
+                ImGui.SetWindowSize(new Vector2(620f, 110f));
+            }
+        }
+
         if (config.CompactMainWindow)
         {
-            DrawCompactMode();
+            DrawCompactCommandBar();
             return;
         }
 
-        DrawOpenSourceBanner();
-        DrawStatusHeader();
-
-        if (!ImGui.BeginTabBar("##MainSections", ImGuiTabBarFlags.FittingPolicyScroll))
-        {
-            return;
-        }
-
-        if (ImGui.BeginTabItem("总览"))
-        {
-            DrawOverview(context);
-            ImGui.EndTabItem();
-        }
-
-        var southActive = ZoneData.IsInSouthHorn();
-        if (ImGui.BeginTabItem($"南岛{(southActive ? "  ●" : string.Empty)}##SouthHorn"))
-        {
-            DrawIsland(context, ZoneData.SOUTHHORN, "南部新月岛", SouthHornAccent, southActive);
-            ImGui.EndTabItem();
-        }
-
-        var northActive = ZoneData.IsInNorthHorn();
-        if (ImGui.BeginTabItem($"北岛{(northActive ? "  ●" : string.Empty)}##NorthHorn"))
-        {
-            DrawIsland(context, ZoneData.NORTHHORN, "北部新月岛", NorthHornAccent, northActive);
-            ImGui.EndTabItem();
-        }
-
-        ImGui.EndTabBar();
+        DrawCommandBar();
+        ImGui.Spacing();
+        DrawWorkspace(context);
     }
 
-    private void DrawCompactModeSwitch()
-    {
-        var compact = config.CompactMainWindow;
-        if (ImGui.Checkbox("精简模式##CompactMainWindow", ref compact))
-        {
-            config.CompactMainWindow = compact;
-            config.Save();
-        }
-
-        if (ImGui.IsItemHovered())
-        {
-            ImGui.SetTooltip("启动前仅显示依赖检查与岛屿选择，启动后仅保留运行概览。");
-        }
-
-        ImGui.Separator();
-    }
-
-    private void DrawCompactMode()
+    private void DrawCommandBar()
     {
         var automator = Plugin.Modules.GetModule<AutomatorModule>();
-        if (automator.Config.Enabled)
+        var snapshot = GetOperationSnapshot(automator);
+        if (ImGui.GetContentRegionAvail().X < 700f)
         {
-            DrawCompactRuntime(automator);
+            DrawNarrowCommandBar(automator, snapshot);
             return;
         }
 
-        var readiness = GetCompactDependencyReadiness(automator);
-        DrawCompactIslandSelector(automator);
-        ImGui.Spacing();
-        DrawCompactLaunch(automator, readiness);
-    }
-
-    private void DrawCompactRuntime(AutomatorModule automator)
-    {
-        ImGui.TextColored(ReadyAccent, "自动模式运行中");
-
-        const float emergencySize = 28f;
-        var remainingWidth = ImGui.GetContentRegionAvail().X;
-        ImGui.SameLine(MathF.Max(
-            ImGui.GetCursorPosX() + 12f,
-            ImGui.GetCursorPosX() + remainingWidth - emergencySize));
-        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.62f, 0.15f, 0.13f, 0.92f));
-        ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, 5f);
-        ImGui.PushFont(UiBuilder.IconFont);
-        var emergencyClicked = ImGui.Button(
-            $"{FontAwesomeIcon.Stop.ToIconString()}##CompactEmergencyStop",
-            new Vector2(emergencySize, 0));
-        ImGui.PopFont();
-        ImGui.PopStyleVar();
-        ImGui.PopStyleColor();
-        if (ImGui.IsItemHovered())
+        if (ImGui.BeginTable(
+                "##MainCommandBar",
+                4,
+                ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.NoPadOuterX))
         {
-            ImGui.SetTooltip("紧急停止");
-        }
+            ImGui.TableSetupColumn("Area", ImGuiTableColumnFlags.WidthFixed, 150f);
+            ImGui.TableSetupColumn("Operation", ImGuiTableColumnFlags.WidthStretch);
+            ImGui.TableSetupColumn("Commands", ImGuiTableColumnFlags.WidthFixed, 246f);
+            ImGui.TableSetupColumn("Tools", ImGuiTableColumnFlags.WidthFixed, ImGui.GetFrameHeight() * 2f + 8f);
 
-        if (emergencyClicked)
-        {
-            automator.DisableIllegalMode();
-        }
+            ImGui.TableNextColumn();
+            DrawAreaStatus();
 
-        ImGui.Separator();
-        ImGui.TextUnformatted("运行概览");
-        ImGui.Spacing();
-        DrawRuntimeSummary();
-    }
+            ImGui.TableNextColumn();
+            DrawOperationStatus(snapshot, compact: false);
 
-    private void DrawCompactIslandSelector(AutomatorModule automator)
-    {
-        ImGui.TextDisabled("启动岛屿");
-        var spacing = ImGui.GetStyle().ItemSpacing.X;
-        var buttonWidth = MathF.Max(120f, (ImGui.GetContentRegionAvail().X - spacing) / 2f);
-        DrawIslandChoiceButton(
-            automator,
-            InstanceEntryArea.SouthHorn,
-            "南部新月岛",
-            SouthHornAccent,
-            buttonWidth);
-        ImGui.SameLine();
-        DrawIslandChoiceButton(
-            automator,
-            InstanceEntryArea.NorthHorn,
-            "北部新月岛",
-            NorthHornAccent,
-            buttonWidth);
-
-        if (ZoneData.IsInOccultCrescent())
-        {
-            ImGui.TextDisabled("当前已在岛内，本次启动从当前区域开始；该选择用于下次从岛外启动。");
-        }
-    }
-
-    private void DrawIslandChoiceButton(
-        AutomatorModule automator,
-        InstanceEntryArea area,
-        string label,
-        Vector4 accent,
-        float width)
-    {
-        var selected = automator.Config.InitialInstanceArea == area;
-        if (selected)
-        {
-            ImGui.PushStyleColor(ImGuiCol.Button, accent with { W = 0.78f });
-            ImGui.PushStyleColor(ImGuiCol.ButtonHovered, accent with { W = 0.92f });
-        }
-
-        if (ImGui.Button($"{(selected ? "● " : string.Empty)}{label}##Compact-{area}", new Vector2(width, 0))
-            && !selected)
-        {
-            automator.Config.InitialInstanceArea = area;
-            config.Save();
-        }
-
-        if (selected)
-        {
-            ImGui.PopStyleColor(2);
-        }
-    }
-
-    private void DrawCompactLaunch(AutomatorModule automator, CompactDependencyReadiness readiness)
-    {
-        var icon = readiness.IsReady ? FontAwesomeIcon.Play : FontAwesomeIcon.Lock;
-        const float launchButtonSize = 76f;
-        ImGui.SetCursorPosX(MathF.Max(
-            ImGui.GetCursorPosX(),
-            ImGui.GetCursorPosX() + (ImGui.GetContentRegionAvail().X - launchButtonSize) / 2f));
-
-        ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, launchButtonSize / 2f);
-        ImGui.PushStyleColor(
-            ImGuiCol.Button,
-            readiness.IsReady
-                ? new Vector4(0.15f, 0.56f, 0.58f, 0.92f)
-                : new Vector4(0.20f, 0.24f, 0.30f, 0.92f));
-        ImGui.PushStyleColor(
-            ImGuiCol.ButtonHovered,
-            readiness.IsReady
-                ? new Vector4(0.20f, 0.69f, 0.71f, 1f)
-                : new Vector4(0.20f, 0.24f, 0.30f, 0.92f));
-        ImGui.BeginDisabled(!readiness.IsReady);
-        ImGui.PushFont(UiBuilder.IconFont);
-        var startClicked = ImGui.Button(
-            $"{icon.ToIconString()}##CompactAutomationStart",
-            new Vector2(launchButtonSize, launchButtonSize));
-        ImGui.PopFont();
-        ImGui.EndDisabled();
-        ImGui.PopStyleColor(2);
-        ImGui.PopStyleVar();
-
-        if (startClicked)
-        {
-            AutomatorModule.ToggleIllegalMode(Plugin);
-        }
-
-        ImGui.Spacing();
-        DrawCenteredText(
-            readiness.IsReady ? "准备完成，可以启动" : "正在准备自动化插件",
-            readiness.IsReady ? ReadyAccent : WaitingAccent);
-        DrawCenteredText(
-            automator.Config.InitialInstanceArea == InstanceEntryArea.NorthHorn
-                ? "目标：北部新月岛"
-                : "目标：南部新月岛");
-
-        ImGui.Spacing();
-        ImGui.Separator();
-        DrawDependencyStatus("Lifestream", readiness.LifestreamReady ? "已加载" : "未加载", readiness.LifestreamReady);
-        DrawDependencyStatus("vnavmesh", readiness.VnavmeshLabel, readiness.VnavmeshReady);
-        DrawDependencyStatus(
-            "DailyRoutines",
-            readiness.DailyRoutinesStatus switch
-            {
-                DailyRoutinesModuleStatus.Ready => "入岛模块已准备",
-                DailyRoutinesModuleStatus.Enabling => "正在启用入岛模块",
-                _ => "未加载或 IPC 不可用",
-            },
-            readiness.DailyRoutinesStatus == DailyRoutinesModuleStatus.Ready,
-            readiness.DailyRoutinesStatus == DailyRoutinesModuleStatus.Enabling);
-    }
-
-    private CompactDependencyReadiness GetCompactDependencyReadiness(AutomatorModule automator)
-    {
-        var now = DateTimeOffset.UtcNow;
-        if (now >= nextCompactDependencyCheck)
-        {
-            nextCompactDependencyCheck = now + TimeSpan.FromMilliseconds(500);
-            compactDailyRoutinesStatus = automator.instanceRotation.EnsureDailyRoutinesCommandModules(automator);
-        }
-
-        var vnavmesh = automator.GetVnavmeshAvailability();
-        var lifestreamReady = IsPluginLoaded("Lifestream");
-        var vnavmeshLabel = vnavmesh.IsAvailable
-            ? $"{vnavmesh.DisplayVersion?.ToString() ?? "版本未知"}（可用）"
-            : vnavmesh.Status == Pathfinding.VnavmeshAvailabilityStatus.Missing
-                ? "未安装"
-                : "未加载";
-        return new CompactDependencyReadiness(
-            lifestreamReady,
-            vnavmesh.IsAvailable,
-            vnavmeshLabel,
-            compactDailyRoutinesStatus);
-    }
-
-    private static bool IsPluginLoaded(string internalName)
-    {
-        return Svc.PluginInterface.InstalledPlugins.Any(plugin =>
-            string.Equals(plugin.InternalName, internalName, StringComparison.OrdinalIgnoreCase)
-            && plugin.IsLoaded);
-    }
-
-    private static void DrawDependencyStatus(
-        string name,
-        string status,
-        bool ready,
-        bool pending = false)
-    {
-        var color = ready
-            ? new Vector4(0.33f, 0.82f, 0.48f, 1f)
-            : pending
-                ? ImGuiColors.DalamudYellow
-                : new Vector4(0.88f, 0.39f, 0.34f, 1f);
-        ImGui.TextColored(color, "●");
-        ImGui.SameLine();
-        ImGui.TextUnformatted(name);
-        ImGui.SameLine(150f);
-        ImGui.TextDisabled(status);
-    }
-
-    private static void DrawCenteredText(string text, Vector4? color = null)
-    {
-        var width = ImGui.CalcTextSize(text).X;
-        ImGui.SetCursorPosX(MathF.Max(
-            ImGui.GetCursorPosX(),
-            ImGui.GetCursorPosX() + (ImGui.GetContentRegionAvail().X - width) / 2f));
-        if (color.HasValue)
-        {
-            ImGui.TextColored(color.Value, text);
-        }
-        else
-        {
-            ImGui.TextUnformatted(text);
-        }
-    }
-
-    private readonly record struct CompactDependencyReadiness(
-        bool LifestreamReady,
-        bool VnavmeshReady,
-        string VnavmeshLabel,
-        DailyRoutinesModuleStatus DailyRoutinesStatus)
-    {
-        public bool IsReady => LifestreamReady
-                               && VnavmeshReady
-                               && DailyRoutinesStatus == DailyRoutinesModuleStatus.Ready;
-    }
-
-    private void DrawOpenSourceBanner()
-    {
-        ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.38f, 0.25f, 0.02f, 0.42f));
-        ImGui.PushStyleColor(ImGuiCol.Border, new Vector4(0.92f, 0.65f, 0.08f, 0.72f));
-        ImGui.PushStyleVar(ImGuiStyleVar.ChildRounding, 5f);
-        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(10f, 7f));
-        if (ImGui.BeginChild("##OpenSourceNotice", new Vector2(0, 38), true, ImGuiWindowFlags.AlwaysUseWindowPadding))
-        {
-            ImGui.PushFont(UiBuilder.IconFont);
-            ImGui.TextColored(ImGuiColors.DalamudYellow, FontAwesomeIcon.ExclamationTriangle.ToIconString());
-            ImGui.PopFont();
+            ImGui.TableNextColumn();
+            DrawAutomatorButton(automator, "Full", 126f);
             ImGui.SameLine();
-            ImGui.TextUnformatted("插件开源免费，汉化维护不易，请勿从任何闲鱼小店购买本插件。");
-        }
-        ImGui.EndChild();
-        ImGui.PopStyleVar(2);
-        ImGui.PopStyleColor(2);
-    }
-
-    private void DrawStatusHeader()
-    {
-        var automator = Plugin.Modules.GetModule<AutomatorModule>();
-        var farmer = Plugin.Modules.GetModule<MobFarmerModule>();
-        var zoneName = ZoneData.IsInSouthHorn()
-            ? "南部新月岛"
-            : ZoneData.IsInNorthHorn()
-                ? "北部新月岛"
-                : "新月岛外";
-        var accent = ZoneData.IsInNorthHorn() ? NorthHornAccent : SouthHornAccent;
-
-        ImGui.Spacing();
-        ImGui.TextColored(accent, zoneName);
-        ImGui.SameLine();
-        ImGui.TextDisabled($"  区域 {Svc.ClientState.TerritoryType}");
-
-        var available = ImGui.GetContentRegionAvail().X;
-        var emergencyWidth = 72f;
-        var toggleWidth = automator.Config.Enabled ? 116f : 128f;
-        ImGui.SameLine(MathF.Max(ImGui.GetCursorPosX() + 18f, available - emergencyWidth - toggleWidth));
-
-        ImGui.PushStyleColor(
-            ImGuiCol.Button,
-            automator.Config.Enabled
-                ? new Vector4(0.60f, 0.22f, 0.16f, 0.90f)
-                : new Vector4(0.16f, 0.48f, 0.30f, 0.90f));
-        if (ImGui.Button(automator.Config.Enabled ? "暂停自动模式" : "启动自动模式", new Vector2(toggleWidth, 0)))
-        {
-            AutomatorModule.ToggleIllegalMode(Plugin);
-        }
-        ImGui.PopStyleColor();
-
-        ImGui.SameLine();
-        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.62f, 0.15f, 0.13f, 0.92f));
-        if (ImGui.Button("紧急停止", new Vector2(emergencyWidth, 0)))
-        {
-            automator.DisableIllegalMode();
-        }
-        ImGui.PopStyleColor();
-
-        ImGui.TextDisabled(
-            $"自动模式：{(automator.Config.Enabled ? "运行中" : "已停止")}   " +
-            $"刷怪：{(farmer.Farmer.Running ? farmer.Farmer.StateMachine.State.ToString() : "未运行")}");
-        ImGui.Separator();
-    }
-
-    private void DrawOverview(RenderContext context)
-    {
-        if (ImGui.BeginTable("##OverviewCards", 2, ImGuiTableFlags.SizingStretchSame))
-        {
-            ImGui.TableNextColumn();
-            DrawCard("OverviewStatus", "运行概览", () => DrawRuntimeSummary(), 182f);
+            DrawStopAllButton(automator, snapshot, 108f);
 
             ImGui.TableNextColumn();
-            DrawCard("OverviewIncome", "效率统计与 Buff", () =>
+            if (BocchiUi.IconButton(FontAwesomeIcon.Cog, "OpenSettings", T("buttons.open_settings")))
             {
-                Plugin.Modules.GetModule<CurrencyModule>().RenderMainUi(context);
-                ImGui.Spacing();
-                Plugin.Modules.GetModule<ExpModule>().RenderMainUi(context);
-                ImGui.Spacing();
-                Plugin.Modules.GetModule<BuffModule>().RenderMainUi(context);
-            }, 182f);
+                Plugin.Windows.ToggleConfigUI();
+            }
+            ImGui.SameLine();
+            if (BocchiUi.IconButton(FontAwesomeIcon.Compress, "EnterCompact", T("buttons.enter_compact")))
+            {
+                SetCompactMode(true);
+            }
+
             ImGui.EndTable();
         }
 
-        ImGui.Spacing();
-        DrawCard("OverviewEvents", "当前区域事件", () =>
+        if (!string.IsNullOrWhiteSpace(snapshot.Detail))
         {
-            if (!ZoneData.IsInOccultCrescent())
+            ImGui.TextColored(BocchiUi.GetStatusColor(snapshot.State), snapshot.Detail);
+        }
+        ImGui.Separator();
+    }
+
+    private void DrawNarrowCommandBar(
+        AutomatorModule automator,
+        BocchiOperationSnapshot snapshot)
+    {
+        if (ImGui.BeginTable(
+                "##MainCommandBarNarrow",
+                3,
+                ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.NoPadOuterX))
+        {
+            ImGui.TableSetupColumn("Area", ImGuiTableColumnFlags.WidthFixed, 138f);
+            ImGui.TableSetupColumn("Operation", ImGuiTableColumnFlags.WidthStretch);
+            ImGui.TableSetupColumn("Tools", ImGuiTableColumnFlags.WidthFixed, ImGui.GetFrameHeight() * 2f + 8f);
+            ImGui.TableNextColumn();
+            DrawAreaStatus();
+            ImGui.TableNextColumn();
+            DrawOperationStatus(snapshot, compact: true);
+            ImGui.TableNextColumn();
+            if (BocchiUi.IconButton(FontAwesomeIcon.Cog, "OpenSettingsNarrow", T("buttons.open_settings")))
             {
-                ImGui.TextDisabled("进入南部或北部新月岛后显示实时 FATE 与紧急遭遇战。");
-                return;
+                Plugin.Windows.ToggleConfigUI();
+            }
+            ImGui.SameLine();
+            if (BocchiUi.IconButton(FontAwesomeIcon.Compress, "EnterCompactNarrow", T("buttons.enter_compact")))
+            {
+                SetCompactMode(true);
+            }
+            ImGui.EndTable();
+        }
+
+        DrawAutomatorButton(automator, "FullNarrow", 140f);
+        ImGui.SameLine();
+        DrawStopAllButton(automator, snapshot, 108f);
+        if (!string.IsNullOrWhiteSpace(snapshot.Detail))
+        {
+            ImGui.PushStyleColor(ImGuiCol.Text, BocchiUi.GetStatusColor(snapshot.State));
+            ImGui.TextWrapped(snapshot.Detail);
+            ImGui.PopStyleColor();
+        }
+        ImGui.Separator();
+    }
+
+    private void DrawCompactCommandBar()
+    {
+        var automator = Plugin.Modules.GetModule<AutomatorModule>();
+        var snapshot = GetOperationSnapshot(automator);
+
+        if (!ImGui.BeginTable(
+                "##CompactCommandBar",
+                5,
+                ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.NoPadOuterX))
+        {
+            return;
+        }
+
+        ImGui.TableSetupColumn("Area", ImGuiTableColumnFlags.WidthFixed, 118f);
+        ImGui.TableSetupColumn("Operation", ImGuiTableColumnFlags.WidthStretch);
+        ImGui.TableSetupColumn("Toggle", ImGuiTableColumnFlags.WidthFixed, 116f);
+        ImGui.TableSetupColumn("Stop", ImGuiTableColumnFlags.WidthFixed, ImGui.GetFrameHeight());
+        ImGui.TableSetupColumn("Tools", ImGuiTableColumnFlags.WidthFixed, ImGui.GetFrameHeight() * 2f + 8f);
+
+        ImGui.TableNextColumn();
+        DrawAreaStatus();
+        ImGui.TableNextColumn();
+        DrawOperationStatus(snapshot, compact: true);
+        ImGui.TableNextColumn();
+        DrawAutomatorButton(automator, "Compact", 108f);
+        ImGui.TableNextColumn();
+        if (BocchiUi.IconButton(
+                FontAwesomeIcon.Stop,
+                "CompactStopAll",
+                T("buttons.stop_all_tooltip"),
+                snapshot.CanStopAll))
+        {
+            automator.RequestStopAll();
+        }
+        ImGui.TableNextColumn();
+        if (BocchiUi.IconButton(FontAwesomeIcon.Cog, "CompactSettings", T("buttons.open_settings")))
+        {
+            Plugin.Windows.ToggleConfigUI();
+        }
+        ImGui.SameLine();
+        if (BocchiUi.IconButton(FontAwesomeIcon.Expand, "LeaveCompact", T("buttons.leave_compact")))
+        {
+            SetCompactMode(false);
+        }
+
+        ImGui.EndTable();
+    }
+
+    private void DrawWorkspace(RenderContext context)
+    {
+        var inOccultCrescent = ZoneData.IsInOccultCrescent();
+        var inForkedTower = ZoneData.IsInForkedTower();
+        var inNorthHorn = ZoneData.IsInNorthHorn();
+        var pages = BocchiUiPolicy.GetVisiblePages(inOccultCrescent, inForkedTower, inNorthHorn);
+        if (!pages.Contains(selectedPage))
+        {
+            selectedPage = pages[0];
+        }
+
+        var availableWidth = ImGui.GetContentRegionAvail().X;
+        if (BocchiUiPolicy.UseSidebar(availableWidth))
+        {
+            DrawSidebar(pages);
+            ImGui.SameLine();
+            if (ImGui.BeginChild("##MainWorkspace", Vector2.Zero, false))
+            {
+                DrawSelectedPage(context);
+            }
+            ImGui.EndChild();
+            return;
+        }
+
+        DrawHorizontalNavigation(pages);
+        ImGui.Separator();
+        if (ImGui.BeginChild("##MainWorkspaceNarrow", Vector2.Zero, false))
+        {
+            DrawSelectedPage(context);
+        }
+        ImGui.EndChild();
+    }
+
+    private void DrawSidebar(IReadOnlyList<MainWindowPage> pages)
+    {
+        if (ImGui.BeginChild("##MainNavigation", new Vector2(156f, 0f), false))
+        {
+            ImGui.TextDisabled(T("nav.workspace"));
+            ImGui.Spacing();
+            foreach (var page in pages)
+            {
+                var (label, icon) = GetPagePresentation(page);
+                if (BocchiUi.NavigationItem(page, label, icon, page == selectedPage, 146f))
+                {
+                    selectedPage = page;
+                }
+            }
+        }
+        ImGui.EndChild();
+    }
+
+    private void DrawHorizontalNavigation(IReadOnlyList<MainWindowPage> pages)
+    {
+        var height = ImGui.GetFrameHeight() + ImGui.GetStyle().WindowPadding.Y;
+        if (ImGui.BeginChild(
+                "##MainNavigationNarrow",
+                new Vector2(0f, height),
+                false,
+                ImGuiWindowFlags.HorizontalScrollbar))
+        {
+            foreach (var page in pages)
+            {
+                var (label, icon) = GetPagePresentation(page);
+                var width = ImGui.CalcTextSize(label).X + 42f;
+                if (BocchiUi.NavigationItem(page, label, icon, page == selectedPage, width))
+                {
+                    selectedPage = page;
+                }
+                ImGui.SameLine();
+            }
+        }
+        ImGui.EndChild();
+    }
+
+    private void DrawSelectedPage(RenderContext context)
+    {
+        switch (selectedPage)
+        {
+            case MainWindowPage.Events:
+                DrawEventsPage(context);
+                break;
+            case MainWindowPage.Explore:
+                DrawExplorePage(context);
+                break;
+            case MainWindowPage.Farming:
+                DrawFarmingPage(context);
+                break;
+            case MainWindowPage.Statistics:
+                DrawStatisticsPage(context);
+                break;
+            case MainWindowPage.Tower:
+                DrawTowerPage(context);
+                break;
+            case MainWindowPage.AggroRange:
+                DrawAggroRangePage(context);
+                break;
+            default:
+                DrawOverviewPage();
+                break;
+        }
+    }
+
+    private void DrawOverviewPage()
+    {
+        BocchiUi.PageHeading(T("pages.overview.title"), T("pages.overview.subtitle"));
+        DrawRuntimeSummary();
+
+        uint? territory = ZoneData.IsInSouthHorn()
+            ? ZoneData.SOUTHHORN
+            : ZoneData.IsInNorthHorn()
+                ? ZoneData.NORTHHORN
+                : null;
+        if (territory is { } activeTerritory)
+        {
+            BocchiUi.SectionHeading(T("pages.overview.current_area"));
+            DrawIslandSummary(activeTerritory);
+        }
+        else
+        {
+            BocchiUi.EmptyState(
+                T("pages.overview.outside_title"),
+                T("pages.overview.outside_detail"));
+            ImGui.Spacing();
+            DrawConfiguredMobsSummary();
+        }
+
+        ImGui.Spacing();
+        ImGui.TextDisabled(T("pages.overview.open_source"));
+    }
+
+    private void DrawEventsPage(RenderContext context)
+    {
+        BocchiUi.PageHeading(T("pages.events.title"), T("pages.events.subtitle"));
+        if (!ZoneData.IsInOccultCrescent())
+        {
+            BocchiUi.EmptyState(T("pages.events.empty_title"), T("pages.events.empty_detail"));
+            return;
+        }
+
+        var columns = BocchiUiPolicy.GetWorkspaceColumns(ImGui.GetContentRegionAvail().X);
+        if (ImGui.BeginTable(
+                "##EventWorkspace",
+                columns,
+                ImGuiTableFlags.SizingStretchSame | (columns > 1 ? ImGuiTableFlags.BordersInnerV : ImGuiTableFlags.None)))
+        {
+            ImGui.TableNextColumn();
+            Plugin.Modules.GetModule<FatesModule>().RenderMainUi(context);
+            ImGui.TableNextColumn();
+            Plugin.Modules.GetModule<CriticalEncountersModule>().RenderMainUi(context);
+            ImGui.EndTable();
+        }
+    }
+
+    private void DrawExplorePage(RenderContext context)
+    {
+        BocchiUi.PageHeading(T("pages.explore.title"), T("pages.explore.subtitle"));
+        if (!ZoneData.IsInOccultCrescent())
+        {
+            BocchiUi.EmptyState(T("pages.explore.empty_title"), T("pages.explore.empty_detail"));
+            return;
+        }
+
+        Plugin.Modules.GetModule<TreasureModule>().RenderMainUi(context);
+        ImGui.Spacing();
+        Plugin.Modules.GetModule<CarrotsModule>().RenderMainUi(context);
+    }
+
+    private void DrawFarmingPage(RenderContext context)
+    {
+        BocchiUi.PageHeading(T("pages.farming.title"), T("pages.farming.subtitle"));
+        if (!ZoneData.IsInOccultCrescent())
+        {
+            BocchiUi.EmptyState(T("pages.farming.empty_title"), T("pages.farming.empty_detail"));
+            DrawConfiguredMobsSummary();
+            return;
+        }
+
+        Plugin.Modules.GetModule<MobFarmerModule>().RenderMainUi(context);
+        ImGui.Spacing();
+        DrawConfiguredMobNames(Svc.ClientState.TerritoryType);
+    }
+
+    private void DrawStatisticsPage(RenderContext context)
+    {
+        BocchiUi.PageHeading(T("pages.statistics.title"), T("pages.statistics.subtitle"));
+        var columns = BocchiUiPolicy.GetWorkspaceColumns(ImGui.GetContentRegionAvail().X);
+        if (!ImGui.BeginTable("##StatisticsWorkspace", columns, ImGuiTableFlags.SizingStretchSame))
+        {
+            return;
+        }
+
+        ImGui.TableNextColumn();
+        Plugin.Modules.GetModule<CurrencyModule>().RenderMainUi(context);
+        ImGui.Spacing();
+        Plugin.Modules.GetModule<ExpModule>().RenderMainUi(context);
+        ImGui.TableNextColumn();
+        Plugin.Modules.GetModule<BuffModule>().RenderMainUi(context);
+        ImGui.EndTable();
+    }
+
+    private void DrawTowerPage(RenderContext context)
+    {
+        BocchiUi.PageHeading(T("pages.tower.title"), T("pages.tower.subtitle"));
+        Plugin.Modules.GetModule<ForkedTowerModule>().RenderMainUi(context);
+    }
+
+    private void DrawAggroRangePage(RenderContext context)
+    {
+        BocchiUi.PageHeading(T("pages.aggro_range.title"), T("pages.aggro_range.subtitle"));
+        Plugin.Modules.GetModule<AggroRangeModule>().RenderMainUi(context);
+    }
+
+    private static void DrawAutomatorButton(AutomatorModule automator, string id, float width)
+    {
+        var label = automator.RunState switch
+        {
+            AutomatorRunState.Starting => T("buttons.cancel_start"),
+            AutomatorRunState.Running => T("buttons.stop_automatic"),
+            AutomatorRunState.Stopping => T("buttons.stopping"),
+            _ => T("buttons.start_automatic"),
+        };
+        var stopping = automator.RunState == AutomatorRunState.Stopping;
+        var color = automator.RequestedEnabled
+            ? new Vector4(0.52f, 0.25f, 0.20f, 0.92f)
+            : new Vector4(0.16f, 0.48f, 0.30f, 0.92f);
+
+        ImGui.BeginDisabled(stopping);
+        ImGui.PushStyleColor(ImGuiCol.Button, color);
+        if (ImGui.Button($"{label}##AutomatorRun-{id}", new Vector2(width, 0f)))
+        {
+            automator.RequestEnabled(!automator.RequestedEnabled);
+        }
+        ImGui.PopStyleColor();
+        ImGui.EndDisabled();
+    }
+
+    private static void DrawStopAllButton(
+        AutomatorModule automator,
+        BocchiOperationSnapshot snapshot,
+        float width)
+    {
+        ImGui.BeginDisabled(!snapshot.CanStopAll);
+        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.58f, 0.20f, 0.18f, 0.92f));
+        if (ImGui.Button($"{T("buttons.stop_all")}##StopAllAutomation", new Vector2(width, 0f)))
+        {
+            automator.RequestStopAll();
+        }
+        ImGui.PopStyleColor();
+        ImGui.EndDisabled();
+        if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+        {
+            ImGui.SetTooltip(T("buttons.stop_all_tooltip"));
+        }
+    }
+
+    private static void DrawAreaStatus()
+    {
+        var north = ZoneData.IsInNorthHorn();
+        var color = north ? BocchiUi.NorthHornAccent : ZoneData.IsInSouthHorn() ? BocchiUi.SouthHornAccent : BocchiUi.Muted;
+        ImGui.AlignTextToFramePadding();
+        ImGui.TextColored(color, "●");
+        ImGui.SameLine(0f, 5f);
+        ImGui.TextUnformatted(GetZoneName());
+    }
+
+    private static void DrawOperationStatus(BocchiOperationSnapshot snapshot, bool compact)
+    {
+        ImGui.AlignTextToFramePadding();
+        BocchiUi.StatusDot(snapshot.State);
+        ImGui.SameLine(0f, 5f);
+        ImGui.TextUnformatted(GetStateLabel(snapshot.State));
+        ImGui.SameLine(0f, 8f);
+        ImGui.TextDisabled($"· {GetOperationLabel(snapshot.Operation)}");
+        if (!compact && snapshot.Source != BocchiOperationSource.None)
+        {
+            ImGui.SameLine(0f, 6f);
+            ImGui.TextDisabled(snapshot.Source == BocchiOperationSource.Automatic ? T("source.automatic") : T("source.manual"));
+        }
+    }
+
+    private BocchiOperationSnapshot GetOperationSnapshot(AutomatorModule automator)
+    {
+        var state = automator.RunState switch
+        {
+            AutomatorRunState.Starting => BocchiOperationState.Starting,
+            AutomatorRunState.Running => BocchiOperationState.Running,
+            AutomatorRunState.Stopping => BocchiOperationState.Stopping,
+            _ when !string.IsNullOrWhiteSpace(automator.RunStateDetail) => BocchiOperationState.Failed,
+            _ => BocchiOperationState.Stopped,
+        };
+
+        return BocchiOperationPolicy.Create(new BocchiOperationInput(
+            state,
+            automator.RunStateDetail,
+            state is BocchiOperationState.Starting or BocchiOperationState.Running or BocchiOperationState.Stopping
+                ? GetActivitySummary(automator)
+                : null,
+            Plugin.Modules.GetModule<TreasureModule>().IsHuntRunning,
+            Plugin.Modules.GetModule<CarrotsModule>().IsHuntRunning,
+            Plugin.Modules.GetModule<MobFarmerModule>().Farmer.Running));
+    }
+
+    private void SetCompactMode(bool compact)
+    {
+        var currentSize = ImGui.GetWindowSize();
+        if (compact)
+        {
+            fullWindowSize = currentSize;
+            ImGui.SetWindowSize(compactWindowSize ?? new Vector2(620f, 110f));
+        }
+        else
+        {
+            compactWindowSize = currentSize;
+            ImGui.SetWindowSize(fullWindowSize ?? new Vector2(860f, 680f));
+        }
+        config.CompactMainWindow = compact;
+        config.Save();
+    }
+
+    private static string GetZoneName()
+    {
+        return ZoneData.IsInSouthHorn()
+            ? T("area.south")
+            : ZoneData.IsInNorthHorn()
+                ? T("area.north")
+                : T("area.outside");
+    }
+
+    private static string GetStateLabel(BocchiOperationState state)
+    {
+        return state switch
+        {
+            BocchiOperationState.Starting => T("state.starting"),
+            BocchiOperationState.Running => T("state.running"),
+            BocchiOperationState.Stopping => T("state.stopping"),
+            BocchiOperationState.Completed => T("state.completed"),
+            BocchiOperationState.Failed => T("state.failed"),
+            _ => T("state.stopped"),
+        };
+    }
+
+    private static string GetOperationLabel(string operation)
+    {
+        return operation switch
+        {
+            "Automatic operation" => T("operation.automatic"),
+            "Treasure hunt" => T("operation.treasure"),
+            "Carrot hunt" => T("operation.carrot"),
+            "Mob farming" => T("operation.farming"),
+            "No active operation" => T("operation.none"),
+            _ => operation,
+        };
+    }
+
+    private static (string Label, FontAwesomeIcon Icon) GetPagePresentation(MainWindowPage page)
+    {
+        return page switch
+        {
+            MainWindowPage.Events => (T("nav.events"), FontAwesomeIcon.Calendar),
+            MainWindowPage.Explore => (T("nav.explore"), FontAwesomeIcon.Compass),
+            MainWindowPage.Farming => (T("nav.farming"), FontAwesomeIcon.Crosshairs),
+            MainWindowPage.Statistics => (T("nav.statistics"), FontAwesomeIcon.ChartBar),
+            MainWindowPage.Tower => (T("nav.tower"), FontAwesomeIcon.Building),
+            MainWindowPage.AggroRange => (T("nav.aggro_range"), FontAwesomeIcon.Eye),
+            _ => (T("nav.overview"), FontAwesomeIcon.Home),
+        };
+    }
+
+    private string GetActivitySummary(AutomatorModule automator)
+    {
+        try
+        {
+            var name = automator.automator.Activity?.GetName();
+            if (string.IsNullOrEmpty(name))
+            {
+                return automator.RunState == AutomatorRunState.Starting ? T("operation.preparing") : T("operation.waiting_target");
             }
 
-            if (ImGui.BeginTable("##OverviewEventColumns", 2, ImGuiTableFlags.SizingStretchSame | ImGuiTableFlags.BordersInnerV))
-            {
-                ImGui.TableNextColumn();
-                Plugin.Modules.GetModule<FatesModule>().RenderMainUi(context);
-                ImGui.TableNextColumn();
-                Plugin.Modules.GetModule<CriticalEncountersModule>().RenderMainUi(context);
-                ImGui.EndTable();
-            }
-        }, 260f);
+            var state = automator.automator.Activity?.state.ToString();
+            return string.IsNullOrEmpty(state) ? name : $"{name}（{state}）";
+        }
+        catch (AccessViolationException)
+        {
+            return T("operation.refreshing");
+        }
     }
 
     private void DrawRuntimeSummary()
     {
         var automator = Plugin.Modules.GetModule<AutomatorModule>();
         var stateManager = Plugin.Modules.GetModule<StateManagerModule>();
-        var activityName = "无";
-        var activityState = "等待运行";
+        var activityName = T("operation.none");
+        var activityState = T("operation.waiting_target");
         try
         {
-            activityName = automator.automator.Activity?.GetName() ?? "无";
-            activityState = automator.automator.Activity?.state.ToString() ?? "等待运行";
+            activityName = automator.automator.Activity?.GetName() ?? T("operation.none");
+            activityState = automator.automator.Activity?.state.ToString() ?? T("operation.waiting_target");
         }
         catch (AccessViolationException)
         {
-            activityName = "目标数据刷新中";
+            activityName = T("operation.refreshing");
         }
-
-        DrawKeyValue("游戏状态", stateManager.GetStateText());
-        DrawKeyValue("自动模式", automator.Config.Enabled ? "运行中" : "已停止");
-        DrawKeyValue("当前目标", activityName);
-        DrawKeyValue("目标阶段", activityState);
 
         var rotation = automator.instanceRotation;
         var rotationEnabled = automator.Config.ShouldAutoRotateInstance
                               || rotation.State != InstanceRotationState.Idle;
-        var rotationState = rotationEnabled ? rotation.GetStateLabel(automator) : "未启用";
+        var rotationState = rotationEnabled ? rotation.GetStateLabel(automator) : T("runtime.not_enabled");
         var rotationRemaining = rotation.GetRemainingLabel(automator);
         var rotationPopulation = rotation.CurrentPopulation?.ToString() ?? "--";
-        DrawKeyValue("副本轮换状态", $"{rotationState} · 剩余 {rotationRemaining} · 人数 {rotationPopulation}");
-
         var vnavmesh = automator.GetVnavmeshAvailability();
-        DrawKeyValue(
-            "vnavmesh",
-            vnavmesh.IsAvailable
-                ? $"{vnavmesh.DisplayVersion?.ToString() ?? "版本未知"}（可用）"
-                : vnavmesh.Status == Pathfinding.VnavmeshAvailabilityStatus.Missing
-                    ? "未安装"
-                    : "未加载");
-    }
+        var vnavmeshLabel = vnavmesh.IsAvailable
+            ? string.Format(T("runtime.vnav_available"), vnavmesh.DisplayVersion?.ToString() ?? T("runtime.version_unknown"))
+            : vnavmesh.Status == Pathfinding.VnavmeshAvailabilityStatus.Missing
+                ? T("runtime.not_installed")
+                : T("runtime.not_loaded");
 
-    private void DrawIsland(
-        RenderContext context,
-        uint territoryId,
-        string title,
-        Vector4 accent,
-        bool isActive)
-    {
-        ImGui.TextColored(accent, title);
-        ImGui.SameLine();
-        ImGui.TextDisabled(isActive ? "当前所在区域 · 实时数据" : "非当前区域 · 显示独立配置摘要");
-        DrawIslandSummary(territoryId);
-        ImGui.Spacing();
-
-        if (!isActive)
+        if (ImGui.BeginTable("##RuntimeSummary", 2, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.RowBg))
         {
-            DrawCard($"Inactive-{territoryId}", "实时模块", () =>
-            {
-                ImGui.TextDisabled($"进入{title}后，这里会显示该岛的宝箱、胡萝卜、FATE、CE、塔和刷怪运行状态。");
-                ImGui.TextWrapped("配置和目标怪物仍可在下方查看；南北岛列表互不混排。");
-            }, 92f);
-            ImGui.Spacing();
-            DrawConfiguredMobs(territoryId, 260f);
-            return;
-        }
-
-        if (ImGui.BeginTable($"##IslandPrimary-{territoryId}", 2, ImGuiTableFlags.SizingStretchSame))
-        {
-            ImGui.TableNextColumn();
-            DrawCard($"Explore-{territoryId}", "探索与采集", () =>
-            {
-                Plugin.Modules.GetModule<TreasureModule>().RenderMainUi(context);
-                ImGui.Spacing();
-                Plugin.Modules.GetModule<CarrotsModule>().RenderMainUi(context);
-            }, 260f);
-
-            ImGui.TableNextColumn();
-            DrawCard($"Events-{territoryId}", "FATE 与紧急遭遇战", () =>
-            {
-                Plugin.Modules.GetModule<FatesModule>().RenderMainUi(context);
-                ImGui.Spacing();
-                Plugin.Modules.GetModule<CriticalEncountersModule>().RenderMainUi(context);
-            }, 260f);
+            DrawKeyValueRow(T("runtime.game_state"), stateManager.GetStateText());
+            DrawKeyValueRow(T("runtime.current_target"), activityName);
+            DrawKeyValueRow(T("runtime.target_stage"), activityState);
+            DrawKeyValueRow(T("runtime.rotation"), string.Format(T("runtime.rotation_value"), rotationState, rotationRemaining, rotationPopulation));
+            DrawKeyValueRow("vnavmesh", vnavmeshLabel);
             ImGui.EndTable();
-        }
-
-        ImGui.Spacing();
-        if (ImGui.BeginTable($"##IslandSecondary-{territoryId}", 2, ImGuiTableFlags.SizingStretchSame))
-        {
-            ImGui.TableNextColumn();
-            DrawCard($"Farmer-{territoryId}", "本岛刷怪", () =>
-            {
-                Plugin.Modules.GetModule<MobFarmerModule>().RenderMainUi(context);
-                ImGui.Spacing();
-                DrawConfiguredMobNames(territoryId);
-            }, 230f);
-
-            ImGui.TableNextColumn();
-            DrawCard($"Tower-{territoryId}", "分歧之塔", () =>
-            {
-                Plugin.Modules.GetModule<ForkedTowerModule>().RenderMainUi(context);
-            }, 230f);
-            ImGui.EndTable();
-        }
-
-        if (territoryId == ZoneData.NORTHHORN)
-        {
-            ImGui.Spacing();
-            DrawCard($"AggroRange-{territoryId}", "普通怪仇恨范围", () =>
-            {
-                Plugin.Modules.GetModule<AggroRangeModule>().RenderMainUi(context);
-            }, 125f);
         }
     }
 
@@ -590,28 +642,30 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
         var farmer = Plugin.Modules.GetModule<MobFarmerModule>().Config;
         var fateIds = EventData.GetFatesForTerritory(territoryId).Select(data => data.Id).Distinct().ToArray();
         var ceIds = EventData.GetCriticalEncountersForTerritory(territoryId).Select(data => data.Id).Distinct().ToArray();
-        var enabledFates = fateIds.Count(id =>
-            automator.FatesMap.TryGetValue(id, out var enabled) && enabled);
-        var enabledCes = ceIds.Count(id =>
-            automator.CriticalEncountersMap.TryGetValue(id, out var enabled) && enabled);
+        var enabledFates = fateIds.Count(id => automator.FatesMap.TryGetValue(id, out var enabled) && enabled);
+        var enabledCes = ceIds.Count(id => automator.CriticalEncountersMap.TryGetValue(id, out var enabled) && enabled);
+        var columns = BocchiUiPolicy.GetWorkspaceColumns(ImGui.GetContentRegionAvail().X);
 
-        if (ImGui.BeginTable($"##IslandSummary-{territoryId}", 4, ImGuiTableFlags.SizingStretchSame | ImGuiTableFlags.BordersInnerV))
+        if (ImGui.BeginTable("##IslandSummary", columns, ImGuiTableFlags.SizingStretchSame | ImGuiTableFlags.BordersInnerV))
         {
             ImGui.TableNextColumn();
-            DrawMetric("FATE", automator.DoFates ? $"{enabledFates}/{fateIds.Length}" : "总开关关闭");
+            BocchiUi.Metric("FATE", automator.DoFates ? $"{enabledFates}/{fateIds.Length}" : T("metrics.disabled"));
             ImGui.TableNextColumn();
-            DrawMetric("CE", automator.DoCriticalEncounters ? $"{enabledCes}/{ceIds.Length}" : "总开关关闭");
+            BocchiUi.Metric("CE", automator.DoCriticalEncounters ? $"{enabledCes}/{ceIds.Length}" : T("metrics.disabled"));
             ImGui.TableNextColumn();
-            DrawMetric("目标怪物", farmer.GetMobsForTerritory(territoryId).Count.ToString());
+            BocchiUi.Metric(T("metrics.target_mobs"), farmer.GetMobsForTerritory(territoryId).Count.ToString());
             ImGui.TableNextColumn();
-            DrawMetric("区域状态", Svc.ClientState.TerritoryType == territoryId ? "当前区域" : "未进入");
+            BocchiUi.Metric(T("metrics.area_status"), Svc.ClientState.TerritoryType == territoryId ? T("metrics.current_area") : T("metrics.not_entered"));
             ImGui.EndTable();
         }
     }
 
-    private void DrawConfiguredMobs(uint territoryId, float height)
+    private void DrawConfiguredMobsSummary()
     {
-        DrawCard($"ConfiguredMobs-{territoryId}", "目标怪物", () => DrawConfiguredMobNames(territoryId), height);
+        var farmerConfig = Plugin.Modules.GetModule<MobFarmerModule>().Config;
+        var south = farmerConfig.GetMobsForTerritory(ZoneData.SOUTHHORN).Count;
+        var north = farmerConfig.GetMobsForTerritory(ZoneData.NORTHHORN).Count;
+        ImGui.TextDisabled(string.Format(T("mobs.summary"), south, north));
     }
 
     private void DrawConfiguredMobNames(uint territoryId)
@@ -619,12 +673,13 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
         var selected = Plugin.Modules.GetModule<MobFarmerModule>().Config.GetMobsForTerritory(territoryId);
         if (selected.Count == 0)
         {
-            ImGui.TextDisabled("尚未选择本岛目标怪物。请在设置 → 刷怪设置中配置。");
+            BocchiUi.EmptyState(T("mobs.empty_title"), T("mobs.empty_detail"));
             return;
         }
 
-        ImGui.TextDisabled($"已选择 {selected.Count} 只：");
-        if (ImGui.BeginTable($"##ConfiguredMobNames-{territoryId}", 2, ImGuiTableFlags.SizingStretchSame | ImGuiTableFlags.RowBg))
+        ImGui.TextDisabled(string.Format(T("mobs.selected"), selected.Count));
+        var columns = BocchiUiPolicy.GetWorkspaceColumns(ImGui.GetContentRegionAvail().X);
+        if (ImGui.BeginTable("##ConfiguredMobNames", columns, ImGuiTableFlags.SizingStretchSame | ImGuiTableFlags.RowBg))
         {
             foreach (var mob in selected)
             {
@@ -635,33 +690,14 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
         }
     }
 
-    private static void DrawCard(string id, string title, Action content, float height)
+    private static void DrawKeyValueRow(string label, string value)
     {
-        ImGui.PushStyleColor(ImGuiCol.ChildBg, CardBackground);
-        ImGui.PushStyleColor(ImGuiCol.Border, CardBorder);
-        ImGui.PushStyleVar(ImGuiStyleVar.ChildRounding, 6f);
-        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(12f, 10f));
-        if (ImGui.BeginChild($"##Card-{id}", new Vector2(0, height), true, ImGuiWindowFlags.AlwaysUseWindowPadding))
-        {
-            ImGui.TextUnformatted(title);
-            ImGui.Separator();
-            content();
-        }
-        ImGui.EndChild();
-        ImGui.PopStyleVar(2);
-        ImGui.PopStyleColor(2);
-    }
-
-    private static void DrawMetric(string label, string value)
-    {
+        ImGui.TableNextRow();
+        ImGui.TableNextColumn();
         ImGui.TextDisabled(label);
+        ImGui.TableNextColumn();
         ImGui.TextUnformatted(value);
     }
 
-    private static void DrawKeyValue(string label, string value)
-    {
-        ImGui.TextDisabled($"{label}：");
-        ImGui.SameLine(118f);
-        ImGui.TextUnformatted(value);
-    }
+    private static string T(string key) => I18N.T($"windows.main.{key}");
 }

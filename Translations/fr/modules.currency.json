@@ -11,7 +11,13 @@
         "silver": {
           "label": "Pièces d'argent par heure"
         },
-        "title": "Pièces"
+        "title": "Pièces",
+        "reset": {
+          "tooltip": "Réinitialiser les statistiques de {0}",
+          "confirm": "Réinitialiser les statistiques de {0} ?",
+          "action": "Réinitialiser",
+          "cancel": "Annuler"
+        }
       }
     }
   }

@@ -1,8 +1,10 @@
 using BOCCHI.Data;
 using BOCCHI.Pathfinding;
 using BOCCHI.Chains;
+using Dalamud.Bindings.ImGui;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.Objects.Types;
+using Dalamud.Interface.Textures;
 using ECommons.Automation.NeoTaskManager;
 using ECommons.DalamudServices;
 using ECommons.GameHelpers;
@@ -11,8 +13,11 @@ using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using FFXIVClientStructs.FFXIV.Client.LayoutEngine;
 using Ocelot.Chain;
 using Ocelot.Chain.ChainEx;
+using Ocelot.Modules;
+using Ocelot.Ui;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Runtime.CompilerServices;
@@ -24,12 +29,256 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
 {
     private const float LiveTreasureMatchRadius = 12f;
 
+    private const float LiveTreasurePriorityRadius = 120f;
+
     private List<TreasureData.TreasureDatum> Treasure = [];
+
+    private readonly Dictionary<uint, Vector3> liveTreasurePositions = [];
 
     private uint? loadedTreasureTerritory;
 
+    private ISharedImmediateTexture? routeMapTexture;
+
+    private string startError = string.Empty;
+
+    public int? CurrentRouteNumber
+    {
+        get
+        {
+            var nodeId = ActiveNodeId;
+            return nodeId != null
+                   && NorthHornTreasureRoute.TryGetRouteNumber(nodeId.Value, out var routeNumber)
+                ? routeNumber
+                : null;
+        }
+    }
+
+    public override void Draw(Module<Plugin, Config> _)
+    {
+        OcelotUi.Title($"{module.T("panel.hunt.title")}:");
+        OcelotUi.Indent(() =>
+        {
+            var runLabel = running
+                ? module.T("panel.hunt.stop")
+                : module.T("panel.hunt.start");
+            if (ImGui.Button($"{runLabel}##treasure-run", new Vector2(118, 0)))
+            {
+                if (running)
+                {
+                    Stop();
+                    startError = string.Empty;
+                }
+                else if (!module.TryStartHunt(out startError))
+                {
+                    Svc.Log.Warning(startError);
+                }
+            }
+
+            if (ZoneData.IsInNorthHorn())
+            {
+                ImGui.SameLine();
+                var mapLabel = module.Config.ShowNorthHornRouteMap
+                    ? module.T("panel.hunt.hide_map")
+                    : module.T("panel.hunt.show_map");
+                if (ImGui.Button($"{mapLabel}##treasure-map"))
+                {
+                    module.Config.ShowNorthHornRouteMap = !module.Config.ShowNorthHornRouteMap;
+                    module.PluginConfig.Save();
+                }
+
+                ImGui.BeginDisabled(running);
+                DrawStartModeButtons();
+                ImGui.EndDisabled();
+            }
+
+            if (!string.IsNullOrEmpty(startError))
+            {
+                ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(0.95f, 0.35f, 0.3f, 1f));
+                ImGui.TextWrapped(startError);
+                ImGui.PopStyleColor();
+            }
+
+            if (running)
+            {
+                var routeNumber = CurrentRouteNumber;
+                if (routeNumber != null)
+                {
+                    OcelotUi.LabelledValue(
+                        module.T("panel.hunt.route_point"),
+                        $"{routeNumber}/{NorthHornTreasureRoute.RouteCount}");
+                }
+
+                OcelotUi.LabelledValue(
+                    module.T("panel.hunt.live_count"),
+                    GetValidObjects().Count().ToString());
+                OcelotUi.LabelledValue(
+                    module.T("panel.hunt.elapsed"),
+                    $"{stopwatch.Elapsed:mm\\:ss}");
+
+                if (stepIndex < Steps.Count && CurrentStep.Type == PathfinderStepType.WalkToNode)
+                {
+                    OcelotUi.LabelledValue(
+                        module.T("panel.hunt.distance_node"),
+                        $"{distance:f1}");
+                }
+            }
+
+            if (ZoneData.IsInNorthHorn() && module.Config.ShowNorthHornRouteMap)
+            {
+                DrawRouteMap();
+            }
+        });
+    }
+
+    private void DrawStartModeButtons()
+    {
+        ImGui.Spacing();
+        ImGui.TextUnformatted(module.T("panel.hunt.start_mode"));
+        var mode = module.Config.NorthHornRouteStartMode;
+        var buttonWidth = Math.Max(1f, (ImGui.GetContentRegionAvail().X - ImGui.GetStyle().ItemSpacing.X) / 2f);
+        if (DrawModeButton(
+                module.T("panel.hunt.nearest_start"),
+                mode == TreasureRouteStartMode.Nearest,
+                "nearest",
+                buttonWidth))
+        {
+            module.Config.NorthHornRouteStartMode = TreasureRouteStartMode.Nearest;
+            module.PluginConfig.Save();
+        }
+
+        ImGui.SameLine();
+        if (DrawModeButton(
+                module.T("panel.hunt.manual_start"),
+                mode == TreasureRouteStartMode.Manual,
+                "manual",
+                buttonWidth))
+        {
+            module.Config.NorthHornRouteStartMode = TreasureRouteStartMode.Manual;
+            module.PluginConfig.Save();
+        }
+
+        if (module.Config.NorthHornRouteStartMode != TreasureRouteStartMode.Manual)
+        {
+            return;
+        }
+
+        var routeStart = module.Config.NorthHornManualRouteStart;
+        ImGui.SetNextItemWidth(110);
+        if (ImGui.InputInt(
+                $"{module.T("panel.hunt.start_number")}##treasure-start-number",
+                ref routeStart,
+                1,
+                5))
+        {
+            module.Config.NorthHornManualRouteStart = Math.Clamp(
+                routeStart,
+                1,
+                NorthHornTreasureRoute.RouteCount);
+            module.PluginConfig.Save();
+        }
+    }
+
+    private static bool DrawModeButton(string label, bool selected, string id, float width)
+    {
+        if (selected)
+        {
+            ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.18f, 0.56f, 0.38f, 1f));
+            ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.22f, 0.64f, 0.44f, 1f));
+        }
+
+        var clicked = ImGui.Button($"{label}##treasure-mode-{id}", new Vector2(width, 0));
+        if (selected)
+        {
+            ImGui.PopStyleColor(2);
+        }
+
+        return clicked;
+    }
+
+    private void DrawRouteMap()
+    {
+        var assetPath = Path.Join(
+            Svc.PluginInterface.AssemblyLocation.DirectoryName,
+            "assets",
+            "treasure-route-north-horn.png");
+        if (!File.Exists(assetPath))
+        {
+            ImGui.TextColored(
+                new Vector4(0.95f, 0.55f, 0.25f, 1f),
+                module.T("panel.hunt.map_missing"));
+            return;
+        }
+
+        routeMapTexture ??= Svc.Texture.GetFromFile(assetPath);
+        var texture = routeMapTexture.GetWrapOrEmpty();
+        var availableWidth = ImGui.GetContentRegionAvail().X;
+        var imageSize = Math.Min(availableWidth, 520f);
+        if (imageSize <= 1f)
+        {
+            return;
+        }
+        var topLeft = ImGui.GetCursorScreenPos();
+        ImGui.Image(texture.Handle, new Vector2(imageSize, imageSize));
+
+        var scale = imageSize / NorthHornTreasureRoute.MapImageSize;
+        var drawList = ImGui.GetWindowDrawList();
+        foreach (var treasure in GetValidObjects())
+        {
+            DrawMapMarker(
+                drawList,
+                topLeft,
+                NorthHornTreasureRoute.WorldToMapPoint(treasure.Position),
+                scale,
+                3.5f,
+                new Vector4(0.95f, 0.74f, 0.22f, 0.95f));
+        }
+
+        var localPlayer = Svc.Objects.LocalPlayer;
+        if (localPlayer != null)
+        {
+            DrawMapMarker(
+                drawList,
+                topLeft,
+                NorthHornTreasureRoute.WorldToMapPoint(localPlayer.Position),
+                scale,
+                5f,
+                new Vector4(0.18f, 0.82f, 0.92f, 1f));
+        }
+
+        var routeNumber = CurrentRouteNumber;
+        if (routeNumber != null)
+        {
+            DrawMapMarker(
+                drawList,
+                topLeft,
+                NorthHornTreasureRoute.GetMapPoint(routeNumber.Value),
+                scale,
+                6f,
+                new Vector4(0.96f, 0.26f, 0.2f, 1f));
+        }
+    }
+
+    private static void DrawMapMarker(
+        ImDrawListPtr drawList,
+        Vector2 topLeft,
+        Vector2 mapPoint,
+        float scale,
+        float radius,
+        Vector4 color)
+    {
+        var point = topLeft + mapPoint * scale;
+        drawList.AddCircleFilled(point, radius, ImGui.GetColorU32(color));
+        drawList.AddCircle(
+            point,
+            radius + 1f,
+            ImGui.GetColorU32(new Vector4(0.05f, 0.05f, 0.05f, 0.9f)),
+            0,
+            1.5f);
+    }
+
     protected override void OnStarted()
     {
+        liveTreasurePositions.Clear();
         if (TreasureSightRefreshPolicy.ShouldCast(
                 module.Config.CastTreasureSightBeforeHunt,
                 module.Tracker.CountInitialised))
@@ -47,27 +296,50 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
 
     protected override IEnumerable<IGameObject> GetValidObjects()
     {
+        var isNorthHorn = ZoneData.IsInNorthHorn();
         return Svc.Objects
-            .Where(o => o is
-            {
-                ObjectKind: ObjectKind.Treasure,
-                IsDead: false,
-                IsTargetable: true,
-            } && o.IsValid());
+            .Where(o => o.ObjectKind == ObjectKind.Treasure
+                        && !o.IsDead
+                        && o.IsValid()
+                        && o.IsTargetable
+                        && (!isNorthHorn || !IsOpened(o)));
+    }
+
+    protected override bool ShouldUseInitialTransit(uint nodeId)
+    {
+        _ = nodeId;
+        return NorthHornRouteTransitPolicy.AllowsInitialTransit(ZoneData.IsInNorthHorn(), stepIndex);
+    }
+
+    protected override bool ShouldUseForcedRecovery(uint nodeId)
+    {
+        _ = nodeId;
+        return NorthHornRouteTransitPolicy.AllowsForcedRecovery(ZoneData.IsInNorthHorn());
     }
 
     protected override IGameObject? ResolveLiveObjectForNode(uint nodeId, Vector3 expectedPosition)
     {
+        var isNorthHorn = ZoneData.IsInNorthHorn();
         return GetValidObjects()
-            .Where(candidate => candidate.BaseId == nodeId
-                                && Vector3.DistanceSquared(candidate.Position, expectedPosition)
-                                <= LiveTreasureMatchRadius * LiveTreasureMatchRadius)
-            .OrderBy(candidate => Vector3.DistanceSquared(candidate.Position, expectedPosition))
+            .Where(candidate => TreasureObjectMatchPolicy.IsMatch(
+                isNorthHorn,
+                nodeId,
+                candidate.BaseId,
+                Vector3.DistanceSquared(candidate.Position, expectedPosition),
+                LiveTreasureMatchRadius,
+                candidate.BaseId == nodeId || IsLiveTreasureEligible(candidate)))
+            .OrderBy(candidate => candidate.BaseId == nodeId ? 0 : 1)
+            .ThenBy(candidate => Vector3.DistanceSquared(candidate.Position, expectedPosition))
             .FirstOrDefault();
     }
 
     protected override bool TryGetDestinationForCurrentStep(out Vector3 destination)
     {
+        if (liveTreasurePositions.TryGetValue(CurrentStep.NodeId, out destination))
+        {
+            return true;
+        }
+
         if (pathfinder?.TryGetNodePosition(CurrentStep.NodeId, out destination) == true)
         {
             return true;
@@ -168,10 +440,106 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
 
     private Pathfinder CreateTreasurePathfinder()
     {
+        var routeStartMode = ZoneData.IsInNorthHorn()
+            ? module.Config.NorthHornRouteStartMode
+            : (TreasureRouteStartMode?)null;
         return new Pathfinder(
             Treasure,
             module.PluginConfig.PathfinderConfig.ReturnCost,
-            module.PluginConfig.PathfinderConfig.TeleportCost);
+            module.PluginConfig.PathfinderConfig.TeleportCost,
+            routeStartMode,
+            module.Config.NorthHornManualRouteStart);
+    }
+
+    protected override uint? GetPriorityNode(
+        uint currentNodeId,
+        IReadOnlyCollection<uint> remainingNodeIds)
+    {
+        if (!ZoneData.IsInNorthHorn() || pathfinder == null)
+        {
+            return null;
+        }
+
+        _ = remainingNodeIds;
+        var candidates = GetValidObjects()
+            .Where(IsLiveTreasureEligible)
+            .Select(candidate => new LiveTreasureCandidate(candidate.BaseId, candidate.Position))
+            .ToArray();
+        foreach (var candidatesById in candidates.GroupBy(candidate => candidate.BaseId))
+        {
+            var nearest = candidatesById
+                .OrderBy(candidate => Vector3.DistanceSquared(Player.Position, candidate.Position))
+                .First();
+            liveTreasurePositions[candidatesById.Key] = nearest.Position;
+        }
+
+        var priorityNodeId = LiveTreasurePriorityPolicy.Select(
+            Player.Position,
+            currentNodeId,
+            candidates,
+            LiveTreasurePriorityRadius);
+        if (priorityNodeId != null)
+        {
+            var selected = candidates
+                .Where(candidate => candidate.BaseId == priorityNodeId.Value)
+                .OrderBy(candidate => Vector3.DistanceSquared(Player.Position, candidate.Position))
+                .First();
+            liveTreasurePositions[priorityNodeId.Value] = selected.Position;
+        }
+
+        return priorityNodeId;
+    }
+
+    protected override IReadOnlyList<uint>? ReorderRemainingNodes(
+        Vector3 start,
+        IReadOnlyCollection<uint> remainingNodeIds)
+    {
+        _ = start;
+        if (!ZoneData.IsInNorthHorn())
+        {
+            return null;
+        }
+
+        return NorthHornRouteRejoinPolicy.PreservePlannedOrder(remainingNodeIds);
+    }
+
+    private bool IsLiveTreasureEligible(IGameObject candidate)
+    {
+        if (NorthHornTreasureRoute.IsWaypointId(candidate.BaseId))
+        {
+            return false;
+        }
+
+        if (TreasureData.Levels.TryGetValue(candidate.BaseId, out var level))
+        {
+            return TreasureLevelPolicy.IsEligible(
+                ZoneData.IsInNorthHorn(),
+                level,
+                config.MaxLevel);
+        }
+
+        if (TreasureLevelPolicy.IsEligible(
+                ZoneData.IsInNorthHorn(),
+                verifiedLevel: null,
+                maximumLevel: config.MaxLevel))
+        {
+            return true;
+        }
+
+        var nearestLayoutNode = Treasure
+            .Where(node => TreasureData.Levels.ContainsKey(node.Id))
+            .Select(node => new
+            {
+                Node = node,
+                DistanceSquared = Vector3.DistanceSquared(node.Position, candidate.Position),
+            })
+            .Where(match => match.DistanceSquared
+                            <= LiveTreasureMatchRadius * LiveTreasureMatchRadius)
+            .OrderBy(match => match.DistanceSquared)
+            .ThenBy(match => match.Node.Id)
+            .FirstOrDefault();
+        return nearestLayoutNode != null
+               && TreasureData.Levels[nearestLayoutNode.Node.Id] <= config.MaxLevel;
     }
 
     protected override Func<Chain> GetInteractionChain(
@@ -267,18 +635,26 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
         };
     }
 
-    private static IGameObject? ResolveTarget(uint nodeId, Vector3 expectedPosition, ulong gameObjectId)
+    private IGameObject? ResolveTarget(uint nodeId, Vector3 expectedPosition, ulong gameObjectId)
     {
+        var isNorthHorn = ZoneData.IsInNorthHorn();
         var candidates = Svc.Objects
             .Where(candidate => candidate.ObjectKind == ObjectKind.Treasure
-                                && candidate.BaseId == nodeId
                                 && candidate.IsValid()
-                                && Vector3.DistanceSquared(candidate.Position, expectedPosition)
-                                <= LiveTreasureMatchRadius * LiveTreasureMatchRadius)
+                                && TreasureObjectMatchPolicy.IsMatch(
+                                    isNorthHorn,
+                                    nodeId,
+                                    candidate.BaseId,
+                                    Vector3.DistanceSquared(candidate.Position, expectedPosition),
+                                    LiveTreasureMatchRadius,
+                                    candidate.BaseId == nodeId || IsLiveTreasureEligible(candidate)))
             .ToList();
 
         return candidates.FirstOrDefault(candidate => candidate.GameObjectId == gameObjectId)
-               ?? candidates.OrderBy(candidate => Vector3.DistanceSquared(candidate.Position, expectedPosition)).FirstOrDefault();
+               ?? candidates
+                   .OrderBy(candidate => candidate.BaseId == nodeId ? 0 : 1)
+                   .ThenBy(candidate => Vector3.DistanceSquared(candidate.Position, expectedPosition))
+                   .FirstOrDefault();
     }
 
     private static unsafe bool IsOpened(IGameObject target)
@@ -332,20 +708,14 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
 
     protected override List<uint> GetValidNodes(int max)
     {
-        var unknownLevelNodes = Treasure
-            .Where(treasure => !TreasureData.Levels.ContainsKey(treasure.Id))
-            .Select(treasure => treasure.Id)
-            .ToHashSet();
-
-        if (ZoneData.IsInNorthHorn() && unknownLevelNodes.Count > 0)
+        if (ZoneData.IsInNorthHorn())
         {
-            Svc.Log.Warning($"North Horn has {unknownLevelNodes.Count} runtime treasure nodes without verified level metadata; MaxLevel filtering is not applied to those nodes.");
+            return NorthHornTreasureRoute.NodeIds.ToList();
         }
 
         return Treasure
             .Where(treasure => TreasureData.Levels.TryGetValue(treasure.Id, out var level)
-                ? level <= max
-                : ZoneData.IsInNorthHorn())
+                               && level <= max)
             .Select(treasure => treasure.Id)
             .ToList();
     }

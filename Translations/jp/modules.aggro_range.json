@@ -1,0 +1,18 @@
+{
+  "modules": {
+    "aggro_range": {
+      "panel": {
+        "title": "通常モブの感知範囲",
+        "outside_title": "北の島の外にいます",
+        "outside_detail": "北部の蜃気楼の島に入ると、感知範囲をリアルタイムで表示します。",
+        "visible": "描画中",
+        "inside": "範囲内",
+        "calibrated": "実測済み",
+        "route_planning": "ルート事前計算",
+        "planning": "計算中",
+        "idle": "待機中",
+        "catalog_summary": "カタログ {0} 種 · 10 yalms 基準 + リアルタイム Hitbox · 自動感知から校正"
+      }
+    }
+  }
+}

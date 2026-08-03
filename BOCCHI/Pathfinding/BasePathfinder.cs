@@ -47,6 +47,11 @@ public abstract class BasePathfinder : IPathfinder
 
     protected abstract uint GetStartingNode(Vector3 start, List<uint> nodes);
 
+    protected virtual IReadOnlyList<uint>? GetExplicitNodeOrder(Vector3 start, List<uint> nodes)
+    {
+        return null;
+    }
+
     public bool TryGetNodePosition(uint nodeId, out Vector3 position)
     {
         return knownNodePositions.TryGetValue(nodeId, out position);
@@ -61,6 +66,37 @@ public abstract class BasePathfinder : IPathfinder
 
         nodes = nodes.Distinct().ToList();
         State = PathfinderState.Pathfinding;
+
+        var explicitOrder = GetExplicitNodeOrder(start, nodes);
+        if (explicitOrder != null)
+        {
+            var valid = nodes.ToHashSet();
+            var ordered = explicitOrder
+                .Where(valid.Contains)
+                .Distinct()
+                .Where(knownNodePositions.ContainsKey)
+                .ToList();
+            var explicitSteps = ordered
+                .Select(PathfinderStep.WalkToDestination)
+                .ToList();
+            var skipped = nodes.Where(node => !ordered.Contains(node)).ToList();
+            if (skipped.Count > 0)
+            {
+                Svc.Log.Warning(
+                    $"Skipping {skipped.Count} explicit-route nodes without trusted positions: " +
+                    FormatNodeIds(skipped));
+            }
+
+            if (explicitSteps.Count == 0)
+            {
+                State = PathfinderState.NoCompatibleNodes;
+                return Task.FromResult(new List<PathfinderStep>());
+            }
+
+            PrintPath(explicitSteps);
+            State = PathfinderState.PathfindingDone;
+            return Task.FromResult(explicitSteps);
+        }
 
         var steps = new List<PathfinderStep>();
         var routedNodeIds = new HashSet<uint>();

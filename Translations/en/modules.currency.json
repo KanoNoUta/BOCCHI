@@ -6,6 +6,12 @@
       },
       "panel": {
         "title": "Currency",
+        "reset": {
+          "tooltip": "Reset {0} statistics",
+          "confirm": "Reset {0} statistics?",
+          "action": "Reset",
+          "cancel": "Cancel"
+        },
         "silver": {
           "label": "Silver per hour"
         },

@@ -13,6 +13,7 @@ public static class SupportJobLevelingPolicy
 {
     public static bool ShouldKeepCurrent(JobId job, byte level, byte levelMax)
     {
+        _ = job;
         return level > 0
                && level < levelMax;
     }

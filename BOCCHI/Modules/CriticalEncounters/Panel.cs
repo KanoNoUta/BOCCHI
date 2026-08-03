@@ -1,6 +1,7 @@
 ﻿using BOCCHI.Data;
 using BOCCHI.Modules.ForkedTower;
 using BOCCHI.Modules.Teleporter;
+using BOCCHI.Ui;
 using Dalamud.Bindings.ImGui;
 using FFXIVClientStructs.FFXIV.Client.Game.InstanceContent;
 using Ocelot.Ui;
@@ -16,7 +17,14 @@ public class Panel
 
     public void Draw(CriticalEncountersModule module)
     {
-        OcelotUi.Title($"{module.T("panel.title")}:");
+        BocchiUi.SectionHeading(module.T("panel.title"));
+        if (!ZoneData.IsInOccultCrescent())
+        {
+            module.CriticalEncounters.Clear();
+            BocchiUi.EmptyState(module.T("panel.none"), module.T("panel.outside_detail"));
+            return;
+        }
+
         OcelotUi.Indent(() =>
         {
             var active = module.CriticalEncounters.Values.Count(ev => ev.State != DynamicEventState.Inactive);
@@ -24,18 +32,15 @@ public class Panel
                                   && module.CriticalEncounters.Values.Any(ev => ev.EventType >= 4);
             if (active <= 0 && !hasTrackedTower)
             {
-                ImGui.TextUnformatted(module.T("panel.none"));
+                BocchiUi.EmptyState(module.T("panel.none"), module.T("panel.waiting_detail"));
                 return;
             }
 
-            foreach (var ev in module.CriticalEncounters.Values)
+            foreach (var ev in module.CriticalEncounters.Values
+                         .OrderBy(snapshot => GetEventPriority(snapshot.State))
+                         .ThenBy(snapshot => snapshot.StartTimestamp)
+                         .ToArray())
             {
-                if (!ZoneData.IsInOccultCrescent())
-                {
-                    module.CriticalEncounters.Clear();
-                    return;
-                }
-
                 if (ev.EventType >= 4)
                 {
                     HandleTower(ev, module);
@@ -104,8 +109,20 @@ public class Panel
                 }
 
                 OcelotUi.Indent(() => EventIconRenderer.Drops(data, module.PluginConfig.EventDropConfig));
+                ImGui.Separator();
             }
         });
+    }
+
+    private static int GetEventPriority(DynamicEventState state)
+    {
+        return state switch
+        {
+            DynamicEventState.Register => 0,
+            DynamicEventState.Warmup => 1,
+            DynamicEventState.Battle => 2,
+            _ => 3,
+        };
     }
 
 
@@ -167,7 +184,7 @@ public class Panel
         // Event IDs are verified, while the two North Horn platform shapes
         // still require a live sample.  Surface the runtime marker and export
         // all nearby PCs/EObjs/traps instead of inventing geometry.
-        if (definition.TerritoryId == ZoneData.NORTHHORN)
+        if (definition.TerritoryId == ZoneData.NORTHHORN && module.PluginConfig.ShowAdvancedUi)
         {
             var marker = ev.MapMarker.Position;
             OcelotUi.Indent(() =>

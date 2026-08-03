@@ -1,7 +1,68 @@
 {
   "windows": {
     "config": {
-      "title": "BOCCHI 設定"
+      "title": "BOCCHI 設定",
+      "search_hint": "設定またはモジュールを検索...",
+      "groups": {
+        "automation": "自動運転",
+        "events": "イベント",
+        "explore": "探索",
+        "farming": "モブ狩り",
+        "display_notifications": "表示と通知",
+        "advanced": "詳細"
+      },
+      "no_matches": {
+        "title": "一致する設定がありません",
+        "detail": "別のキーワードを入力してください。"
+      },
+      "no_modules": {
+        "title": "利用可能な設定モジュールがありません",
+        "detail": "検索を消去して再試行してください。"
+      },
+      "advanced": {
+        "title": "詳細表示",
+        "toggle": "生ID、座標、収集ツールを表示",
+        "help": "ルートと地形データの収集用です。通常操作では既定で非表示です。"
+      },
+      "editors": {
+        "automation": {
+          "title": "自動運転",
+          "subtitle": "共通動作と南北のイベント設定を分け、変更は即時保存します。",
+          "common_tab": "共通設定",
+          "south_events": "南イベント ({0}/{1})",
+          "north_events": "北イベント ({0}/{1})",
+          "combat_targets": "戦闘と対象",
+          "event_behavior": "FATE / CE 共通動作",
+          "instance_rotation": "インスタンス切替",
+          "island_help": "このページには各エリアのイベントだけを表示します。戦闘、移動、切替は共通設定にあります。"
+        },
+        "farming": {
+          "title": "モブ狩り設定",
+          "subtitle": "南北で対象リストを分け、距離、レベル、釣り設定は共通です。",
+          "south_mobs": "南モブ ({0})",
+          "north_mobs": "北モブ ({0})",
+          "common_tab": "共通パラメータ",
+          "search_hint": "モブ名を検索...",
+          "selection_summary": "選択 {0} / {1}、表示 {2}",
+          "basic": "基本",
+          "loop_return": "周回と帰還",
+          "battle_bell": "戦いの鐘",
+          "debug_display": "デバッグ表示"
+        }
+      },
+      "actions": {
+        "enable_all": "すべて有効",
+        "disable_all": "すべて無効",
+        "confirm_disable_all": "このエリアの {0} をすべて無効にしますか？",
+        "cancel": "キャンセル",
+        "select_visible": "表示結果をすべて選択",
+        "clear": "クリア",
+        "confirm_clear_mobs": "このエリアのモブ狩り対象をすべてクリアしますか？"
+      },
+      "units": {
+        "seconds_1": "%.1f 秒",
+        "minutes_0": "%.0f 分"
+      }
     }
   }
 }

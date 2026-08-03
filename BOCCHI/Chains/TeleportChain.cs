@@ -30,6 +30,18 @@ public class TeleportChain(
         Succeeded = false;
         FailureReason = null;
 
+        var destinationData = aethernet.GetData();
+        // The previous chain may already have completed this teleport before
+        // being aborted (for example when the activity expired mid-flight).
+        // Do not submit a second teleport request to the same aethernet once
+        // the player has already landed at the destination.
+        if (destinationData.IsPlayerWithinLandingRange(AethernetData.DISTANCE))
+        {
+            Succeeded = true;
+            Svc.Log.Info($"Aethernet teleport skipped: already at {aethernet}.");
+            return chain;
+        }
+
         var vnav = module.GetIPCSubscriber<VNavmesh>();
         // Resolve the source from the navigation plan when available. Generic
         // manual callers are already required to be near a shard, so their
@@ -42,76 +54,138 @@ public class TeleportChain(
         // request and not a stale result. Null means the status IPC is absent.
         uint? acceptedSequence = null;
 
-        chain.Then(_ => lifestream.Abort());
+        // A previously aborted chain may have left a teleport in flight (for
+        // example when the activity expired mid-flight). Aborting it here and
+        // immediately submitting the same destination is what causes the
+        // double-teleport loop. Instead, first let an in-flight request finish;
+        // the "already at destination" check above then completes without a
+        // second submission. Only abort after a bounded wait so a hung
+        // Lifestream request cannot stall this chain forever.
+        chain.Then(new TaskManagerTask(() =>
+        {
+            if (!lifestream.IsBusy())
+            {
+                return true;
+            }
+
+            Svc.Log.Info("Waiting for the previous Lifestream teleport request to finish before submitting a new one.");
+            return false;
+        }, new TaskManagerConfiguration
+        {
+            TimeLimitMS = 30000,
+            AbortOnTimeout = true,
+            ShowError = false,
+            OnTaskTimeout = (TaskManagerTask _, ref long _) =>
+            {
+                Svc.Log.Warning("Previous Lifestream teleport request did not finish within 30s; aborting it.");
+                try
+                {
+                    lifestream.Abort();
+                }
+                catch (Exception exception)
+                {
+                    Svc.Log.Warning(exception, "Could not abort the stale Lifestream teleport request.");
+                }
+            },
+        }));
         // Lifestream performs NO approach of its own for custom aethernets: it
         // targets the crystal and calls the game's InteractWithObject, which
         // only fires inside the game's ~4.5m interaction range. The maintained
         // North Horn coordinates can sit several metres from the physical
         // crystal, so we navigate to the crystal's real object position and only
-        // hand off to Lifestream once we are comfortably inside interaction
-        // range, otherwise the request is "accepted" but silently stalls.
-        const float interactRange = 3.5f;
+        // hand off to Lifestream once we are inside interaction range, otherwise
+        // the request is "accepted" but silently stalls. Stay slightly below the
+        // game's range: a tighter gate than 4.5y makes vnavmesh fail while the
+        // player is standing next to the crystal (e.g. 3.54y vs 3.50y).
+        const float interactRange = 4.2f;
         var lastRepathAt = 0L;
         chain.ConditionalThen(
             _ => ZoneData.GetDistanceToAethernetShard(source) > interactRange,
             new PathfindAndMoveToChain(vnav, ZoneData.GetAethernetShardApproachPosition(source)));
         chain.Then(new TaskManagerTask(() =>
         {
-            if (ZoneData.GetDistanceToAethernetShard(source) <= interactRange)
+            try
             {
+                if (ZoneData.GetDistanceToAethernetShard(source) <= interactRange)
+                {
+                    vnav.Stop();
+                    return true;
+                }
+
+                var now = Environment.TickCount64;
+                if (sourceApproachStartedAt == 0)
+                {
+                    sourceApproachStartedAt = now;
+                }
+
+                bool navigationActive;
+                try
+                {
+                    navigationActive = vnav.IsRunning()
+                                       || vnav.IsSimpleMoveInProgress()
+                                       || vnav.IsPathfinding();
+                }
+                catch (Exception exception)
+                {
+                    // vnavmesh can briefly unregister its IPC methods while
+                    // reloading. Keep waiting instead of letting AbortOnError
+                    // kill the approach chain.
+                    Svc.Log.Warning(exception, "vnavmesh IPC unavailable while approaching the source aethernet.");
+                    return false;
+                }
+
+                sourceNavigationInactiveSince = NavigationStopPolicy.UpdateInactiveSince(
+                    navigationActive,
+                    now,
+                    sourceNavigationInactiveSince);
+                if (navigationActive)
+                {
+                    return false;
+                }
+
+                // Navigation settled but we are still outside interaction
+                // range; the crystal's live position may have resolved after
+                // the initial pathfind. Re-issue a path toward the best-known
+                // crystal position.
+                if (now - lastRepathAt > 1500
+                    && AggroAvoidanceNavigation.PathfindAndMoveTo(
+                        vnav,
+                        ZoneData.GetAethernetShardApproachPosition(source),
+                        false))
+                {
+                    lastRepathAt = now;
+                    sourceNavigationInactiveSince = null;
+                    return false;
+                }
+
+                if (!NavigationStopPolicy.HasStopped(
+                        sourceApproachStartedAt,
+                        sourceNavigationInactiveSince,
+                        now))
+                {
+                    return false;
+                }
+
+                FailureReason =
+                    $"vnavmesh could not reach interaction range of source aethernet {source.Aethernet} " +
+                    $"(distance={ZoneData.GetDistanceToAethernetShard(source):F2}, range={interactRange:F2}).";
                 vnav.Stop();
-                return true;
+                Svc.Log.Warning($"Aethernet teleport aborted before IPC: {FailureReason}");
+                throw new InvalidOperationException(FailureReason);
             }
-
-            var now = Environment.TickCount64;
-            if (sourceApproachStartedAt == 0)
+            catch (InvalidOperationException)
             {
-                sourceApproachStartedAt = now;
+                throw;
             }
-
-            var navigationActive = vnav.IsRunning()
-                                   || vnav.IsSimpleMoveInProgress()
-                                   || vnav.IsPathfinding();
-            sourceNavigationInactiveSince = NavigationStopPolicy.UpdateInactiveSince(
-                navigationActive,
-                now,
-                sourceNavigationInactiveSince);
-            if (navigationActive)
+            catch (Exception exception)
             {
+                Svc.Log.Warning(exception, "Transient fault while approaching the source aethernet; retrying.");
                 return false;
             }
-
-            // Navigation settled but we are still outside interaction range;
-            // the crystal's live position may have resolved after the initial
-            // pathfind. Re-issue a path toward the best-known crystal position.
-            if (now - lastRepathAt > 1500
-                && AggroAvoidanceNavigation.PathfindAndMoveTo(
-                    vnav,
-                    ZoneData.GetAethernetShardApproachPosition(source),
-                    false))
-            {
-                lastRepathAt = now;
-                sourceNavigationInactiveSince = null;
-                return false;
-            }
-
-            if (!NavigationStopPolicy.HasStopped(
-                    sourceApproachStartedAt,
-                    sourceNavigationInactiveSince,
-                    now))
-            {
-                return false;
-            }
-
-            FailureReason =
-                $"vnavmesh could not reach interaction range of source aethernet {source.Aethernet} " +
-                $"(distance={ZoneData.GetDistanceToAethernetShard(source):F2}, range={interactRange:F2}).";
-            vnav.Stop();
-            Svc.Log.Warning($"Aethernet teleport aborted before IPC: {FailureReason}");
-            throw new InvalidOperationException(FailureReason);
         }, new TaskManagerConfiguration
         {
             TimeLimitMS = 60000,
+            AbortOnError = false,
             AbortOnTimeout = true,
             ShowError = false,
             OnTaskTimeout = (TaskManagerTask _, ref long _) =>

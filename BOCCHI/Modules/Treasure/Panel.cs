@@ -1,7 +1,5 @@
-﻿using Dalamud.Bindings.ImGui;
-using ECommons.GameHelpers;
-using Ocelot.Ui;
-using System.Numerics;
+using BOCCHI.Ui;
+using Dalamud.Bindings.ImGui;
 
 namespace BOCCHI.Modules.Treasure;
 
@@ -9,58 +7,35 @@ public class Panel
 {
     public void Draw(TreasureModule module)
     {
-        OcelotUi.Title($"{module.T("panel.title")}:");
-
-        OcelotUi.Indent(() =>
-        {
-            DrawActiveChests(module);
-
-            if (module.Treasures.Count <= 0)
-            {
-                ImGui.TextUnformatted(module.T("panel.none"));
-                return;
-            }
-
-            foreach (var treasure in module.Treasures)
-            {
-                if (!treasure.IsValid())
-                {
-                    continue;
-                }
-
-                var pos = treasure.GetPosition();
-
-                ImGui.TextUnformatted($"{treasure.GetName()}");
-                OcelotUi.Indent(() =>
-                {
-                    ImGui.TextUnformatted($"({pos.X:F2}, {pos.Y:F2}, {pos.Z:F2})");
-                    ImGui.TextUnformatted($"({Vector3.Distance(Player.Position, pos)})");
-                });
-            }
-        });
-    }
-
-    private void DrawActiveChests(TreasureModule module)
-    {
+        BocchiUi.SectionHeading(module.T("panel.title"));
         if (!module.Tracker.CountInitialised)
         {
+            BocchiUi.EmptyState(module.T("panel.detecting_title"), module.T("panel.detecting_detail"));
             return;
         }
 
-        OcelotUi.LabelledValue(module.T("panel.active_bronze.label"), $"{module.Tracker.BronzeChests}/30");
-        if (module.Config.ShowPercentageActiveTreasureCount)
+        var columns = BocchiUiPolicy.GetWorkspaceColumns(ImGui.GetContentRegionAvail().X);
+        if (ImGui.BeginTable(
+                "##TreasureCounts",
+                columns,
+                ImGuiTableFlags.SizingStretchSame | (columns > 1 ? ImGuiTableFlags.BordersInnerV : ImGuiTableFlags.None)))
         {
-            var percentage = module.Tracker.BronzeChests / 30f * 100f;
-            ImGui.SameLine();
-            ImGui.TextUnformatted($"({percentage:f2}%)");
+            ImGui.TableNextColumn();
+            BocchiUi.Metric(
+                module.T("panel.active_bronze.label"),
+                FormatCount(module.Tracker.BronzeChests, 30, module.Config.ShowPercentageActiveTreasureCount));
+            ImGui.TableNextColumn();
+            BocchiUi.Metric(
+                module.T("panel.active_silver.label"),
+                FormatCount(module.Tracker.SilverChests, 8, module.Config.ShowPercentageActiveTreasureCount));
+            ImGui.EndTable();
         }
+    }
 
-        OcelotUi.LabelledValue(module.T("panel.active_silver.label"), $"{module.Tracker.SilverChests}/8");
-        if (module.Config.ShowPercentageActiveTreasureCount)
-        {
-            var percentage = module.Tracker.SilverChests / 8f * 100f;
-            ImGui.SameLine();
-            ImGui.TextUnformatted($"({percentage:f2}%)");
-        }
+    private static string FormatCount(int count, int maximum, bool includePercentage)
+    {
+        return includePercentage
+            ? $"{count}/{maximum}  ({count / (float)maximum * 100f:F1}%)"
+            : $"{count}/{maximum}";
     }
 }

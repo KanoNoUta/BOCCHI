@@ -27,6 +27,57 @@ using TextCopy;
 
 namespace BOCCHI.Pathfinding;
 
+public static class HuntRoutePriorityPolicy
+{
+    public static bool PromoteOrInsert(
+        List<PathfinderStep> steps,
+        int stepIndex,
+        uint priorityNodeId)
+    {
+        if (priorityNodeId == 0
+            || stepIndex < 0
+            || stepIndex >= steps.Count
+            || steps[stepIndex].Type != PathfinderStepType.WalkToNode
+            || steps[stepIndex].NodeId == priorityNodeId)
+        {
+            return false;
+        }
+
+        var futureIndex = steps.FindIndex(
+            stepIndex + 1,
+            step => step.Type == PathfinderStepType.WalkToNode
+                    && step.NodeId == priorityNodeId);
+        var priorityStep = futureIndex >= 0
+            ? steps[futureIndex]
+            : PathfinderStep.WalkToDestination(priorityNodeId);
+        if (futureIndex >= 0)
+        {
+            steps.RemoveAt(futureIndex);
+        }
+
+        steps.Insert(stepIndex, priorityStep);
+        return true;
+    }
+
+    public static bool TryRemoveCurrentDiversion(
+        List<PathfinderStep> steps,
+        int stepIndex,
+        uint? priorityDiversionNodeId)
+    {
+        if (priorityDiversionNodeId == null
+            || stepIndex < 0
+            || stepIndex >= steps.Count
+            || steps[stepIndex].Type != PathfinderStepType.WalkToNode
+            || steps[stepIndex].NodeId != priorityDiversionNodeId.Value)
+        {
+            return false;
+        }
+
+        steps.RemoveAt(stepIndex);
+        return true;
+    }
+}
+
 public abstract class Hunter
 {
     protected Module m;
@@ -114,6 +165,8 @@ public abstract class Hunter
 
     private Chain? activeTransitChild;
 
+    private uint? priorityDiversionNodeId;
+
     protected PathfinderStep CurrentStep
     {
         get => Steps[stepIndex];
@@ -122,6 +175,12 @@ public abstract class Hunter
     protected string JSON = "";
 
     public bool IsRunning => running;
+
+    public uint? ActiveNodeId => running
+                                 && stepIndex < Steps.Count
+                                 && CurrentStep.Type == PathfinderStepType.WalkToNode
+        ? CurrentStep.NodeId
+        : null;
 
     protected ChainQueue StepProcessor
     {
@@ -184,6 +243,30 @@ public abstract class Hunter
     protected virtual bool ShouldRepeatAfterCompletion()
     {
         return false;
+    }
+
+    protected virtual uint? GetPriorityNode(
+        uint currentNodeId,
+        IReadOnlyCollection<uint> remainingNodeIds)
+    {
+        return null;
+    }
+
+    protected virtual IReadOnlyList<uint>? ReorderRemainingNodes(
+        Vector3 start,
+        IReadOnlyCollection<uint> remainingNodeIds)
+    {
+        return null;
+    }
+
+    protected virtual bool ShouldUseInitialTransit(uint nodeId)
+    {
+        return true;
+    }
+
+    protected virtual bool ShouldUseForcedRecovery(uint nodeId)
+    {
+        return true;
     }
 
     public void Update()
@@ -266,6 +349,8 @@ public abstract class Hunter
             return;
         }
 
+        TryPromotePriorityNode();
+
         StepProcessor.Submit(() =>
             Chain.Create("Hunter.Run")
                 .Then(_ =>
@@ -299,7 +384,7 @@ public abstract class Hunter
         OnStarted();
     }
 
-    public void Draw(Module<Plugin, Config> module)
+    public virtual void Draw(Module<Plugin, Config> module)
     {
         OcelotUi.Title($"{module.T("panel.hunt.title")}:");
         OcelotUi.Indent(() =>
@@ -362,9 +447,17 @@ public abstract class Hunter
         stepIndex = 0;
         Steps.Clear();
         AbortActiveTransitChild();
-        if (m.TryGetIPCSubscriber<VNavmesh>(out var navigation) && navigation != null && navigation.IsReady())
+        AggroAvoidanceNavigation.Stop();
+        if (m.TryGetIPCSubscriber<VNavmesh>(out var navigation) && navigation != null)
         {
-            AggroAvoidanceNavigation.Stop(navigation);
+            try
+            {
+                navigation.Stop();
+            }
+            catch (Exception exception)
+            {
+                Svc.Log.Warning(exception, "Hunter could not stop vnavmesh because its IPC became unavailable.");
+            }
         }
         Plugin.Chain.Abort();
         StepProcessor.Abort();
@@ -454,6 +547,16 @@ public abstract class Hunter
             {
                 vnav.Stop();
                 ResetNodeNavigation();
+                if (HuntRoutePriorityPolicy.TryRemoveCurrentDiversion(
+                        Steps,
+                        stepIndex,
+                        priorityDiversionNodeId))
+                {
+                    priorityDiversionNodeId = null;
+                    RejoinRemainingRoute();
+                    return false;
+                }
+
                 return true;
             }
 
@@ -537,6 +640,9 @@ public abstract class Hunter
         interactionPending = true;
         interactionNodeId = nodeId;
         interactionStepIndex = scheduledStepIndex;
+        Svc.Log.Info(
+            $"Starting hunt node {nodeId} interaction with object {obj.GameObjectId} " +
+            $"at distance {Player.DistanceTo(obj.Position):F2}.");
 
         StepProcessor.SubmitFront(GetInteractionChain(
             nodeId,
@@ -575,8 +681,19 @@ public abstract class Hunter
         if (outcome is HuntInteractionOutcome.Succeeded or HuntInteractionOutcome.TargetGone)
         {
             Svc.Log.Info($"Hunt node {nodeId} interaction completed with outcome {outcome}.");
+            var wasPriorityDiversion = priorityDiversionNodeId == nodeId;
+            if (wasPriorityDiversion)
+            {
+                priorityDiversionNodeId = null;
+            }
+
             ResetNodeNavigation();
             stepIndex++;
+            if (wasPriorityDiversion)
+            {
+                RejoinRemainingRoute();
+            }
+
             return;
         }
 
@@ -593,8 +710,19 @@ public abstract class Hunter
             Svc.Log.Error(
                 $"Skipping hunt node {nodeId}: interaction failed " +
                 $"{interactionAttempts}/{MAX_NODE_INTERACTION_ATTEMPTS} times.");
+            var wasPriorityDiversion = priorityDiversionNodeId == nodeId;
+            if (wasPriorityDiversion)
+            {
+                priorityDiversionNodeId = null;
+            }
+
             ResetNodeNavigation();
             stepIndex++;
+            if (wasPriorityDiversion)
+            {
+                RejoinRemainingRoute();
+            }
+
             return;
         }
 
@@ -606,7 +734,9 @@ public abstract class Hunter
 
     private bool TryInsertDynamicTransit(uint nodeId, Vector3 destination)
     {
-        if (!ZoneData.IsInNorthHorn() || !dynamicallyPlannedNodes.Add(nodeId))
+        if (!ZoneData.IsInNorthHorn()
+            || !ShouldUseInitialTransit(nodeId)
+            || !dynamicallyPlannedNodes.Add(nodeId))
         {
             return false;
         }
@@ -626,7 +756,7 @@ public abstract class Hunter
             config.ReturnCost,
             config.TeleportCost,
             "North Horn hunt runtime routing",
-            includeWalkTeleportCandidate: false);
+            includeWalkTeleportCandidate: true);
         var transitSteps = HuntNavigationPlanner.BuildTransitSteps(plan);
         if (transitSteps.Count == 0)
         {
@@ -643,7 +773,7 @@ public abstract class Hunter
 
     private bool TryInsertForcedRecovery(uint nodeId, Vector3 destination)
     {
-        if (!ZoneData.IsInNorthHorn())
+        if (!ZoneData.IsInNorthHorn() || !ShouldUseForcedRecovery(nodeId))
         {
             return false;
         }
@@ -683,14 +813,97 @@ public abstract class Hunter
 
     private bool SkipCurrentNode(string reason)
     {
-        Svc.Log.Warning($"Skipping hunt node {CurrentStep.NodeId}: {reason}.");
+        var nodeId = CurrentStep.NodeId;
+        Svc.Log.Warning($"Skipping hunt node {nodeId}: {reason}.");
         if (vnav.IsRunning())
         {
             vnav.Stop();
         }
 
         ResetNodeNavigation();
+        if (HuntRoutePriorityPolicy.TryRemoveCurrentDiversion(
+                Steps,
+                stepIndex,
+                priorityDiversionNodeId))
+        {
+            priorityDiversionNodeId = null;
+            RejoinRemainingRoute();
+            return false;
+        }
+
         return true;
+    }
+
+    private bool TryPromotePriorityNode()
+    {
+        if (CurrentStep.Type != PathfinderStepType.WalkToNode)
+        {
+            return false;
+        }
+
+        if (priorityDiversionNodeId == CurrentStep.NodeId)
+        {
+            return false;
+        }
+
+        var remaining = Steps
+            .Skip(stepIndex)
+            .Where(step => step.Type == PathfinderStepType.WalkToNode)
+            .Select(step => step.NodeId)
+            .Distinct()
+            .ToArray();
+        var priorityNodeId = GetPriorityNode(CurrentStep.NodeId, remaining);
+        if (priorityNodeId == null || priorityNodeId == CurrentStep.NodeId)
+        {
+            return false;
+        }
+
+        if (!HuntRoutePriorityPolicy.PromoteOrInsert(
+                Steps,
+                stepIndex,
+                priorityNodeId.Value))
+        {
+            return false;
+        }
+
+        priorityDiversionNodeId = priorityNodeId;
+        // A live coffer can be promoted while SimpleMove is still following
+        // the interrupted patrol waypoint. Cancel both the avoidance plan and
+        // vnavmesh movement before clearing node state; otherwise the next
+        // handler sees the stale movement as active and never paths to or
+        // interacts with the promoted coffer.
+        AggroAvoidanceNavigation.Stop(vnav);
+        ResetNodeNavigation();
+        Svc.Log.Info(
+            $"Promoted live hunt node {priorityNodeId} ahead of planned node " +
+            $"{Steps[stepIndex + 1].NodeId}; cancelled previous navigation.");
+        return true;
+    }
+
+    private void RejoinRemainingRoute()
+    {
+        var remaining = Steps
+            .Skip(stepIndex)
+            .Where(step => step.Type == PathfinderStepType.WalkToNode)
+            .Select(step => step.NodeId)
+            .Distinct()
+            .ToArray();
+        if (remaining.Length == 0)
+        {
+            return;
+        }
+
+        var reordered = ReorderRemainingNodes(Player.Position, remaining);
+        if (reordered == null)
+        {
+            return;
+        }
+
+        Steps.RemoveRange(stepIndex, Steps.Count - stepIndex);
+        Steps.AddRange(reordered.Select(PathfinderStep.WalkToDestination));
+        ResetNodeNavigation();
+        Svc.Log.Info(
+            $"Rejoined the hunt route at next planned node {reordered.FirstOrDefault()}.");
     }
 
     protected void ResetNodeNavigation()
@@ -723,6 +936,7 @@ public abstract class Hunter
     {
         dynamicallyPlannedNodes.Clear();
         recoveredNodeAethernets.Clear();
+        priorityDiversionNodeId = null;
         ResetInteractionState();
     }
 

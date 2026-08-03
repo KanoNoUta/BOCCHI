@@ -6,6 +6,12 @@
       },
       "panel": {
         "title": "经验值",
+        "reset": {
+          "tooltip": "清零{0}统计",
+          "confirm": "清零{0}统计？",
+          "action": "清零",
+          "cancel": "取消"
+        },
         "exp": {
           "label": "每小时经验值"
         }

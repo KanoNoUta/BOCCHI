@@ -23,6 +23,8 @@ public class Fate
 
     public byte CurrentProgress { get; private set; }
 
+    public long TimeRemaining { get; private set; }
+
     public Fate(IFate fate)
     {
         Id = fate.FateId;
@@ -39,6 +41,7 @@ public class Fate
         Radius = Data.Radius ?? fate.Radius;
         StartPosition = Data.StartPosition ?? fate.Position;
         CurrentProgress = fate.Progress;
+        TimeRemaining = fate.TimeRemaining;
     }
 
     public void Update(UpdateContext context)

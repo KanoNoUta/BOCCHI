@@ -30,9 +30,23 @@
       "panel": {
         "title": "宝箱",
         "none": "附近没有宝箱。",
+        "detecting_title": "正在检测宝箱",
+        "detecting_detail": "首次读取宝箱数量后会在这里显示。",
         "hunt": {
           "title": "宝箱猎人",
-          "distance_node": "距下一个宝箱的距离"
+          "distance_node": "距当前目标",
+          "start": "启动",
+          "stop": "停止",
+          "start_mode": "起点模式",
+          "nearest_start": "最近接入",
+          "manual_start": "指定起点",
+          "start_number": "起点编号",
+          "show_map": "显示路线图",
+          "hide_map": "收起路线图",
+          "route_point": "当前路线点",
+          "live_count": "实时宝箱",
+          "elapsed": "运行时间",
+          "map_missing": "路线图资源未加载"
         },
         "active_bronze": {
           "label": "青铜宝箱"

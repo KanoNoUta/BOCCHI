@@ -8,7 +8,13 @@
         "exp": {
           "label": "Expérience par heure"
         },
-        "title": "Expérience"
+        "title": "Expérience",
+        "reset": {
+          "tooltip": "Réinitialiser les statistiques de {0}",
+          "confirm": "Réinitialiser les statistiques de {0} ?",
+          "action": "Réinitialiser",
+          "cancel": "Annuler"
+        }
       }
     }
   }

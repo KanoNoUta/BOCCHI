@@ -7,12 +7,16 @@ using BOCCHI.Modules.Automator;
 using BOCCHI.Modules.AggroRange;
 using BOCCHI.Modules.Carrots;
 using BOCCHI.Modules.CriticalEncounters;
+using BOCCHI.Modules.Currency;
 using BOCCHI.Modules.StateManager;
 using BOCCHI.Modules.Treasure;
 using BOCCHI.Pathfinding;
+using BOCCHI.Ui;
 using System.Numerics;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Text.Json;
 
@@ -22,6 +26,748 @@ static void Assert(bool condition, string message)
     {
         throw new InvalidOperationException(message);
     }
+}
+
+static void RunCurrencyTrackerTests()
+{
+    var start = new DateTime(2026, 8, 3, 0, 0, 0, DateTimeKind.Utc);
+    var now = start;
+    int? gold = null;
+    int? silver = null;
+    var tracker = new CurrencyTracker(() => gold, () => silver, () => now);
+
+    tracker.Tick();
+    now = start.AddMinutes(1);
+    gold = 2070;
+    silver = 94917;
+    tracker.Tick();
+    Assert(tracker.GetGoldPerHour() == 0 && tracker.GetSilverPerHour() == 0,
+        "The first valid currency sample must establish a baseline instead of counting the existing balance as income.");
+
+    now = start.AddMinutes(31);
+    gold = 2080;
+    tracker.Tick();
+    Assert(Math.Abs(tracker.GetGoldPerHour() - 20f) < 0.001f,
+        "Only positive balance changes after the baseline must contribute to the hourly rate.");
+
+    now = start.AddMinutes(32);
+    gold = null;
+    tracker.Tick();
+    now = start.AddMinutes(33);
+    gold = 2080;
+    tracker.Tick();
+    Assert(Math.Abs(tracker.GetGoldPerHour() - 18.75f) < 0.001f,
+        "A temporarily unavailable inventory read must not replace the last valid balance with zero.");
+
+    now = start.AddMinutes(40);
+    tracker.ResetGold();
+    now = start.AddMinutes(41);
+    tracker.Tick();
+    Assert(tracker.GetGoldPerHour() == 0,
+        "Reset must wait for a fresh baseline and must not count the current balance as new income.");
+}
+
+static IEnumerable<string> GetJsonLeafPaths(JsonElement element, string prefix = "")
+{
+    foreach (var property in element.EnumerateObject())
+    {
+        var path = prefix.Length == 0 ? property.Name : $"{prefix}.{property.Name}";
+        if (property.Value.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var child in GetJsonLeafPaths(property.Value, path))
+            {
+                yield return child;
+            }
+            continue;
+        }
+
+        yield return path;
+    }
+}
+
+static string? GetJsonStringAtPath(JsonElement root, string path)
+{
+    var current = root;
+    foreach (var segment in path.Split('.'))
+    {
+        if (current.ValueKind != JsonValueKind.Object || !current.TryGetProperty(segment, out current))
+        {
+            return null;
+        }
+    }
+
+    return current.ValueKind == JsonValueKind.String ? current.GetString() : null;
+}
+
+static HashSet<string> GetFormatArguments(string? value)
+{
+    return Regex.Matches(value ?? string.Empty, @"\{(\d+)(?:[^}]*)\}")
+        .Select(match => match.Groups[1].Value)
+        .ToHashSet();
+}
+
+static void RunUiShellTests()
+{
+    Assert(BocchiUiPolicy.UseSidebar(900f)
+           && !BocchiUiPolicy.UseSidebar(BocchiUiPolicy.SidebarBreakpoint - 1f),
+        "The main shell must switch to compact navigation below its sidebar breakpoint.");
+    Assert(BocchiUiPolicy.GetWorkspaceColumns(700f) == 2
+           && BocchiUiPolicy.GetWorkspaceColumns(500f) == 1,
+        "Workspace grids must collapse to one column when horizontal space is limited.");
+
+    var outsidePages = BocchiUiPolicy.GetVisiblePages(false, false, false);
+    Assert(outsidePages.SequenceEqual(new[]
+           {
+               MainWindowPage.Overview,
+               MainWindowPage.Statistics,
+           }),
+        "Outside the island, the shell must keep only useful overview and statistics pages.");
+
+    var northPages = BocchiUiPolicy.GetVisiblePages(true, false, true);
+    Assert(northPages.Contains(MainWindowPage.Events)
+           && northPages.Contains(MainWindowPage.Explore)
+           && northPages.Contains(MainWindowPage.Farming)
+           && northPages.Contains(MainWindowPage.AggroRange)
+           && !northPages.Contains(MainWindowPage.Tower),
+        "North Horn must expose its operational pages and contextual aggro page.");
+    Assert(BocchiUiPolicy.GetVisiblePages(true, true, false).Contains(MainWindowPage.Tower),
+        "The Forked Tower page must appear only when its context is active.");
+
+    Assert(BocchiUiPolicy.GetSettingsGroup("AutomatorModule") == BocchiSettingsGroup.Automation
+           && BocchiUiPolicy.GetSettingsGroup("CriticalEncountersModule") == BocchiSettingsGroup.Events
+           && BocchiUiPolicy.GetSettingsGroup("TreasureModule") == BocchiSettingsGroup.Explore
+           && BocchiUiPolicy.GetSettingsGroup("MobFarmerModule") == BocchiSettingsGroup.Farming
+           && BocchiUiPolicy.GetSettingsGroup("WindowManagerModule") == BocchiSettingsGroup.DisplayAndNotifications
+           && BocchiUiPolicy.GetSettingsGroup("DataModule") == BocchiSettingsGroup.Advanced,
+        "Settings navigation must group modules by user task instead of module load order.");
+    Assert(BocchiUiPolicy.MatchesSettingsSearch("Treasure Hunt", BocchiSettingsGroup.Explore, "treasure")
+           && BocchiUiPolicy.MatchesSettingsSearch("宝箱猎人", BocchiSettingsGroup.Explore, "探索")
+           && BocchiUiPolicy.MatchesSettingsSearch("Chasse", BocchiSettingsGroup.Automation, "Automatisation", "Automatisation")
+           && BocchiUiPolicy.MatchesSettingsSearch("宝箱", BocchiSettingsGroup.Farming, "モブ狩り", "モブ狩り")
+           && !BocchiUiPolicy.MatchesSettingsSearch("宝箱猎人", BocchiSettingsGroup.Explore, "FATE"),
+        "Settings search must match localized module or group labels without leaking unrelated entries.");
+
+    var stopped = BocchiOperationPolicy.Create(new BocchiOperationInput(
+        BocchiOperationState.Stopped,
+        null,
+        null,
+        false,
+        false,
+        false));
+    Assert(stopped.State == BocchiOperationState.Stopped && !stopped.CanStopAll,
+        "An idle aggregate snapshot must not offer a meaningless stop action.");
+
+    var manualTreasure = BocchiOperationPolicy.Create(new BocchiOperationInput(
+        BocchiOperationState.Stopped,
+        "Previous startup failure",
+        null,
+        true,
+        false,
+        false));
+    Assert(manualTreasure.State == BocchiOperationState.Running
+           && manualTreasure.Operation == "Treasure hunt"
+           && manualTreasure.Source == BocchiOperationSource.Manual
+           && manualTreasure.CanStopAll,
+        "Manual treasure hunting must override stale Automator failure text in the global runtime truth.");
+
+    var automatic = BocchiOperationPolicy.Create(new BocchiOperationInput(
+        BocchiOperationState.Running,
+        null,
+        "Critical Encounter",
+        true,
+        false,
+        false));
+    Assert(automatic.Operation == "Critical Encounter"
+           && automatic.Source == BocchiOperationSource.Automatic,
+        "An active Automator operation must remain the primary aggregate task.");
+
+    var stopAllState = new AutomatorRunStateMachine();
+    Assert(stopAllState.RequestStopAll() == AutomatorRunAction.BeginStop
+           && stopAllState.State == AutomatorRunState.Stopping,
+        "Stop all must enter the stop drain even when Automator itself was already stopped.");
+    Assert(stopAllState.RequestStopAll() == AutomatorRunAction.None,
+        "Repeated stop-all requests must remain idempotent while the stop drain is active.");
+    stopAllState.CompleteStop();
+    Assert(stopAllState.State == AutomatorRunState.Stopped,
+        "The forced stop-all drain must settle back to Stopped.");
+
+    var mainWindowSource = File.ReadAllText(Path.Combine("BOCCHI", "Windows", "MainWindow.cs"));
+    Assert(!mainWindowSource.Contains("CollapsingHeader", StringComparison.Ordinal),
+        "The redesigned main shell must not use collapsing headers as primary navigation.");
+    Assert(!Regex.IsMatch(mainWindowSource, @"Checkbox\([^\r\n]*CompactMainWindow"),
+        "Compact mode must be a button control, not a checkbox.");
+    Assert(mainWindowSource.Contains("RequestStopAll", StringComparison.Ordinal),
+        "The global command bar must call an explicit stop-all operation.");
+
+    var configWindowSource = File.ReadAllText(Path.Combine("BOCCHI", "Windows", "ConfigWindow.cs"));
+    Assert(configWindowSource.Contains("SettingsSearch", StringComparison.Ordinal)
+           && configWindowSource.Contains("GetSettingsGroup", StringComparison.Ordinal),
+        "The settings shell must expose grouped search navigation.");
+    Assert(configWindowSource.Contains("ConfirmDisableAll", StringComparison.Ordinal)
+           && configWindowSource.Contains("ConfirmClearMobs", StringComparison.Ordinal),
+        "Destructive settings actions must require an explicit confirmation step.");
+
+    var towerPanelSource = File.ReadAllText(Path.Combine("BOCCHI", "Modules", "ForkedTower", "Panel.cs"));
+    var criticalPanelSource = File.ReadAllText(Path.Combine("BOCCHI", "Modules", "CriticalEncounters", "Panel.cs"));
+    Assert(towerPanelSource.Contains("ShowAdvancedUi", StringComparison.Ordinal)
+           && criticalPanelSource.Contains("ShowAdvancedUi", StringComparison.Ordinal),
+        "Raw tower IDs, coordinates, and capture tools must stay behind the Advanced UI preference.");
+
+    var responsivePanelSources = new[]
+    {
+        mainWindowSource,
+        configWindowSource,
+        File.ReadAllText(Path.Combine("BOCCHI", "Modules", "AggroRange", "Panel.cs")),
+        File.ReadAllText(Path.Combine("BOCCHI", "Modules", "Treasure", "Panel.cs")),
+        File.ReadAllText(Path.Combine("BOCCHI", "Modules", "MobFarmer", "Panel.cs")),
+    };
+    Assert(responsivePanelSources.All(source => source.Contains("GetWorkspaceColumns", StringComparison.Ordinal)),
+        "Every event or metric grid named by the UI spec must use the responsive column policy.");
+    Assert(mainWindowSource.Contains("windows.main.", StringComparison.Ordinal)
+           && configWindowSource.Contains("windows.config.", StringComparison.Ordinal),
+        "The redesigned shells must route visible copy through their translation namespaces.");
+
+    HashSet<string>? expectedMainKeys = null;
+    HashSet<string>? expectedConfigKeys = null;
+    foreach (var language in new[] { "en", "fr", "jp", "zh" })
+    {
+        using var mainDocument = JsonDocument.Parse(File.ReadAllText(
+            Path.Combine("Translations", language, "windows.main.json")));
+        using var configDocument = JsonDocument.Parse(File.ReadAllText(
+            Path.Combine("Translations", language, "windows.config.json")));
+        var mainKeys = GetJsonLeafPaths(mainDocument.RootElement.GetProperty("windows").GetProperty("main")).ToHashSet();
+        var configKeys = GetJsonLeafPaths(configDocument.RootElement.GetProperty("windows").GetProperty("config")).ToHashSet();
+        expectedMainKeys ??= mainKeys;
+        expectedConfigKeys ??= configKeys;
+        Assert(expectedMainKeys.SetEquals(mainKeys),
+            $"{language} main-window shell keys must match the English shell contract.");
+        Assert(expectedConfigKeys.SetEquals(configKeys),
+            $"{language} config-window shell keys must match the English shell contract.");
+    }
+
+    var automatorWindowSource = File.ReadAllText(Path.Combine(
+        "BOCCHI", "Modules", "Automator", "AutomatorWindow.cs"));
+    var mainReferences = Regex.Matches(
+            mainWindowSource + automatorWindowSource,
+            @"(?<!\.)\bT\(""([^""]+)""\)")
+        .Select(match => match.Groups[1].Value)
+        .ToHashSet();
+    var configReferences = Regex.Matches(
+            configWindowSource,
+            @"(?<!\.)\bT\(""([^""]+)""\)")
+        .Select(match => match.Groups[1].Value)
+        .ToHashSet();
+    Assert(expectedMainKeys != null && mainReferences.All(expectedMainKeys.Contains),
+        "Every literal windows.main translation referenced by the shell must exist in the key contract.");
+    Assert(expectedConfigKeys != null && configReferences.All(expectedConfigKeys.Contains),
+        "Every literal windows.config translation referenced by the shell must exist in the key contract.");
+    Assert(Enum.GetValues<BocchiSettingsGroup>().All(group =>
+            expectedConfigKeys!.Contains($"groups.{BocchiUiPolicy.GetSettingsGroupKey(group)}")),
+        "Every dynamic localized settings group must exist in the config-window key contract.");
+
+    var moduleUiSourcePaths = new Dictionary<string, string[]>
+    {
+        ["automator"] =
+        [
+            Path.Combine("BOCCHI", "Modules", "Automator", "AutomatorModule.cs"),
+            Path.Combine("BOCCHI", "Modules", "Automator", "Panel.cs"),
+        ],
+        ["aggro_range"] = [Path.Combine("BOCCHI", "Modules", "AggroRange", "Panel.cs")],
+        ["buff"] = [Path.Combine("BOCCHI", "Modules", "Buff", "Panel.cs")],
+        ["carrots"] = [Path.Combine("BOCCHI", "Modules", "Carrots", "Panel.cs")],
+        ["critical_encounters"] = [Path.Combine("BOCCHI", "Modules", "CriticalEncounters", "Panel.cs")],
+        ["currency"] = [Path.Combine("BOCCHI", "Modules", "Currency", "Panel.cs")],
+        ["exp"] = [Path.Combine("BOCCHI", "Modules", "Exp", "Panel.cs")],
+        ["fates"] = [Path.Combine("BOCCHI", "Modules", "Fates", "Panel.cs")],
+        ["mob_farmer"] = [Path.Combine("BOCCHI", "Modules", "MobFarmer", "Panel.cs")],
+        ["treasure"] = [Path.Combine("BOCCHI", "Modules", "Treasure", "Panel.cs")],
+    };
+    var criticalPanelPath = Path.Combine("BOCCHI", "Modules", "CriticalEncounters", "Panel.cs");
+    foreach (var sourcePath in moduleUiSourcePaths.Values.SelectMany(paths => paths).Distinct())
+    {
+        if (sourcePath == criticalPanelPath)
+        {
+            continue;
+        }
+
+        Assert(!Regex.IsMatch(File.ReadAllText(sourcePath), @"[\u4E00-\u9FFF]"),
+            $"Normal workspace UI must not hard-code Chinese copy: {sourcePath}");
+    }
+
+    var towerHandlerIndex = criticalPanelSource.IndexOf("private void HandleTower", StringComparison.Ordinal);
+    Assert(towerHandlerIndex > 0
+           && !Regex.IsMatch(criticalPanelSource[..towerHandlerIndex], @"[\u4E00-\u9FFF]"),
+        "The normal Critical Encounter workspace must not hard-code Chinese copy; advanced tower diagnostics are separate.");
+
+    var translationReferencePattern = new Regex(
+        @"(?:(?<![\w.])T|module\.T)\(""([^""]+)""\)",
+        RegexOptions.CultureInvariant);
+    var moduleUiTranslationContracts = moduleUiSourcePaths.ToDictionary(
+        pair => pair.Key,
+        pair => pair.Value
+            .SelectMany(path => translationReferencePattern.Matches(File.ReadAllText(path)))
+            .Select(match => match.Groups[1].Value)
+            .Distinct()
+            .ToArray());
+    var expectedFormatArguments = new Dictionary<(string Module, string Key), HashSet<string>>();
+    foreach (var language in new[] { "en", "fr", "jp", "zh" })
+    {
+        foreach (var (module, requiredKeys) in moduleUiTranslationContracts)
+        {
+            var path = Path.Combine("Translations", language, $"modules.{module}.json");
+            Assert(File.Exists(path), $"{language} must provide the {module} UI translation file.");
+            using var document = JsonDocument.Parse(File.ReadAllText(path));
+            var moduleRoot = document.RootElement.GetProperty("modules").GetProperty(module);
+            var moduleKeys = GetJsonLeafPaths(moduleRoot).ToHashSet();
+            Assert(requiredKeys.All(moduleKeys.Contains),
+                $"{language} {module} UI translations must contain every literal source reference.");
+
+            foreach (var key in requiredKeys)
+            {
+                var formatArguments = GetFormatArguments(GetJsonStringAtPath(moduleRoot, key));
+                var contractKey = (module, key);
+                if (language == "en")
+                {
+                    expectedFormatArguments[contractKey] = formatArguments;
+                    continue;
+                }
+
+                Assert(expectedFormatArguments[contractKey].SetEquals(formatArguments),
+                    $"{language} {module}.{key} must preserve the English format placeholders.");
+            }
+        }
+    }
+
+    foreach (var file in Directory.EnumerateFiles("Translations", "*.json", SearchOption.AllDirectories))
+    {
+        using var _ = JsonDocument.Parse(File.ReadAllText(file));
+    }
+}
+
+static void RunTreasureRoutePolicyTests()
+{
+    var route = NorthHornTreasureRoute.NodeIds;
+    Assert(route.Count == 68
+           && route.Distinct().Count() == 68
+           && route[0] == NorthHornTreasureRoute.WaypointIdBase + 1
+           && route[^1] == NorthHornTreasureRoute.WaypointIdBase + 68
+           && route.All(NorthHornTreasureRoute.IsWaypointId),
+        "The numbered North Horn loop must use 68 isolated synthetic waypoint IDs.");
+    Assert(NorthHornTreasureRoute.MapPoints.Count == NorthHornTreasureRoute.RouteCount
+           && NorthHornTreasureRoute.MapPoints.All(point =>
+               point.X >= 0f
+               && point.X <= NorthHornTreasureRoute.MapImageSize
+               && point.Y >= 0f
+               && point.Y <= NorthHornTreasureRoute.MapImageSize),
+        "Every numbered route point must remain inside the embedded map image.");
+    var routePointSnapshot = string.Join(
+        ";",
+        NorthHornTreasureRoute.MapPoints.Select(point => $"{point.X:0},{point.Y:0}"));
+    Assert(Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(routePointSnapshot)))
+           == "581C7ABBA05C632FE064B8F50E223A57B6CD446A1F480463CCD901C90F50F9A6",
+        "The 1-68 image checkpoint order must match the reviewed route snapshot.");
+
+    var packagedPositions = new[]
+    {
+        new Vector3(0f, 7f, 0f),
+        new Vector3(1000f, 23f, 1000f),
+    };
+    var allPositions = NorthHornTreasureRoute.BuildWaypointPositions(packagedPositions);
+    var firstWorldPoint = allPositions[route[0]];
+    Assert(firstWorldPoint == packagedPositions[1]
+           && allPositions.Values.All(packagedPositions.Contains),
+        "Every route checkpoint must snap to a real packaged treasure position instead of an off-mesh image coordinate.");
+
+    var northBaseMapPoint = NorthHornTreasureRoute.WorldToMapPoint(
+        ZoneData.Aetherytes[ZoneData.NORTHHORN]);
+    Assert(northBaseMapPoint.X > 900f && northBaseMapPoint.Y > 900f,
+        "North Horn base camp must map to the lower-right corner of the supplied route image.");
+
+    var manual = NorthHornTreasureRoute.OrderNodes(
+        Vector3.Zero,
+        route,
+        allPositions,
+        TreasureRouteStartMode.Manual,
+        68);
+    Assert(manual.Count == 68 && manual[0] == route[67] && manual[1] == route[0],
+        "Manual route 68 must wrap to route 1 without losing a node.");
+
+    var sparse = new[] { route[0], route[2], route[4] };
+    Assert(NorthHornTreasureRoute.OrderNodes(
+               Vector3.Zero,
+               sparse,
+               allPositions,
+               TreasureRouteStartMode.Manual,
+               2)
+           .SequenceEqual(new[] { route[2], route[4], route[0] }),
+        "A filtered manual start must advance to the next valid numbered node.");
+
+    allPositions[route[10]] = new Vector3(2, 0, 0);
+    allPositions[route[40]] = new Vector3(20, 0, 0);
+    Assert(NorthHornTreasureRoute.OrderNodes(
+               Vector3.Zero,
+               route,
+               allPositions,
+               TreasureRouteStartMode.Nearest,
+               1)[0] == route[10],
+        "Nearest start mode must rotate the loop at the closest valid node.");
+
+    Assert(LiveTreasurePriorityPolicy.Select(
+               Vector3.Zero,
+               route[0],
+               new[]
+               {
+                   new LiveTreasureCandidate(1791, new Vector3(20, 0, 0)),
+                   new LiveTreasureCandidate(1790, new Vector3(10, 0, 0)),
+               },
+               100f) == 1790,
+        "The nearest targetable live treasure must be selected independently of patrol IDs.");
+    Assert(LiveTreasurePriorityPolicy.Select(
+               Vector3.Zero,
+               1790,
+               new[] { new LiveTreasureCandidate(1790, new Vector3(10, 0, 0)) },
+               100f) == null,
+        "The current planned node must not repeatedly divert to itself.");
+    Assert(LiveTreasurePriorityPolicy.Select(
+               Vector3.Zero,
+               route[0],
+               new[] { new LiveTreasureCandidate(999999, new Vector3(11, 0, 0)) },
+               100f) == 999999,
+        "A transient live BaseId must remain an insertable runtime target.");
+    Assert(LiveTreasurePriorityPolicy.Select(
+               Vector3.Zero,
+               route[0],
+               new[] { new LiveTreasureCandidate(1790, new Vector3(101, 0, 0)) },
+               100f) == null,
+        "Live diversion must remain bounded by its scan radius.");
+    Assert(TreasureLevelPolicy.IsEligible(
+               isNorthHorn: true,
+               verifiedLevel: null,
+               maximumLevel: 10)
+           && !TreasureLevelPolicy.IsEligible(
+               isNorthHorn: false,
+               verifiedLevel: null,
+               maximumLevel: 10)
+           && !TreasureLevelPolicy.IsEligible(
+               isNorthHorn: true,
+               verifiedLevel: 11,
+               maximumLevel: 10),
+        "North Horn live coffers without verified level rows must remain detectable without bypassing known level limits.");
+    Assert(LiveTreasureObjectPolicy.ShouldTrack(
+               isValid: true,
+               isTargetable: true,
+               isOpened: false)
+           && !LiveTreasureObjectPolicy.ShouldTrack(
+               isValid: true,
+               isTargetable: true,
+               isOpened: true),
+        "An opened coffer must never be promoted into the hunt route again while its object remains loaded.");
+    Assert(NorthHornRouteTransitPolicy.AllowsInitialTransit(
+               isNorthHorn: true,
+               stepIndex: 0)
+           && !NorthHornRouteTransitPolicy.AllowsInitialTransit(
+               isNorthHorn: true,
+               stepIndex: 1)
+           && !NorthHornRouteTransitPolicy.AllowsInitialTransit(
+               isNorthHorn: false,
+               stepIndex: 0),
+        "Only the first North Horn route node may compare walk, Return, and aethernet startup costs.");
+    Assert(!NorthHornRouteTransitPolicy.AllowsForcedRecovery(isNorthHorn: true)
+           && NorthHornRouteTransitPolicy.AllowsForcedRecovery(isNorthHorn: false),
+        "North Horn patrol and live-coffer nodes must never trigger forced Return recovery after startup.");
+    Assert(NorthHornRouteRejoinPolicy.PreservePlannedOrder(
+               new[] { route[6], route[7], route[53], route[54] })
+           .SequenceEqual(new[] { route[6], route[7], route[53], route[54] }),
+        "Opening a live treasure must resume at the interrupted route number without rotating to the nearest remaining point.");
+
+    var plannedSteps = route.Take(3).Select(PathfinderStep.WalkToDestination).ToList();
+    Assert(HuntRoutePriorityPolicy.PromoteOrInsert(plannedSteps, 0, 1790)
+           && plannedSteps.Select(step => step.NodeId)
+               .SequenceEqual(new[] { 1790u, route[0], route[1], route[2] }),
+        "A live treasure absent from the patrol route must be inserted before the current waypoint.");
+    Assert(HuntRoutePriorityPolicy.PromoteOrInsert(plannedSteps, 1, route[2])
+           && plannedSteps.Select(step => step.NodeId)
+               .SequenceEqual(new[] { 1790u, route[2], route[0], route[1] }),
+        "A future planned node must still be promoted without duplication.");
+
+    var disappearedSteps = route.Take(3).Select(PathfinderStep.WalkToDestination).ToList();
+    HuntRoutePriorityPolicy.PromoteOrInsert(disappearedSteps, 0, 1790);
+    Assert(HuntRoutePriorityPolicy.TryRemoveCurrentDiversion(
+               disappearedSteps,
+               0,
+               1790)
+           && disappearedSteps.Select(step => step.NodeId).SequenceEqual(route.Take(3)),
+        "A live diversion that disappears before interaction must be removed before route rejoin.");
+    Assert(!HuntRoutePriorityPolicy.TryRemoveCurrentDiversion(
+               disappearedSteps,
+               0,
+               1790),
+        "A normal patrol waypoint must not be removed as a stale diversion.");
+
+    Assert(!TreasureObjectMatchPolicy.IsMatch(
+               isNorthHorn: false,
+               nodeId: 1789,
+               candidateBaseId: 1790,
+               distanceSquared: 1f,
+               matchRadius: 12f),
+        "South Horn must never fall back to a different treasure BaseId.");
+    Assert(!TreasureObjectMatchPolicy.IsMatch(
+               isNorthHorn: true,
+               nodeId: route[0],
+               candidateBaseId: 1789,
+               distanceSquared: 1f,
+               matchRadius: 12f),
+        "A synthetic North Horn patrol waypoint must never resolve to a treasure object.");
+    Assert(TreasureObjectMatchPolicy.IsMatch(
+               isNorthHorn: true,
+               nodeId: 1789,
+               candidateBaseId: 1790,
+               distanceSquared: 1f,
+               matchRadius: 12f),
+        "A real North Horn diversion may use bounded position fallback.");
+    Assert(!TreasureObjectMatchPolicy.IsMatch(
+               isNorthHorn: true,
+               nodeId: 1789,
+               candidateBaseId: 1790,
+               distanceSquared: 1f,
+               matchRadius: 12f,
+               allowPositionFallback: false),
+        "North Horn position fallback must not bypass MaxLevel eligibility.");
+
+    Assert(typeof(TreasureConfig).GetProperty("NorthHornRouteStartMode") != null
+           && typeof(TreasureConfig).GetProperty("SouthHornRouteStartMode") == null,
+        "The numbered route controls must be persisted as North Horn settings.");
+    var treasureHuntSource = File.ReadAllText(Path.Combine(
+        "BOCCHI", "Modules", "Treasure", "TreasureHunt.cs"));
+    Assert(treasureHuntSource.Contains("ZoneData.IsInNorthHorn()", StringComparison.Ordinal)
+           && !treasureHuntSource.Contains("ZoneData.IsInSouthHorn()", StringComparison.Ordinal)
+           && treasureHuntSource.Contains("treasure-route-north-horn.png", StringComparison.Ordinal),
+        "The route UI and runtime must be wired to North Horn and its correctly named asset.");
+    Assert(treasureHuntSource.Contains(
+               "NorthHornRouteTransitPolicy.AllowsInitialTransit(ZoneData.IsInNorthHorn(), stepIndex)",
+               StringComparison.Ordinal)
+           && treasureHuntSource.Contains(
+               "NorthHornRouteTransitPolicy.AllowsForcedRecovery(ZoneData.IsInNorthHorn())",
+               StringComparison.Ordinal),
+        "Treasure hunt must separate one-time startup transit from forced runtime recovery.");
+    Assert(treasureHuntSource.Contains(
+               "NorthHornRouteRejoinPolicy.PreservePlannedOrder(remainingNodeIds)",
+               StringComparison.Ordinal),
+        "Treasure hunt must preserve the numbered route after a live-coffer diversion.");
+
+    var hunterSource = File.ReadAllText(Path.Combine("BOCCHI", "Pathfinding", "Hunter.cs"));
+    var resetHunterStart = hunterSource.IndexOf(
+        "protected void ResetHunter(bool keepRunning)",
+        StringComparison.Ordinal);
+    var teardownStart = hunterSource.IndexOf(
+        "protected virtual void Teardown()",
+        resetHunterStart,
+        StringComparison.Ordinal);
+    Assert(resetHunterStart >= 0 && teardownStart > resetHunterStart,
+        "Hunter reset lifecycle must remain discoverable by the stop regression test.");
+    var resetHunterSource = hunterSource[resetHunterStart..teardownStart];
+    Assert(resetHunterSource.Contains("AggroAvoidanceNavigation.Stop();", StringComparison.Ordinal)
+           && !resetHunterSource.Contains("navigation.IsReady()", StringComparison.Ordinal),
+        "The independent hunt Stop button must cancel pending navigation even while vnavmesh is not ready.");
+    Assert(hunterSource.Contains("ShouldUseInitialTransit(nodeId)", StringComparison.Ordinal)
+           && hunterSource.Contains("ShouldUseForcedRecovery(nodeId)", StringComparison.Ordinal),
+        "Proactive transit and forced recovery must use independent hunt policies.");
+    Assert(hunterSource.Contains("includeWalkTeleportCandidate: true", StringComparison.Ordinal),
+        "Initial hunt routing must compare walking to a nearby shard before teleporting to the route start.");
+    var promotePriorityStart = hunterSource.IndexOf(
+        "private bool TryPromotePriorityNode()",
+        StringComparison.Ordinal);
+    var rejoinRouteStart = hunterSource.IndexOf(
+        "private void RejoinRemainingRoute()",
+        promotePriorityStart,
+        StringComparison.Ordinal);
+    Assert(promotePriorityStart >= 0 && rejoinRouteStart > promotePriorityStart,
+        "Priority diversion navigation must remain discoverable by the treasure interaction regression test.");
+    var promotePrioritySource = hunterSource[promotePriorityStart..rejoinRouteStart];
+    var stopPreviousNavigation = promotePrioritySource.IndexOf(
+        "AggroAvoidanceNavigation.Stop(vnav);",
+        StringComparison.Ordinal);
+    var resetPromotedNode = promotePrioritySource.IndexOf(
+        "ResetNodeNavigation();",
+        StringComparison.Ordinal);
+    Assert(stopPreviousNavigation >= 0
+           && resetPromotedNode > stopPreviousNavigation,
+        "Promoting a live treasure must stop the old route movement before resetting navigation for the coffer.");
+}
+
+if (args.Contains("--currency-tracker", StringComparer.OrdinalIgnoreCase))
+{
+    RunCurrencyTrackerTests();
+    Console.WriteLine("BOCCHI currency baseline and hourly-rate tests passed.");
+    return;
+}
+
+if (args.Contains("--ui-shell", StringComparer.OrdinalIgnoreCase))
+{
+    RunUiShellTests();
+    Console.WriteLine("BOCCHI responsive UI shell and aggregate operation policy tests passed.");
+    return;
+}
+
+if (args.Contains("--treasure-route", StringComparer.OrdinalIgnoreCase))
+{
+    RunTreasureRoutePolicyTests();
+    Console.WriteLine("BOCCHI North Horn numbered route and live treasure priority tests passed.");
+    return;
+}
+
+if (args.Contains("--automator-run-state", StringComparer.OrdinalIgnoreCase))
+{
+    Assert(PostActivityReturnPolicy.ShouldQueue(EventType.Fate, independentNavigationRunning: false)
+           && !PostActivityReturnPolicy.ShouldQueue(EventType.Fate, independentNavigationRunning: true),
+        "Independent navigation must suppress the automatic post-FATE return without changing normal FATE behavior.");
+
+    var runState = new AutomatorRunStateMachine();
+    Assert(runState.State == AutomatorRunState.Stopped,
+        "Automation must initialize stopped.");
+    Assert(runState.RequestEnabled(true) == AutomatorRunAction.BeginStart
+           && runState.State == AutomatorRunState.Starting
+           && runState.TargetEnabled,
+        "An enable request must publish Starting immediately.");
+    Assert(runState.RequestEnabled(true) == AutomatorRunAction.None,
+        "Repeated enable requests must be idempotent.");
+    runState.SetStartingDetail("正在等待依赖");
+    Assert(runState.Detail == "正在等待依赖",
+        "Starting detail must expose dependency progress without changing state.");
+    runState.CompleteStart();
+    Assert(runState.State == AutomatorRunState.Running
+           && runState.CanRunWork
+           && runState.Detail == null,
+        "A ready start must become Running and clear transitional detail.");
+    Assert(runState.RequestEnabled(false) == AutomatorRunAction.BeginStop
+           && runState.State == AutomatorRunState.Stopping
+           && !runState.TargetEnabled
+           && !runState.CanRunWork,
+        "A stop request must block new work immediately.");
+    Assert(runState.RequestEnabled(false) == AutomatorRunAction.None,
+        "Repeated stop requests must be idempotent.");
+    runState.CompleteStop();
+    Assert(runState.State == AutomatorRunState.Stopped,
+        "Cleanup completion must publish Stopped.");
+
+    var failedStart = new AutomatorRunStateMachine();
+    failedStart.RequestEnabled(true);
+    failedStart.FailStart("vnavmesh 未加载");
+    Assert(failedStart.State == AutomatorRunState.Stopped
+           && failedStart.Detail == "vnavmesh 未加载"
+           && !failedStart.TargetEnabled,
+        "Rejected starts must turn off and preserve a user-readable reason.");
+
+    var cancelledStart = new AutomatorRunStateMachine();
+    cancelledStart.RequestEnabled(true);
+    Assert(cancelledStart.RequestEnabled(false) == AutomatorRunAction.BeginStop
+           && !cancelledStart.TargetEnabled,
+        "Disable during startup must prevent a later running transition.");
+    cancelledStart.CompleteStart();
+    Assert(cancelledStart.State == AutomatorRunState.Stopping,
+        "A stale completion callback must not revive a cancelled start.");
+    cancelledStart.CompleteStop();
+
+    Assert(AutomatorStopPolicy.ShouldRetry(providersStopped: false, completedAttempts: 1)
+           && !AutomatorStopPolicy.ShouldRetry(providersStopped: true, completedAttempts: 1)
+           && !AutomatorStopPolicy.ShouldRetry(
+               providersStopped: false,
+               completedAttempts: AutomatorStopPolicy.MaxAttempts),
+        "Stop draining must retry transient IPC gaps without remaining stuck forever.");
+
+    Assert(AutomatorStartPolicy.Evaluate(vnavmeshAvailable: true, lifestreamLoaded: true)
+           == AutomatorStartReadiness.Ready,
+        "Loaded navigation dependencies must permit startup.");
+    Assert(AutomatorStartPolicy.Evaluate(vnavmeshAvailable: false, lifestreamLoaded: true)
+           == AutomatorStartReadiness.VnavmeshUnavailable,
+        "Missing vnavmesh must reject startup immediately.");
+    Assert(AutomatorStartPolicy.Evaluate(vnavmeshAvailable: true, lifestreamLoaded: false)
+           == AutomatorStartReadiness.LifestreamUnavailable,
+        "Missing Lifestream must reject startup immediately.");
+
+    var mainWindowSource = File.ReadAllText(Path.Combine("BOCCHI", "Windows", "MainWindow.cs"));
+    Assert(!mainWindowSource.Contains("EnsureDailyRoutinesCommandModules", StringComparison.Ordinal),
+        "Rendering the compact window must never enable DailyRoutines modules.");
+    Assert(!mainWindowSource.Contains("TitleBarButtons.Add", StringComparison.Ordinal),
+        "The main title bar must not duplicate the automation switch.");
+    Assert(Regex.Matches(mainWindowSource, "DrawAutomatorButton\\(").Count == 4,
+        "Wide, narrow, and compact layouts must share exactly one run-toggle renderer.");
+    Assert(!mainWindowSource.Contains("ImGui.Checkbox($\"自动运行##AutomatorRun-", StringComparison.Ordinal)
+           && mainWindowSource.Contains("ImGui.Button($\"{label}##AutomatorRun-{id}\"", StringComparison.Ordinal),
+        "The single automation control must be a button, not a checkbox.");
+
+    var automatorModuleSource = File.ReadAllText(Path.Combine(
+        "BOCCHI", "Modules", "Automator", "AutomatorModule.cs"));
+    Assert(automatorModuleSource.Contains("public bool IsIndependentNavigationRunning", StringComparison.Ordinal)
+           && automatorModuleSource.Contains(
+               "automator.SuspendForIndependentNavigation(\"independent navigation\")",
+               StringComparison.Ordinal),
+        "The automator update loop must yield navigation and clear stale FATE state while an independent hunt is running.");
+    var beginStopStart = automatorModuleSource.IndexOf(
+        "private void BeginStopRequest()", StringComparison.Ordinal);
+    var completeStopStart = automatorModuleSource.IndexOf(
+        "private void CompleteStopRequest()", StringComparison.Ordinal);
+    Assert(beginStopStart >= 0 && completeStopStart > beginStopStart,
+        "Automator stop lifecycle methods must remain discoverable by the regression test.");
+    var beginStopSource = automatorModuleSource[beginStopStart..completeStopStart];
+    Assert(beginStopSource.Contains("StopLocalAutomation();", StringComparison.Ordinal)
+           && beginStopSource.IndexOf("StopLocalAutomation();", StringComparison.Ordinal)
+           < beginStopSource.IndexOf("RunOnTick", StringComparison.Ordinal),
+        "Pause must cancel local chains before deferred cleanup is scheduled.");
+    var completeStopEnd = automatorModuleSource.IndexOf(
+        "private static void TryStopStep", completeStopStart, StringComparison.Ordinal);
+    var completeStopSource = automatorModuleSource[completeStopStart..completeStopEnd];
+    Assert(!completeStopSource.Contains("navigation.IsReady()", StringComparison.Ordinal)
+           && !completeStopSource.Contains("lifestream.IsReady()", StringComparison.Ordinal),
+        "Pause must attempt vnavmesh and Lifestream cancellation during transient not-ready windows.");
+
+    var returnChainSource = File.ReadAllText(Path.Combine("BOCCHI", "Chains", "ReturnChain.cs"));
+    var approachWaitStart = returnChainSource.IndexOf(
+        "chain.Then(new TaskManagerTask(() =>", StringComparison.Ordinal);
+    var outsideTerritoryGuard = returnChainSource.IndexOf(
+        "if (!ZoneData.IsInOccultCrescent())", approachWaitStart, StringComparison.Ordinal);
+    var firstApproachRangeCheck = returnChainSource.IndexOf(
+        "ZoneData.IsNearAethernetShard", approachWaitStart, StringComparison.Ordinal);
+    Assert(approachWaitStart >= 0
+           && outsideTerritoryGuard > approachWaitStart
+           && outsideTerritoryGuard < firstApproachRangeCheck,
+        "The return approach must stop before reading island-only data after a territory change.");
+
+    var configWindowSource = File.ReadAllText(Path.Combine("BOCCHI", "Windows", "ConfigWindow.cs"));
+    Assert(!configWindowSource.Contains("##AutomatorEnabled", StringComparison.Ordinal),
+        "Runtime start/stop must not be duplicated in settings.");
+
+    var automatorWindowSource = File.ReadAllText(Path.Combine(
+        "BOCCHI", "Modules", "Automator", "AutomatorWindow.cs"));
+    Assert(!automatorWindowSource.Contains("ToggleIllegalMode", StringComparison.Ordinal),
+        "The Automator lens title bar must not provide a second run control.");
+
+    var treasureModuleSource = File.ReadAllText(Path.Combine(
+        "BOCCHI", "Modules", "Treasure", "TreasureModule.cs"));
+    var prepareIndependentNavigation = treasureModuleSource.IndexOf(
+        "PrepareForIndependentNavigation(\"treasure hunt\")",
+        StringComparison.Ordinal);
+    var startTreasureHunt = treasureModuleSource.IndexOf(
+        "hunter.Start();",
+        StringComparison.Ordinal);
+    Assert(prepareIndependentNavigation >= 0
+           && startTreasureHunt > prepareIndependentNavigation,
+        "Treasure hunt startup must cancel an in-flight FATE return before submitting its own route chains.");
+
+    var teleporterSource = File.ReadAllText(Path.Combine(
+        "BOCCHI", "Modules", "Teleporter", "Teleporter.cs"));
+    var fateEndStart = teleporterSource.IndexOf("public void OnFateEnd", StringComparison.Ordinal);
+    var criticalEndStart = teleporterSource.IndexOf("public void OnCriticalEncounterEnd", StringComparison.Ordinal);
+    var fateEndSource = teleporterSource[fateEndStart..criticalEndStart];
+    Assert(fateEndSource.Contains("automator.IsIndependentNavigationRunning", StringComparison.Ordinal)
+           && fateEndSource.IndexOf("automator.IsIndependentNavigationRunning", StringComparison.Ordinal)
+           < fateEndSource.IndexOf("automator.IsEnabled", StringComparison.Ordinal)
+           && fateEndSource.IndexOf("automator.IsIndependentNavigationRunning", StringComparison.Ordinal)
+           < fateEndSource.IndexOf("Return();", StringComparison.Ordinal),
+        "FATE exit handling must suppress both automatic and manual returns while treasure navigation owns movement.");
+
+    Console.WriteLine("BOCCHI automator run-state smoke tests passed.");
+    return;
 }
 
 static AethernetData CreateShard(Aethernet aethernet, Vector3 position, Vector3 destination)
@@ -101,9 +847,24 @@ Assert(AggroAvoidancePlanner.TryAvoid(
        && AggroAvoidancePlanner.IsPathClear(insideEscapePath, [aggroZone], 6f),
     "A route starting inside and initially travelling deeper must first escape outward, then detour without deadlock.");
 
-Assert(PostActivityReturnPolicy.ShouldQueue(EventType.Fate)
-       && !PostActivityReturnPolicy.ShouldQueue(EventType.CriticalEncounter),
+Assert(PostActivityReturnPolicy.ShouldQueue(EventType.Fate, independentNavigationRunning: false)
+       && !PostActivityReturnPolicy.ShouldQueue(EventType.CriticalEncounter, independentNavigationRunning: false),
     "Completed FATEs must lock the automator into a base-camp return before selecting another activity.");
+Assert(!PostActivityReturnPolicy.ShouldQueue(EventType.Fate, independentNavigationRunning: true),
+    "An independent treasure hunt must own navigation and suppress the post-FATE base-camp return.");
+Assert(ActivitySelectionPolicy.GetOrder(preferFate: false)
+           .SequenceEqual([EventType.CriticalEncounter, EventType.Fate])
+       && ActivitySelectionPolicy.GetOrder(preferFate: true)
+           .SequenceEqual([EventType.Fate, EventType.CriticalEncounter]),
+    "Activity selection must give one pending FATE preference priority over an available CE.");
+var preferFateAfterCe = ActivitySelectionPolicy.AfterActivityEnded(
+    preferFate: false,
+    EventType.CriticalEncounter);
+Assert(preferFateAfterCe
+       && ActivitySelectionPolicy.AfterActivitySelected(preferFateAfterCe, EventType.CriticalEncounter)
+       && !ActivitySelectionPolicy.AfterActivitySelected(preferFateAfterCe, EventType.Fate)
+       && !ActivitySelectionPolicy.AfterActivityEnded(preferFate: false, EventType.Fate),
+    "CE completion must retain FATE preference until a FATE is actually selected.");
 Assert(CombatAutomationPolicy.ShouldAcquireTarget(false, false)
        && CombatAutomationPolicy.ShouldAcquireTarget(true, true)
        && !CombatAutomationPolicy.ShouldAcquireTarget(false, true),
@@ -510,6 +1271,45 @@ Assert(CriticalEncounterNavigationPolicy.ShouldAbandon(
            registrationOpen: false, isInZone: false, playerInEncounter: true),
     "A started CE must be abandoned only while the player remains outside and has not joined it.");
 
+Assert(CriticalEncounterSelectionPolicy.HasEnoughRegistrationTime(
+           TimeSpan.FromSeconds(60),
+           delayEnabled: true,
+           maximumDelaySeconds: 15f,
+           transitReserveSeconds: 45d)
+       && !CriticalEncounterSelectionPolicy.HasEnoughRegistrationTime(
+           TimeSpan.FromSeconds(59.99),
+           delayEnabled: true,
+           maximumDelaySeconds: 15f,
+           transitReserveSeconds: 45d)
+       && CriticalEncounterSelectionPolicy.HasEnoughRegistrationTime(
+           TimeSpan.FromSeconds(45),
+           delayEnabled: false,
+           maximumDelaySeconds: 15f,
+           transitReserveSeconds: 45d)
+       && !CriticalEncounterSelectionPolicy.HasEnoughRegistrationTime(
+           TimeSpan.Zero,
+           delayEnabled: false,
+           maximumDelaySeconds: 0f,
+           transitReserveSeconds: 0d),
+    "CE selection must reserve enough registration time for delay and crystal transit.");
+Assert(CriticalEncounterSelectionPolicy.ShouldPreferBaseCampReturn(
+           delayEnabled: true,
+           isAtBaseCampAethernet: false,
+           isNearDestinationAethernet: false)
+       && !CriticalEncounterSelectionPolicy.ShouldPreferBaseCampReturn(
+           delayEnabled: true,
+           isAtBaseCampAethernet: true,
+           isNearDestinationAethernet: false)
+       && !CriticalEncounterSelectionPolicy.ShouldPreferBaseCampReturn(
+           delayEnabled: false,
+           isAtBaseCampAethernet: false,
+           isNearDestinationAethernet: false)
+       && !CriticalEncounterSelectionPolicy.ShouldPreferBaseCampReturn(
+           delayEnabled: true,
+           isAtBaseCampAethernet: false,
+           isNearDestinationAethernet: true),
+    "Delayed CE navigation must not Return again while already at the base-camp crystal or the destination shard.");
+
 Assert(TransitCompletionPolicy.HasVerifiedArrival(true, true)
        && !TransitCompletionPolicy.HasVerifiedArrival(true, false)
        && !TransitCompletionPolicy.HasVerifiedArrival(false, true)
@@ -682,6 +1482,8 @@ Assert(northCriticalEncounters.Count == 17, $"Expected 17 North Horn dynamic eve
 Assert(northFates.Count(fate => fate.IsPot) == 2, "North Horn must contain exactly two pot FATEs.");
 Assert(northCriticalEncounters.Count(encounter => encounter.Id is >= 49 and <= 63) == 15,
     "North Horn must contain CE IDs 49 through 63.");
+Assert(EventData.CriticalEncounters[56].NavigationPositionOverride == new Vector3(238f, 15f, 352f),
+    "Cornered Gemstone navigation must target the arena center instead of the north-edge event marker.");
 Assert(northCriticalEncounters.Any(encounter => encounter.Id == 64 && encounter.InternalName == "两岐塔 魔之塔"),
     "North Horn normal tower event 64 is missing.");
 Assert(northCriticalEncounters.Any(encounter => encounter.Id == 65 && encounter.InternalName == "两歧塔 超魔之塔"),
@@ -1247,6 +2049,8 @@ var fallbackPositions = new Dictionary<uint, Vector3>
 Assert(FallbackRoutePlanner.OrderByEuclideanCost(Vector3.Zero, new uint[] { 2, 99, 3, 1 }, fallbackPositions)
         .SequenceEqual(new uint[] { 1, 3, 2 }),
     "Euclidean fallback ordering must be deterministic and skip nodes without trusted positions.");
+
+RunTreasureRoutePolicyTests();
 
 var partialGraph = new Dictionary<uint, Dictionary<uint, (float Cost, List<PathfinderStep> Steps)>>
 {

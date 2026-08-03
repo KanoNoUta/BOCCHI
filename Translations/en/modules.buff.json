@@ -32,6 +32,11 @@
         "title": "Buffs",
         "button": {
           "tooltip": "Switch to each enabled buffing phantom job and use their buffing skill, then switch back to your original phantom job."
+        },
+        "status": {
+          "queued": "Queued; applying buffs",
+          "available": "Ready to apply",
+          "move_near_crystal": "Move near a knowledge crystal to apply buffs"
         }
       }
     }

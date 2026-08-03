@@ -6,57 +6,59 @@ namespace BOCCHI.Modules.Currency;
 
 public class CurrencyTracker
 {
-    private float lastGold = 0f;
+    private readonly CurrencyRateAccumulator goldRate = new();
 
-    private float gainedGold = 0f;
+    private readonly CurrencyRateAccumulator silverRate = new();
 
-    private DateTime goldStartTime = DateTime.UtcNow;
+    private readonly Func<int?> goldReader;
 
-    private float lastSilver = 0f;
+    private readonly Func<int?> silverReader;
 
-    private float gainedSilver = 0f;
-
-    private DateTime silverStartTime = DateTime.UtcNow;
+    private readonly Func<DateTime> utcNow;
 
     public CurrencyTracker()
+        : this(ReadGold, ReadSilver, () => DateTime.UtcNow)
     {
+    }
+
+    public CurrencyTracker(Func<int?> goldReader, Func<int?> silverReader, Func<DateTime> utcNow)
+    {
+        this.goldReader = goldReader;
+        this.silverReader = silverReader;
+        this.utcNow = utcNow;
         Reset();
     }
 
     public void Tick(IFramework _)
     {
-        var currentGold = Items.Gold.Count();
-        var currentSilver = Items.Silver.Count();
+        Tick();
+    }
 
-        var goldDelta = currentGold - lastGold;
-        var silverDelta = currentSilver - lastSilver;
+    public void Tick()
+    {
+        var now = utcNow();
+        var currentGold = goldReader();
+        var currentSilver = silverReader();
 
-        if (goldDelta > 0)
+        if (currentGold.HasValue)
         {
-            gainedGold += goldDelta;
+            goldRate.Observe(currentGold.Value, now);
         }
 
-        if (silverDelta > 0)
+        if (currentSilver.HasValue)
         {
-            gainedSilver += silverDelta;
+            silverRate.Observe(currentSilver.Value, now);
         }
-
-        lastGold = currentGold;
-        lastSilver = currentSilver;
     }
 
     public void ResetSilver()
     {
-        lastSilver = Items.Silver.Count();
-        gainedSilver = 0;
-        silverStartTime = DateTime.UtcNow;
+        silverRate.Reset(utcNow());
     }
 
     public void ResetGold()
     {
-        lastGold = Items.Gold.Count();
-        gainedGold = 0;
-        goldStartTime = DateTime.UtcNow;
+        goldRate.Reset(utcNow());
     }
 
     public void Reset()
@@ -67,23 +69,21 @@ public class CurrencyTracker
 
     public float GetGoldPerHour()
     {
-        var elapsed = (float)(DateTime.UtcNow - goldStartTime).TotalHours;
-        if (elapsed <= 0)
-        {
-            return 0;
-        }
-
-        return gainedGold / elapsed;
+        return goldRate.GetPerHour(utcNow());
     }
 
     public float GetSilverPerHour()
     {
-        var elapsed = (float)(DateTime.UtcNow - silverStartTime).TotalHours;
-        if (elapsed <= 0)
-        {
-            return 0;
-        }
+        return silverRate.GetPerHour(utcNow());
+    }
 
-        return gainedSilver / elapsed;
+    private static int? ReadGold()
+    {
+        return Items.Gold.TryCount(out var count) ? count : null;
+    }
+
+    private static int? ReadSilver()
+    {
+        return Items.Silver.TryCount(out var count) ? count : null;
     }
 }

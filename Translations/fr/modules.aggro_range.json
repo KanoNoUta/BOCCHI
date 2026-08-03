@@ -1,0 +1,18 @@
+{
+  "modules": {
+    "aggro_range": {
+      "panel": {
+        "title": "Portées d'agression des monstres ordinaires",
+        "outside_title": "Hors de l'île Nord",
+        "outside_detail": "Entrez dans l'île Nord pour afficher les portées d'agression en temps réel.",
+        "visible": "Affichés",
+        "inside": "Dans la portée",
+        "calibrated": "Calibrés",
+        "route_planning": "Pré-calcul de l'itinéraire",
+        "planning": "Calcul en cours",
+        "idle": "Inactif",
+        "catalog_summary": "{0} entrées · base de 10 yalms + hitbox en temps réel · calibrage automatique sur agression passive"
+      }
+    }
+  }
+}

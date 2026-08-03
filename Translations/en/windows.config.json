@@ -1,7 +1,68 @@
 {
   "windows": {
     "config": {
-      "title": "BOCCHI Config"
+      "title": "BOCCHI Config",
+      "search_hint": "Search settings or modules...",
+      "groups": {
+        "automation": "Automation",
+        "events": "Events",
+        "explore": "Explore",
+        "farming": "Farming",
+        "display_notifications": "Display and notifications",
+        "advanced": "Advanced"
+      },
+      "no_matches": {
+        "title": "No matching settings",
+        "detail": "Try another search term."
+      },
+      "no_modules": {
+        "title": "No settings module available",
+        "detail": "Clear the search and try again."
+      },
+      "advanced": {
+        "title": "Advanced display",
+        "toggle": "Show raw IDs, coordinates, and capture tools",
+        "help": "Used for route and terrain data collection; hidden from daily operation by default."
+      },
+      "editors": {
+        "automation": {
+          "title": "Automation",
+          "subtitle": "Common behavior and South/North event switches are separated and saved immediately.",
+          "common_tab": "Common",
+          "south_events": "South events ({0}/{1})",
+          "north_events": "North events ({0}/{1})",
+          "combat_targets": "Combat and targets",
+          "event_behavior": "Shared FATE / CE behavior",
+          "instance_rotation": "Instance rotation",
+          "island_help": "This page shows events for one area. Shared combat, pathfinding, and rotation options are under Common."
+        },
+        "farming": {
+          "title": "Farming settings",
+          "subtitle": "South and North use separate target lists; distance, level, and pull behavior are shared.",
+          "south_mobs": "South mobs ({0})",
+          "north_mobs": "North mobs ({0})",
+          "common_tab": "Common parameters",
+          "search_hint": "Search mob names...",
+          "selection_summary": "Selected {0} / {1}, showing {2}",
+          "basic": "Basic",
+          "loop_return": "Loop and return",
+          "battle_bell": "Battle bell",
+          "debug_display": "Debug display"
+        }
+      },
+      "actions": {
+        "enable_all": "Enable all",
+        "disable_all": "Disable all",
+        "confirm_disable_all": "Disable every {0} in this area?",
+        "cancel": "Cancel",
+        "select_visible": "Select visible results",
+        "clear": "Clear",
+        "confirm_clear_mobs": "Clear every farming target in this area?"
+      },
+      "units": {
+        "seconds_1": "%.1f seconds",
+        "minutes_0": "%.0f minutes"
+      }
     }
   }
 }

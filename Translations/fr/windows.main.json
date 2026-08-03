@@ -1,12 +1,128 @@
 {
   "windows": {
     "main": {
+      "title": "BOCCHI",
       "buttons": {
-        "emergency_stop": null,
-        "toggle_config": null,
-        "toggle_illegal_mode": null
+        "toggle_config": "Afficher les paramètres",
+        "emergency_stop": "Arrêt d'urgence",
+        "toggle_illegal_mode": "Basculer l'automatisation",
+        "open_settings": "Ouvrir les paramètres",
+        "enter_compact": "Passer en mode compact",
+        "leave_compact": "Revenir au mode complet",
+        "start_automatic": "Démarrer l'automatisation",
+        "cancel_start": "Annuler le démarrage",
+        "stop_automatic": "Arrêter l'automatisation",
+        "stopping": "Arrêt en cours",
+        "stop_all": "Tout arrêter",
+        "stop_all_tooltip": "Arrêter l'automatisation, les chasses, le farm, la navigation et les tâches en attente."
       },
-      "title": "BOCCHI"
+      "nav": {
+        "workspace": "Espace de travail",
+        "overview": "Aperçu",
+        "events": "Événements",
+        "explore": "Exploration",
+        "farming": "Farm",
+        "statistics": "Statistiques",
+        "tower": "Tour fourchue",
+        "aggro_range": "Portée d'aggro"
+      },
+      "area": {
+        "south": "Corne sud",
+        "north": "Corne nord",
+        "outside": "Hors du Croissant occulte"
+      },
+      "state": {
+        "starting": "Démarrage",
+        "running": "En cours",
+        "stopping": "Arrêt",
+        "completed": "Terminé",
+        "failed": "Échec du démarrage",
+        "stopped": "Arrêté"
+      },
+      "source": {
+        "automatic": "Automatique",
+        "manual": "Manuel"
+      },
+      "operation": {
+        "automatic": "Automatisation",
+        "treasure": "Chasse au trésor",
+        "carrot": "Chasse aux carottes",
+        "farming": "Farm de monstres",
+        "none": "Aucune opération active",
+        "preparing": "Préparation",
+        "waiting_target": "En attente d'une cible",
+        "refreshing": "Actualisation de la cible"
+      },
+      "pages": {
+        "overview": {
+          "title": "Aperçu d'exécution",
+          "subtitle": "Zone, tâche, navigation et rotation d'instance",
+          "current_area": "Zone actuelle",
+          "outside_title": "Hors du Croissant occulte",
+          "outside_detail": "Démarrez l'automatisation pour entrer dans la zone configurée. Les espaces événements, exploration et farm apparaîtront ensuite.",
+          "open_source": "Logiciel libre et gratuit. N'achetez pas ce plugin auprès de revendeurs."
+        },
+        "events": {
+          "title": "Événements",
+          "subtitle": "ALÉA et rencontres critiques de la zone actuelle",
+          "empty_title": "Aucun événement de zone",
+          "empty_detail": "Entrez dans la Corne sud ou nord pour afficher les événements."
+        },
+        "explore": {
+          "title": "Exploration",
+          "subtitle": "Route des trésors, coffres actifs et carottes",
+          "empty_title": "Exploration indisponible",
+          "empty_detail": "Entrez dans le Croissant occulte pour démarrer une route."
+        },
+        "farming": {
+          "title": "Farm",
+          "subtitle": "Contrôles manuels et cibles de la zone",
+          "empty_title": "Farm indisponible",
+          "empty_detail": "Entrez dans le Croissant occulte pour démarrer les cibles de la zone."
+        },
+        "statistics": {
+          "title": "Statistiques et bonus",
+          "subtitle": "Monnaies, expérience et bonus de cristal de cette session"
+        },
+        "tower": {
+          "title": "Tour fourchue",
+          "subtitle": "Groupe, minuteur et mécanismes"
+        },
+        "aggro_range": {
+          "title": "Portée d'aggro",
+          "subtitle": "Référence de navigation pour les ennemis de la Corne nord"
+        }
+      },
+      "runtime": {
+        "not_enabled": "Désactivé",
+        "version_unknown": "Version inconnue",
+        "vnav_available": "{0} (disponible)",
+        "not_installed": "Non installé",
+        "not_loaded": "Non chargé",
+        "game_state": "État du jeu",
+        "current_target": "Cible actuelle",
+        "target_stage": "Étape de la cible",
+        "rotation": "Rotation d'instance",
+        "rotation_value": "{0} · reste {1} · joueurs {2}"
+      },
+      "metrics": {
+        "disabled": "Interrupteur principal désactivé",
+        "target_mobs": "Monstres ciblés",
+        "area_status": "État de la zone",
+        "current_area": "Zone actuelle",
+        "not_entered": "Non entré"
+      },
+      "mobs": {
+        "summary": "Cibles : sud {0} · nord {1} (Paramètres → Farm)",
+        "empty_title": "Aucun monstre ciblé",
+        "empty_detail": "Configurez les cibles dans Paramètres → Farm.",
+        "selected": "{0} sélectionnés"
+      },
+      "automator_window": {
+        "title": "Automatisation",
+        "subtitle": "État d'exécution et rotation d'instance",
+        "outside_detail": "Démarrez l'automatisation pour préparer l'entrée dans la zone configurée."
+      }
     }
   }
 }
