@@ -1310,6 +1310,41 @@ Assert(CriticalEncounterSelectionPolicy.ShouldPreferBaseCampReturn(
            isNearDestinationAethernet: true),
     "Delayed CE navigation must not Return again while already at the base-camp crystal or the destination shard.");
 
+Assert(DepartureDelayPolicy.GetDelayMilliseconds(
+           enabled: false,
+           minimumSeconds: 5f,
+           maximumSeconds: 15f,
+           randomSample: 0.5d) == 0,
+    "Disabled CE departure delay must not enqueue a wait.");
+Assert(DepartureDelayPolicy.GetDelayMilliseconds(
+           enabled: true,
+           minimumSeconds: 5f,
+           maximumSeconds: 15f,
+           randomSample: 0d) == 5000
+       && DepartureDelayPolicy.GetDelayMilliseconds(
+           enabled: true,
+           minimumSeconds: 5f,
+           maximumSeconds: 15f,
+           randomSample: 0.999999d) is >= 5000 and <= 15000,
+    "Enabled CE departure delay must stay inside the configured millisecond range.");
+Assert(DepartureDelayPolicy.GetDelayMilliseconds(
+           enabled: true,
+           minimumSeconds: 0.9f,
+           maximumSeconds: 1.1f,
+           randomSample: 0.5d) == 1000,
+    "Fractional departure-delay seconds must be converted before rounding to milliseconds.");
+Assert(DepartureDelayPolicy.GetDelayMilliseconds(
+           enabled: true,
+           minimumSeconds: 15f,
+           maximumSeconds: 5f,
+           randomSample: 0.5d) == 10000
+       && DepartureDelayPolicy.GetDelayMilliseconds(
+           enabled: true,
+           minimumSeconds: float.NaN,
+           maximumSeconds: float.PositiveInfinity,
+           randomSample: 0.5d) == 0,
+    "Reversed or invalid persisted delay bounds must be normalized without throwing.");
+
 Assert(TransitCompletionPolicy.HasVerifiedArrival(true, true)
        && !TransitCompletionPolicy.HasVerifiedArrival(true, false)
        && !TransitCompletionPolicy.HasVerifiedArrival(false, true)

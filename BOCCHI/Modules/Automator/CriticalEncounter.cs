@@ -155,6 +155,14 @@ public class CriticalEncounter : Activity
 
         return new TaskManagerTask(() =>
         {
+            // The user pressed stop: end the watcher immediately so no more
+            // approach movement is submitted by this activity.
+            if (!module.IsEnabled)
+            {
+                vnav.Stop();
+                return true;
+            }
+
             var now = Environment.TickCount64;
             watcherStartedAt = CriticalEncounterNavigationPolicy.StartAtFirstTick(watcherStartedAt, now);
             var navigationActive = IsNavigationActive();

@@ -51,7 +51,8 @@ public class ReturnChain(TeleporterModule module, ReturnChainConfig config) : Ch
             chain.Then(_ => vnav.Stop());
             chain.Then(_ => Actions.TryUnmount());
             chain.Then(new TaskManagerTask(
-                () => ActionManager.Instance()->GetActionStatus(ActionType.GeneralAction, 8) == 0,
+                () => config.StopCheck?.Invoke() == true
+                      || ActionManager.Instance()->GetActionStatus(ActionType.GeneralAction, 8) == 0,
                 new TaskManagerConfiguration
                 {
                     TimeLimitMS = 30000,
@@ -80,6 +81,12 @@ public class ReturnChain(TeleporterModule module, ReturnChainConfig config) : Ch
             {
                 try
                 {
+                    if (config.StopCheck?.Invoke() == true)
+                    {
+                        vnav.Stop();
+                        return true;
+                    }
+
                     if (!ZoneData.IsInOccultCrescent())
                     {
                         FailureReason = "Left the Occult Crescent while approaching the base-camp aethernet.";
@@ -164,6 +171,12 @@ public class ReturnChain(TeleporterModule module, ReturnChainConfig config) : Ch
             // shard - it cannot interrupt an in-progress approach.
             chain.BreakIf(() =>
             {
+                if (config.StopCheck?.Invoke() == true)
+                {
+                    AggroAvoidanceNavigation.Stop(vnav);
+                    return true;
+                }
+
                 if (!ZoneData.IsInOccultCrescent())
                 {
                     AggroAvoidanceNavigation.Stop(vnav);
@@ -282,6 +295,11 @@ public class ReturnChain(TeleporterModule module, ReturnChainConfig config) : Ch
             var lastAttemptAt = 0L;
             chain.Then(new TaskManagerTask(() =>
             {
+                if (config.StopCheck?.Invoke() == true)
+                {
+                    return true;
+                }
+
                 if (PublicContentOccultCrescent.GetState()->CurrentSupportJob == nextJobId)
                 {
                     return true;
@@ -331,8 +349,19 @@ public class ReturnChain(TeleporterModule module, ReturnChainConfig config) : Ch
         chain.BreakIf(() => !buffs.ShouldRefreshBuffs() || !vnav.IsReady() || closestKnowledgeCrystal == null);
         chain.Then(_ => Actions.TryUnmount());
 
+        if (config.StopCheck != null)
+        {
+            chain.BreakIf(() => config.StopCheck());
+        }
+
         chain.Then(_ =>
         {
+            if (config.StopCheck?.Invoke() == true)
+            {
+                vnav.Stop();
+                return;
+            }
+
             approachPosition = KnowledgeCrystalApproachPolicy.GetDesiredApproachPosition(
                 Player.Position,
                 crystalPosition);
@@ -355,6 +384,12 @@ public class ReturnChain(TeleporterModule module, ReturnChainConfig config) : Ch
         {
             try
             {
+                if (config.StopCheck?.Invoke() == true)
+                {
+                    vnav.Stop();
+                    return true;
+                }
+
                 if (KnowledgeCrystalApproachPolicy.HasArrived(Player.Position, crystalPosition))
                 {
                     return true;

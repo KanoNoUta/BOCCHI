@@ -129,6 +129,11 @@ public abstract class Activity : IDisposable
                 pathfinderConfig.TeleportCost,
                 "Fast runtime selection; candidate precomputation is not allowed to block movement.");
             var delayCriticalEncounter = !isFate && module.Config.ShouldDelayCriticalEncounters;
+            var departureDelayMilliseconds = DepartureDelayPolicy.GetDelayMilliseconds(
+                delayCriticalEncounter,
+                module.Config.MinDelay,
+                module.Config.MaxDelay,
+                Random.Shared.NextDouble());
             var isAtBaseCampAethernet = delayCriticalEncounter
                                         && ZoneData.IsNearAethernetShard(
                                             ZoneData.GetBaseCampAethernet(),
@@ -160,8 +165,14 @@ public abstract class Activity : IDisposable
 
             var chain = Chain.Create("Illegal:Pathfinding")
                 .ConditionalThen(_ => isFate && module.Config.ShouldStanceOnBeforeDoFates && Player.Job.IsTank(), new StanceChain(isFate))
-                .ConditionalThen(_ => !isFate && module.Config.ShouldStanceOffBeforeCriticalEncounters && Player.Job.IsTank(), new StanceChain(isFate))
-                .ConditionalWait(_ => delayCriticalEncounter, Random.Shared.Next((int)module.Config.MinDelay * 1000, (int)module.Config.MaxDelay * 1000));
+                .ConditionalThen(_ => !isFate && module.Config.ShouldStanceOffBeforeCriticalEncounters && Player.Job.IsTank(), new StanceChain(isFate));
+
+            if (departureDelayMilliseconds > 0)
+            {
+                Svc.Log.Info(
+                    $"Delaying CE departure for {departureDelayMilliseconds / 1000d:F1}s: {GetName()}");
+                chain.Wait(departureDelayMilliseconds);
+            }
 
             switch (plan.Type)
             {
@@ -175,6 +186,7 @@ public abstract class Activity : IDisposable
                     {
                         ApproachAetheryte = true,
                         ForceReturn = true,
+                        StopCheck = () => !module.IsEnabled,
                     });
                     chain
                         .ConditionalThen(_ => ShouldContinueNavigation(states), returnChain)
@@ -191,6 +203,7 @@ public abstract class Activity : IDisposable
                     {
                         ApproachAetheryte = true,
                         ForceReturn = true,
+                        StopCheck = () => !module.IsEnabled,
                     });
                     var teleport = ChainHelper.TeleportChain(
                         plan.DestinationAethernet,

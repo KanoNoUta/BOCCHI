@@ -250,7 +250,11 @@ public class Automator
         {
             idleTime = 0;
 
-            Plugin.Chain.Submit(ChainHelper.ReturnChain(new ReturnChainConfig { ApproachAetheryte = true }));
+            Plugin.Chain.Submit(ChainHelper.ReturnChain(new ReturnChainConfig
+            {
+                ApproachAetheryte = true,
+                StopCheck = () => !module.IsEnabled,
+            }));
         }
     }
 
@@ -476,6 +480,7 @@ public class Automator
         {
             ApproachAetheryte = true,
             ForceReturn = true,
+            StopCheck = () => !module.IsEnabled,
         });
         postActivityReturnAttempts++;
         var attempt = postActivityReturnAttempts;

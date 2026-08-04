@@ -82,6 +82,16 @@ public class FateActivity(EventData data, Lifestream lifestream, VNavmesh vnav, 
 
         return new TaskManagerTask(() =>
         {
+            // The user pressed stop: end the watcher immediately so the
+            // per-second repath cannot keep resubmitting movement while the
+            // activity chain is still alive.
+            if (!module.IsEnabled)
+            {
+                vnav.Stop();
+                StopAtArrivalAndTryDismount("Fate.StopDismount");
+                return true;
+            }
+
             var now = Environment.TickCount64;
             watcherStartedAt = FateNavigationPolicy.StartAtFirstTick(watcherStartedAt, now);
             hasObservedNavigation |= IsNavigationActive();
