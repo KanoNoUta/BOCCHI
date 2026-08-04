@@ -19,6 +19,10 @@
         "max_level": {
           "label": "Max area level",
           "tooltip": "The maximum level of mobs near which you are willing to hunt for objects."
+        },
+        "stuck_jump_recovery": {
+          "label": "Jump when stuck",
+          "tooltip": "When navigation makes no progress for a while (stuck on an obstacle), jump a few times to break free."
         }
       }
     }

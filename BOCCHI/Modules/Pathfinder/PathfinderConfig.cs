@@ -15,4 +15,14 @@ public class PathfinderConfig : ModuleConfig
     public float DetectionRange { get; set; } = 75f;
 
     [IntRange(1, 40)][Experimental] public int MaxLevel { get; set; } = 40;
+
+    [Checkbox]
+    [Label("modules.pathfinder.config.stuck_jump_recovery.label")]
+    [Tooltip("modules.pathfinder.config.stuck_jump_recovery.tooltip")]
+    public bool StuckJumpRecovery { get; set; } = true;
+
+    public bool ShouldUseStuckJumpRecovery
+    {
+        get => IsPropertyEnabled(nameof(StuckJumpRecovery));
+    }
 }

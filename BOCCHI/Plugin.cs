@@ -43,6 +43,7 @@ public sealed class Plugin : OcelotPlugin
         SetupLanguage(plugin);
 
         AggroAvoidanceNavigation.Configure(() => Config.AggroRangeConfig);
+        StuckJumpRecovery.Configure(() => Config.PathfinderConfig);
 
         OcelotInitialize(OcelotFeature.All);
 

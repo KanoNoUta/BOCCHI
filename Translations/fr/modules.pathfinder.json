@@ -10,6 +10,10 @@
           "label": null,
           "tooltip": null
         },
+        "stuck_jump_recovery": {
+          "label": null,
+          "tooltip": null
+        },
         "return_cost": {
           "label": null,
           "tooltip": null

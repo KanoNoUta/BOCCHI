@@ -50,6 +50,7 @@ public static class AggroAvoidanceNavigation
     private const float MaximumProjectionDisplacementSquared = 6.25f;
 
     private static Func<AggroRangeConfig>? configProvider;
+    private static VNavmesh? lastVnav;
     private static PendingRoute? pending;
     private static ActiveRoute? active;
     private static List<Vector3> debugPath = [];
@@ -69,6 +70,7 @@ public static class AggroAvoidanceNavigation
 
     public static bool PathfindAndMoveTo(VNavmesh vnav, Vector3 destination, bool fly)
     {
+        lastVnav = vnav;
         var config = configProvider?.Invoke();
         if (!ShouldAvoid(config))
         {
@@ -151,6 +153,7 @@ public static class AggroAvoidanceNavigation
     /// </summary>
     public static void FollowPath(VNavmesh vnav, IReadOnlyList<Vector3> route, bool fly)
     {
+        lastVnav = vnav;
         if (route.Count == 0)
         {
             return;
@@ -206,6 +209,8 @@ public static class AggroAvoidanceNavigation
     /// <summary>Called once per framework update by AggroRangeModule.</summary>
     public static void Update()
     {
+        StuckJumpRecovery.Update(lastVnav, active != null);
+
         var config = configProvider?.Invoke();
         if (!ShouldAvoid(config))
         {
