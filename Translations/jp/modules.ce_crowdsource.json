@@ -1,0 +1,63 @@
+{
+  "modules": {
+    "ce_crowdsource": {
+      "config": {
+        "title": "クラウドソース CE データ",
+        "server_url": {
+          "label": "サーバーURL",
+          "tooltip": "クラウドソース CE サーバーURL（既定 http://8.138.201.201:8080）"
+        },
+        "poll_interval_seconds": {
+          "label": "更新間隔（秒）",
+          "tooltip": "CE とオンライン状態の取得間隔（5〜120 秒）"
+        },
+        "upload_observations": {
+          "label": "観測データをアップロード",
+          "tooltip": "島の CE 状態をクラウドソースサーバーに送信してデータを修正"
+        },
+        "send_heartbeat": {
+          "label": "オンライン状態を送信",
+          "tooltip": "オンライン状態とインスタンスを送信して人数統計に使用"
+        },
+        "show_only_active": {
+          "label": "アクティブなイベントのみ表示",
+          "tooltip": "リストに現在アクティブな CE のみ表示"
+        }
+      },
+      "panel": {
+        "title": "クラウドソース CE 記録",
+        "online": "オンライン人数",
+        "island_online": "島内",
+        "current_instance": "インスタンスID",
+        "players": "プレイヤー",
+        "instances": "インスタンス",
+        "events": "イベント",
+        "last_sync": "最終同期",
+        "uploaded": "{0} 件の観測をアップロード",
+        "connecting": "サーバーに接続中...",
+        "server_error": "サーバー接続に失敗しました",
+        "last_error": "エラー",
+        "disabled_title": "クラウドソース無効",
+        "disabled_detail": "設定 → 表示と通知でクラウドソース CE データを有効にしてください。",
+        "no_data": "CE 記録なし",
+        "no_data_detail": "サーバーからの島 CE 状態を待機中...",
+        "ce": "CE",
+        "spawned_at": "最終出現",
+        "instance_id": "インスタンス",
+        "source": "データソース",
+        "uploader": "アップローダー",
+        "state_register": "受付",
+        "state_warmup": "準備",
+        "state_battle": "戦闘中",
+        "state_running": "進行中",
+        "ended": "終了",
+        "source_upstream": "クラウドソース",
+        "source_bochi": "BOCCHI",
+        "south": "サウスホーン",
+        "north": "ノースホーン",
+        "unknown_zone": "不明なゾーン"
+      }
+    }
+  }
+}
+

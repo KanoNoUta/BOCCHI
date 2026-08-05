@@ -1,8 +1,9 @@
-﻿using BOCCHI.Modules.Automator;
+using BOCCHI.Modules.Automator;
 using BOCCHI.Modules.Buff;
 using BOCCHI.Modules.AggroRange;
 using BOCCHI.Data;
 using BOCCHI.Modules.Carrots;
+using BOCCHI.Modules.CeCrowdsource;
 using BOCCHI.Modules.CriticalEncounters;
 using BOCCHI.Modules.Currency;
 using BOCCHI.Modules.Data;
@@ -59,6 +60,8 @@ public class Config : IOcelotConfig
     public TreasureConfig TreasureConfig { get; set; } = new();
 
     public CarrotsConfig CarrotsConfig { get; set; } = new();
+
+    public CeCrowdsourceConfig CeCrowdsourceConfig { get; set; } = new();
 
     public BuffConfig BuffConfig { get; set; } = new();
 
@@ -127,3 +130,4 @@ public class Config : IOcelotConfig
         Svc.PluginInterface.SavePluginConfig(this);
     }
 }
+

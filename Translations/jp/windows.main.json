@@ -24,7 +24,8 @@
         "farming": "モブ狩り",
         "statistics": "統計",
         "tower": "フォークタワー",
-        "aggro_range": "感知範囲"
+        "aggro_range": "感知範囲",
+        "crowdsource": "クラウドソース"
       },
       "area": {
         "south": "サウスホーン",
@@ -91,6 +92,10 @@
         "aggro_range": {
           "title": "感知範囲",
           "subtitle": "ノースホーン通常モブの移動参考"
+        },
+        "crowdsource": {
+          "title": "クラウドソース CE",
+          "subtitle": "島の CE 記録・オンライン人数・観測修正"
         }
       },
       "runtime": {
@@ -126,3 +131,7 @@
     }
   }
 }
+
+
+
+

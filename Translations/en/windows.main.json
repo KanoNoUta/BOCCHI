@@ -24,7 +24,8 @@
         "farming": "Farming",
         "statistics": "Statistics",
         "tower": "Forked Tower",
-        "aggro_range": "Aggro range"
+        "aggro_range": "Aggro range",
+        "crowdsource": "Crowdsource"
       },
       "area": {
         "south": "South Horn",
@@ -91,6 +92,10 @@
         "aggro_range": {
           "title": "Aggro range",
           "subtitle": "North Horn normal-enemy navigation reference"
+        },
+        "crowdsource": {
+          "title": "Crowdsourced CE",
+          "subtitle": "Island CE records, online players, and observation corrections"
         }
       },
       "runtime": {
@@ -126,3 +131,7 @@
     }
   }
 }
+
+
+
+

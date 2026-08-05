@@ -24,7 +24,8 @@
         "farming": "Farm",
         "statistics": "Statistiques",
         "tower": "Tour fourchue",
-        "aggro_range": "Portée d'aggro"
+        "aggro_range": "Portée d'aggro",
+        "crowdsource": "Participatif"
       },
       "area": {
         "south": "Corne sud",
@@ -91,6 +92,10 @@
         "aggro_range": {
           "title": "Portée d'aggro",
           "subtitle": "Référence de navigation pour les ennemis de la Corne nord"
+        },
+        "crowdsource": {
+          "title": "CE participatives",
+          "subtitle": "Registres CE de l'île, joueurs en ligne et corrections"
         }
       },
       "runtime": {
@@ -126,3 +131,7 @@
     }
   }
 }
+
+
+
+

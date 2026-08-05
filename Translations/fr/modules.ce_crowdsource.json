@@ -1,0 +1,63 @@
+{
+  "modules": {
+    "ce_crowdsource": {
+      "config": {
+        "title": "Données CE participatives",
+        "server_url": {
+          "label": "URL du serveur",
+          "tooltip": "URL du serveur CE participatif (défaut http://8.138.201.201:8080)"
+        },
+        "poll_interval_seconds": {
+          "label": "Intervalle d'actualisation (secondes)",
+          "tooltip": "Intervalle de récupération de l'état CE et en ligne, 5-120 secondes"
+        },
+        "upload_observations": {
+          "label": "Envoyer les observations",
+          "tooltip": "Envoyer l'état CE de l'île au serveur participatif pour corriger les données"
+        },
+        "send_heartbeat": {
+          "label": "Envoyer le signal",
+          "tooltip": "Signaler l'état en ligne et l'instance pour les statistiques"
+        },
+        "show_only_active": {
+          "label": "Afficher uniquement les événements actifs",
+          "tooltip": "Afficher uniquement les CE actuellement actifs"
+        }
+      },
+      "panel": {
+        "title": "Registres CE participatifs",
+        "online": "En ligne",
+        "island_online": "Sur l'île",
+        "current_instance": "ID instance",
+        "players": "Joueurs",
+        "instances": "Instances",
+        "events": "Événements",
+        "last_sync": "Dernière synchro",
+        "uploaded": "{0} observations envoyées",
+        "connecting": "Connexion au serveur...",
+        "server_error": "Échec de connexion au serveur",
+        "last_error": "Erreur",
+        "disabled_title": "Participation désactivée",
+        "disabled_detail": "Activez les données CE participatives dans Réglages → Affichage et notifications.",
+        "no_data": "Aucun registre CE",
+        "no_data_detail": "En attente des états CE de l'île depuis le serveur...",
+        "ce": "CE",
+        "spawned_at": "Dernière apparition",
+        "instance_id": "Instance",
+        "source": "Source",
+        "uploader": "Envoyeur",
+        "state_register": "Inscription",
+        "state_warmup": "Préparation",
+        "state_battle": "Combat",
+        "state_running": "En cours",
+        "ended": "Terminé",
+        "source_upstream": "Participatif",
+        "source_bochi": "BOCCHI",
+        "south": "Corne Sud",
+        "north": "Corne Nord",
+        "unknown_zone": "Zone inconnue"
+      }
+    }
+  }
+}
+

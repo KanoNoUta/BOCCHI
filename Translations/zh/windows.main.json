@@ -24,7 +24,8 @@
         "farming": "刷怪",
         "statistics": "统计",
         "tower": "分歧之塔",
-        "aggro_range": "仇恨范围"
+        "aggro_range": "仇恨范围",
+        "crowdsource": "众包 CE"
       },
       "area": {
         "south": "南部新月岛",
@@ -91,6 +92,10 @@
         "aggro_range": {
           "title": "仇恨范围",
           "subtitle": "北部新月岛普通怪导航参考"
+        },
+        "crowdsource": {
+          "title": "众包 CE",
+          "subtitle": "岛上 CE 记录、在线人数与观测修正"
         }
       },
       "runtime": {
@@ -126,3 +131,7 @@
     }
   }
 }
+
+
+
+

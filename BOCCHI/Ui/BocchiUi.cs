@@ -16,6 +16,7 @@ public enum MainWindowPage
     Statistics,
     Tower,
     AggroRange,
+    Crowdsource,
 }
 public enum BocchiSettingsGroup
 {
@@ -171,6 +172,7 @@ public static class BocchiUiPolicy
             "MobFarmerModule" => BocchiSettingsGroup.Farming,
             "WindowManagerModule" or "CurrencyModule" or "ExpModule" or "AggroRangeModule" =>
                 BocchiSettingsGroup.DisplayAndNotifications,
+            "CeCrowdsourceModule" => BocchiSettingsGroup.DisplayAndNotifications,
             _ => BocchiSettingsGroup.Advanced,
         };
     }
@@ -330,3 +332,6 @@ public static class BocchiUi
         ImGui.PopTextWrapPos();
     }
 }
+
+
+

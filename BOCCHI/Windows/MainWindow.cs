@@ -3,6 +3,7 @@ using BOCCHI.Modules.AggroRange;
 using BOCCHI.Modules.Automator;
 using BOCCHI.Modules.Buff;
 using BOCCHI.Modules.Carrots;
+using BOCCHI.Modules.CeCrowdsource;
 using BOCCHI.Modules.CriticalEncounters;
 using BOCCHI.Modules.Currency;
 using BOCCHI.Modules.Exp;
@@ -44,6 +45,34 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
         };
         Size = new Vector2(860, 680);
         SizeCondition = ImGuiCond.FirstUseEver;
+
+        TitleBarButtons.Add(new TitleBarButton
+        {
+            Click = m =>
+            {
+                if (m == ImGuiMouseButton.Left)
+                {
+                    Plugin.Modules.GetModule<AutomatorModule>().DisableIllegalMode();
+                }
+            },
+            Icon = FontAwesomeIcon.Stop,
+            IconOffset = new Vector2(2, 2),
+            ShowTooltip = () => ImGui.SetTooltip(T("buttons.emergency_stop")),
+        });
+
+        TitleBarButtons.Add(new TitleBarButton
+        {
+            Click = m =>
+            {
+                if (m == ImGuiMouseButton.Left)
+                {
+                    AutomatorModule.ToggleIllegalMode(Plugin);
+                }
+            },
+            Icon = FontAwesomeIcon.Skull,
+            IconOffset = new Vector2(2, 2),
+            ShowTooltip = () => ImGui.SetTooltip(T("buttons.toggle_illegal_mode")),
+        });
     }
 
     protected override void Render(RenderContext context)
@@ -305,6 +334,7 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
             case MainWindowPage.AggroRange:
                 DrawAggroRangePage(context);
                 break;
+
             default:
                 DrawOverviewPage();
                 break;
@@ -360,6 +390,9 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
             Plugin.Modules.GetModule<CriticalEncountersModule>().RenderMainUi(context);
             ImGui.EndTable();
         }
+
+        ImGui.Spacing();
+        Plugin.Modules.GetModule<CeCrowdsourceModule>().RenderMainUi(context);
     }
 
     private void DrawExplorePage(RenderContext context)
@@ -573,6 +606,7 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
             MainWindowPage.Statistics => (T("nav.statistics"), FontAwesomeIcon.ChartBar),
             MainWindowPage.Tower => (T("nav.tower"), FontAwesomeIcon.Building),
             MainWindowPage.AggroRange => (T("nav.aggro_range"), FontAwesomeIcon.Eye),
+
             _ => (T("nav.overview"), FontAwesomeIcon.Home),
         };
     }
@@ -701,3 +735,8 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
 
     private static string T(string key) => I18N.T($"windows.main.{key}");
 }
+
+
+
+
+

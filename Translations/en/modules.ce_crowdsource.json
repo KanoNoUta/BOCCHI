@@ -1,0 +1,63 @@
+{
+  "modules": {
+    "ce_crowdsource": {
+      "config": {
+        "title": "Crowdsourced CE Data",
+        "server_url": {
+          "label": "Server URL",
+          "tooltip": "Crowdsource CE server URL (default http://8.138.201.201:8080)"
+        },
+        "poll_interval_seconds": {
+          "label": "Refresh interval (seconds)",
+          "tooltip": "Interval for fetching CE and online state, 5-120 seconds"
+        },
+        "upload_observations": {
+          "label": "Upload observations",
+          "tooltip": "Upload island CE states to the crowdsource server to correct data"
+        },
+        "send_heartbeat": {
+          "label": "Send heartbeat",
+          "tooltip": "Report online status and instance for online/island companion stats"
+        },
+        "show_only_active": {
+          "label": "Show active events only",
+          "tooltip": "Only show currently active CE in the list"
+        }
+      },
+      "panel": {
+        "title": "Crowdsourced CE Records",
+        "online": "Online",
+        "island_online": "Island",
+        "current_instance": "Instance ID",
+        "players": "Players",
+        "instances": "Instances",
+        "events": "Events",
+        "last_sync": "Last sync",
+        "uploaded": "{0} observations uploaded",
+        "connecting": "Connecting to server...",
+        "server_error": "Server connection failed",
+        "last_error": "Error",
+        "disabled_title": "Crowdsource disabled",
+        "disabled_detail": "Enable crowdsourced CE data in Settings → Display & Notifications.",
+        "no_data": "No CE records",
+        "no_data_detail": "Waiting for island CE states from the server...",
+        "ce": "CE",
+        "spawned_at": "Last spawned",
+        "instance_id": "Instance",
+        "source": "Source",
+        "uploader": "Uploader",
+        "state_register": "Register",
+        "state_warmup": "Warmup",
+        "state_battle": "Battle",
+        "state_running": "Running",
+        "ended": "Ended",
+        "source_upstream": "Crowdsource",
+        "source_bochi": "BOCCHI",
+        "south": "South Horn",
+        "north": "North Horn",
+        "unknown_zone": "Unknown zone"
+      }
+    }
+  }
+}
+

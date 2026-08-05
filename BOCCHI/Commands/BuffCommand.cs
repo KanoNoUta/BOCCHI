@@ -14,7 +14,11 @@ public class BuffCommand(Plugin plugin) : OcelotCommand
 
     protected override string Description
     {
-        get => "";
+        get => @"
+重新施放配置的增益与爆发技能。
+ - /bocchibuff : 立即重新施放增益/爆发
+--------------------------------
+".Trim();
     }
 
 

@@ -22,7 +22,14 @@ public class TeleportCommand(Plugin plugin) : OcelotCommand
 
     protected override string Description
     {
-        get => "";
+        get => @"
+自动传送到最近的活动相关以太之光。
+ - /bocchitp : 传送到最近的活动传送点
+ - /bocchitp ce : 传送到最近的 CE 传送点
+ - /bocchitp fate : 传送到最近的 FATE 传送点
+ - /bocchitp pot : 传送到最近的 POT FATE 传送点
+--------------------------------
+".Trim();
     }
 
 
