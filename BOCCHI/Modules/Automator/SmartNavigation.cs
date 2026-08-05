@@ -346,6 +346,20 @@ public static class SmartNavigation
             : shards.OrderBy(shard => Vector3.DistanceSquared(shard.Destination, destination)).First();
 
         var directDistance = Vector3.Distance(playerPosition, destination);
+        // North Horn terrain: straight-line distance severely underestimates
+        // the real walking path (ridges and rivers force long detours), so the
+        // fast fallback planner keeps picking "just walk" over teleporting to
+        // the nearest shard. When a preferred aethernet exists and the player
+        // is neither already at that shard nor right next to the destination,
+        // penalize the pure-walk candidate so the teleport route wins.
+        var hasPreferred = preferredAethernet is { } preferredValue && preferredValue != Aethernet.Unknown;
+        var atPreferredShard = hasPreferred && source.Aethernet == preferredAethernet;
+        var nearDestination = directDistance <= 150f;
+        if (hasPreferred && !atPreferredShard && !nearDestination)
+        {
+            directDistance *= 2f;
+        }
+
         var baseDistance = Vector3.Distance(baseCamp.Destination, destination);
         var targetDistance = Vector3.Distance(target.Destination, destination);
         var sourceDistance = Vector3.Distance(playerPosition, source.NavigationPosition);

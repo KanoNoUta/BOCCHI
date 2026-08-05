@@ -255,6 +255,7 @@ public struct EventData
                 TerritoryId = ZoneData.NORTHHORN,
                 Type = EventType.Fate,
                 InternalName = "暴力牛魔——好战弥诺陶洛斯",
+                Aethernet = Enums.Aethernet.KarnakCitadel,
                 StartPosition = new Vector3(724f, 70f, 220f),
             }
         },
@@ -278,6 +279,7 @@ public struct EventData
                 TerritoryId = ZoneData.NORTHHORN,
                 Type = EventType.Fate,
                 InternalName = "水边暴君——统领奇美拉",
+                Aethernet = Enums.Aethernet.KarnakCitadel,
                 StartPosition = new Vector3(95f, 10f, 470f),
             }
         },
@@ -289,6 +291,7 @@ public struct EventData
                 TerritoryId = ZoneData.NORTHHORN,
                 Type = EventType.Fate,
                 InternalName = "历战水马——凯尔派总领",
+                Aethernet = Enums.Aethernet.SunkenTempleFront,
                 StartPosition = new Vector3(330f, 0f, -250f),
             }
         },
@@ -300,6 +303,7 @@ public struct EventData
                 TerritoryId = ZoneData.NORTHHORN,
                 Type = EventType.Fate,
                 InternalName = "魔界的叹息——妖艳魔花珊迪",
+                Aethernet = Enums.Aethernet.RuinedStreetsFront,
                 StartPosition = new Vector3(-402.0002f, 29.76808f, -252.9997f),
             }
         },
@@ -311,6 +315,7 @@ public struct EventData
                 TerritoryId = ZoneData.NORTHHORN,
                 Type = EventType.Fate,
                 InternalName = "自怨自艾的歌手——伊阿姆柏",
+                Aethernet = Enums.Aethernet.RuinedStreetsFront,
                 StartPosition = new Vector3(-170f, 30f, -500f),
             }
         },
@@ -322,6 +327,7 @@ public struct EventData
                 TerritoryId = ZoneData.NORTHHORN,
                 Type = EventType.Fate,
                 InternalName = "狼占狗窝——遗迹冰狼",
+                Aethernet = Enums.Aethernet.FloatingRuins,
                 StartPosition = new Vector3(-90f, 67.47852f, 865.9999f),
             }
         },
@@ -333,6 +339,7 @@ public struct EventData
                 TerritoryId = ZoneData.NORTHHORN,
                 Type = EventType.Fate,
                 InternalName = "腐坏街道的守护者——忍耐基路伯",
+                Aethernet = Enums.Aethernet.RuinedStreetsFront,
                 StartPosition = new Vector3(-440f, 47.02659f, -790f),
             }
         },
@@ -344,6 +351,7 @@ public struct EventData
                 TerritoryId = ZoneData.NORTHHORN,
                 Type = EventType.Fate,
                 InternalName = "驾驭自然的巨兽——呼风狮鹫",
+                Aethernet = Enums.Aethernet.FloatingRuins,
                 StartPosition = new Vector3(-855.7433f, 70.67716f, 482.1518f),
             }
         },
@@ -355,6 +363,7 @@ public struct EventData
                 TerritoryId = ZoneData.NORTHHORN,
                 Type = EventType.Fate,
                 InternalName = "仿制的蛇人偶——半灵美杜莎",
+                Aethernet = Enums.Aethernet.RuinedStreetsFront,
                 StartPosition = new Vector3(-661.0049f, 87f, -54.00021f),
             }
         },
@@ -366,6 +375,7 @@ public struct EventData
                 TerritoryId = ZoneData.NORTHHORN,
                 Type = EventType.Fate,
                 InternalName = "高傲的雷兽——新月女王",
+                Aethernet = Enums.Aethernet.SunkenTempleFront,
                 // 官方 planmap.lgb FATE11_base 布局位置即 (140,37,-708)，
                 // 与旧硬编码一致。留空让 Fate.Refresh 回落 IFate.Position 实时坐标，
                 // 位置始终跟随服务器数据，避免后续布局调整时再次偏移。
