@@ -28,7 +28,7 @@ namespace BOCCHI;
 [Serializable]
 public class Config : IOcelotConfig
 {
-    public const int CurrentVersion = 3;
+    public const int CurrentVersion = 4;
 
     public int Version { get; set; } = CurrentVersion;
 
@@ -119,6 +119,15 @@ public class Config : IOcelotConfig
 
             MobFarmerConfig.Mobs.Clear();
             Version = 3;
+            changed = true;
+        }
+
+        if (Version < 4)
+        {
+            // CE 众包面板现在默认保留历史记录。活动项仍可由用户在设置中单独筛选。
+            CeCrowdsourceConfig ??= new CeCrowdsourceConfig();
+            CeCrowdsourceConfig.ShowOnlyActive = false;
+            Version = 4;
             changed = true;
         }
 

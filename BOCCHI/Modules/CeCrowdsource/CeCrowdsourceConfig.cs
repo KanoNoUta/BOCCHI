@@ -11,6 +11,8 @@ public class CeCrowdsourceConfig : ModuleConfig
 
     public string ServerUrl { get; set; } = "http://8.138.201.201:8080";
 
+    public string ApiToken { get; set; } = "819fea7f410550ccdc7abc79195d0f081dfd18ae7963f878";
+
     [IntRange(5, 120)]
     [RangeIndicator]
     [DependsOn(nameof(Enabled))]
@@ -26,6 +28,6 @@ public class CeCrowdsourceConfig : ModuleConfig
 
     [Checkbox]
     [DependsOn(nameof(Enabled))]
-    public bool ShowOnlyActive { get; set; } = true;
+    public bool ShowOnlyActive { get; set; }
 }
 

@@ -93,7 +93,11 @@ public class Panel
     {
         var name = ResolveName(record, module);
         var localState = module.GetLocalCeState(record.EventID, record.TerritoryID);
-        var (label, color) = GetStatePresentation(record, module, localState);
+        var effectiveState = CeCrowdsourceDisplayPolicy.ResolveState(
+            record.ObservedState,
+            localState?.ToString(),
+            record.IsActive);
+        var (label, color) = GetStatePresentation(effectiveState, module);
 
         ImGui.TextColored(color, name);
         ImGui.SameLine();
@@ -127,17 +131,8 @@ public class Panel
         return id == 0 ? "--" : id.ToString();
     }
 
-    private static (string Label, Vector4 Color) GetStatePresentation(
-        CeRecord record,
-        CeCrowdsourceModule module,
-        DynamicEventState? localState)
+    private static (string Label, Vector4 Color) GetStatePresentation(string? state, CeCrowdsourceModule module)
     {
-        if (localState == DynamicEventState.Inactive)
-        {
-            return (module.T("panel.ended"), new Vector4(0.45f, 0.45f, 0.45f, 1f));
-        }
-
-        var state = localState?.ToString() ?? record.ObservedState;
         return state switch
         {
             "Register" => (module.T("panel.state_register"), new Vector4(0.95f, 0.85f, 0.2f, 1f)),

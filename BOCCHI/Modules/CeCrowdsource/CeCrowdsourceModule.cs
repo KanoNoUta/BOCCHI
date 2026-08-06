@@ -20,6 +20,9 @@ namespace BOCCHI.Modules.CeCrowdsource;
 public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(plugin, config)
 {
     private const int DataCenterID = 101;
+    // zone=0 is the crowdsource API's aggregate view. Using the current
+    // instance here would hide history uploaded from other island instances.
+    private const int AllZoneServers = 0;
 
     private readonly HttpClient client = new()
     {
@@ -206,6 +209,10 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
             };
             var json = JsonSerializer.Serialize(payload);
             using var content = new StringContent(json, Encoding.UTF8, "application/json");
+            if (!string.IsNullOrWhiteSpace(Config.ApiToken))
+            {
+                content.Headers.TryAddWithoutValidation("X-Auth-Token", Config.ApiToken);
+            }
             using var response = await client.PostAsync($"{Config.ServerUrl}/api/heartbeat", content, cts.Token);
             if (response.IsSuccessStatusCode)
             {
@@ -232,7 +239,7 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
         try
         {
             var baseUrl = Config.ServerUrl.TrimEnd('/');
-            var ceUrl = $"{baseUrl}/api/ce?dc={DataCenterID}&zone={CeZoneServerId.Current}";
+            var ceUrl = $"{baseUrl}/api/ce?dc={DataCenterID}&zone={AllZoneServers}";
             var statsUrl = $"{baseUrl}/api/stats?zone={CeZoneServerId.Current}";
 
             using var ceResponse = await client.GetAsync(ceUrl, cts.Token);
@@ -372,6 +379,10 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
             };
             var json = JsonSerializer.Serialize(payload);
             using var content = new StringContent(json, Encoding.UTF8, "application/json");
+            if (!string.IsNullOrWhiteSpace(Config.ApiToken))
+            {
+                content.Headers.TryAddWithoutValidation("X-Auth-Token", Config.ApiToken);
+            }
             using var response = await client.PostAsync($"{Config.ServerUrl}/api/ce/observe", content, cts.Token);
             if (response.IsSuccessStatusCode)
             {
