@@ -85,18 +85,6 @@ public class Panel
             ImGui.TextDisabled(string.Format(module.T("panel.uploaded"), module.UploadCount));
         }
 
-        if (module.OnlinePlayers.Count > 0)
-        {
-            var names = string.Join(", ", module.OnlinePlayers
-                .Where(p => !string.IsNullOrWhiteSpace(p.Name))
-                .Select(p => p.World is { Length: > 0 } w ? $"{p.Name}({w})" : p.Name)
-                .Take(12));
-            if (names.Length > 0)
-            {
-                ImGui.TextDisabled($"{module.T("panel.players")}: {names}");
-            }
-        }
-
         ImGui.Spacing();
         ImGui.Separator();
     }

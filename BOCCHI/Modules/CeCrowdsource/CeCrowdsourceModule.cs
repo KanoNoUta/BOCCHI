@@ -233,7 +233,7 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
         {
             var baseUrl = Config.ServerUrl.TrimEnd('/');
             var ceUrl = $"{baseUrl}/api/ce?dc={DataCenterID}&zone={CeZoneServerId.Current}";
-            var statsUrl = $"{baseUrl}/api/stats";
+            var statsUrl = $"{baseUrl}/api/stats?zone={CeZoneServerId.Current}";
 
             using var ceResponse = await client.GetAsync(ceUrl, cts.Token);
             if (!ceResponse.IsSuccessStatusCode)
