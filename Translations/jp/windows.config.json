@@ -3,6 +3,10 @@
     "config": {
       "title": "BOCCHI 設定",
       "search_hint": "設定またはモジュールを検索...",
+      "buttons": {
+        "collapse": "折りたたむ",
+        "expand": "展開"
+      },
       "groups": {
         "automation": "自動運転",
         "events": "イベント",

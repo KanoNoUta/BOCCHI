@@ -8,6 +8,8 @@
         "toggle_illegal_mode": "Toggle automatic mode",
         "open_settings": "Open settings",
         "enter_compact": "Switch to compact mode",
+        "expand": "Expand",
+        "collapse": "Collapse",
         "leave_compact": "Return to full mode",
         "start_automatic": "Start automation",
         "cancel_start": "Cancel startup",

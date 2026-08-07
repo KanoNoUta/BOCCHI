@@ -16,7 +16,7 @@ public class CeCrowdsourceConfig : ModuleConfig
     [IntRange(5, 120)]
     [RangeIndicator]
     [DependsOn(nameof(Enabled))]
-    public int PollIntervalSeconds { get; set; } = 15;
+    public int PollIntervalSeconds { get; set; } = 30;
 
     [Checkbox]
     [DependsOn(nameof(Enabled))]

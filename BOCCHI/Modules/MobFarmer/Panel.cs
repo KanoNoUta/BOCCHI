@@ -4,6 +4,7 @@ using Dalamud.Bindings.ImGui;
 using Ocelot;
 using System.Linq;
 using System.Numerics;
+using BOCCHI.Ui.Lumin;
 
 namespace BOCCHI.Modules.MobFarmer;
 
@@ -25,7 +26,7 @@ public class Panel
         ImGui.PopStyleColor();
 
         ImGui.Spacing();
-        var availableWidth = ImGui.GetContentRegionAvail().X;
+        var availableWidth = LuminTheme.ToDesign(ImGui.GetContentRegionAvail().X);
         var columns = availableWidth >= 720f ? 3 : BocchiUiPolicy.GetWorkspaceColumns(availableWidth);
         if (ImGui.BeginTable(
                 "##MobFarmerMetrics",

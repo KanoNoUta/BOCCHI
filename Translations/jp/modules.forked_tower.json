@@ -36,7 +36,22 @@
           "label": null,
           "tooltip": null
         },
-        "stop_rendering_complete_groups": {
+                "draw_element_sectors": {
+          "label": "元素セクター（雷/火/氷）を描画",
+          "tooltip": "魔の塔/超魔の塔の元素セクター（60° 扇形+対側）を描画"
+        },
+        "draw_element_rings": {
+          "label": "元素リングを描画",
+          "tooltip": "元素リングのヒット範囲を描画"
+        },
+        "draw_element_balls": {
+          "label": "元素オーブを描画",
+          "tooltip": "雷/火/氷オーブの位置を描画"
+        },
+        "element_draw_range": {
+          "label": "元素描画範囲",
+          "tooltip": "元素ゾーンを描画する半径（メートル）"
+        },"stop_rendering_complete_groups": {
           "label": null,
           "tooltip": null
         }

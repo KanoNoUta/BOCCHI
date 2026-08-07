@@ -8,6 +8,8 @@
         "toggle_illegal_mode": "Basculer l'automatisation",
         "open_settings": "Ouvrir les paramètres",
         "enter_compact": "Passer en mode compact",
+        "expand": "Agrandir",
+        "collapse": "Réduire",
         "leave_compact": "Revenir au mode complet",
         "start_automatic": "Démarrer l'automatisation",
         "cancel_start": "Annuler le démarrage",

@@ -38,6 +38,8 @@
           "label": "インスタンスを自動更新",
           "tooltip": "現在の蜃気楼の島を退出し、同じエリアへ自動的に再入場します"
         },
+        "test_instance_entry": "インスタンス入場テスト",
+        "test_instance_entry_help": "蜃気楼の島の外で対応するNPCのそばに立ち、クリックすると選択したエリアへの入場を申請します。DailyRoutinesでAutoTalkSkipとFieldEntryCommandを有効にしてください。",
         "instance_stay_minutes": {
           "label": "滞在時間（分）",
           "tooltip": "コンテンツ情報HUDの実際の残り時間から滞在時間を計算し、指定時間後にFATE・CE・戦闘・自動移動がない時に更新します"

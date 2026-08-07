@@ -8,6 +8,8 @@
         "toggle_illegal_mode": "切换自动运行",
         "open_settings": "打开设置",
         "enter_compact": "切换到精简模式",
+        "expand": "展开",
+        "collapse": "收起",
         "leave_compact": "恢复完整模式",
         "start_automatic": "启动自动运行",
         "cancel_start": "取消启动",

@@ -1,5 +1,6 @@
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
+using BOCCHI.Ui.Lumin;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -125,6 +126,9 @@ public static class BocchiOperationPolicy
 
 public static class BocchiUiPolicy
 {
+    // Breakpoints are design-space widths (see LuminTheme.Scale). Callers pass
+    // widths through LuminTheme.ToDesign so a larger UI font does not silently
+    // drop the layout to fewer columns.
     public const float SidebarBreakpoint = 720f;
 
     public const float TwoColumnBreakpoint = 620f;
@@ -139,15 +143,14 @@ public static class BocchiUiPolicy
         bool inForkedTower,
         bool inNorthHorn)
     {
-        var pages = new List<MainWindowPage> { MainWindowPage.Overview };
-        if (inOccultCrescent)
+        var pages = new List<MainWindowPage>
         {
-            pages.Add(MainWindowPage.Events);
-            pages.Add(MainWindowPage.Explore);
-            pages.Add(MainWindowPage.Farming);
-        }
-
-        pages.Add(MainWindowPage.Statistics);
+            MainWindowPage.Overview,
+            MainWindowPage.Events,
+            MainWindowPage.Explore,
+            MainWindowPage.Farming,
+            MainWindowPage.Statistics,
+        };
 
         if (inForkedTower)
         {
@@ -281,40 +284,106 @@ public static class BocchiUi
     {
         if (selected)
         {
-            ImGui.PushStyleColor(ImGuiCol.Header, new Vector4(0.22f, 0.39f, 0.49f, 0.72f));
-            ImGui.PushStyleColor(ImGuiCol.HeaderHovered, new Vector4(0.25f, 0.44f, 0.55f, 0.82f));
+            ImGui.PushStyleColor(ImGuiCol.Header, LuminTheme.Widget);
+            ImGui.PushStyleColor(ImGuiCol.HeaderHovered, LuminTheme.Circle);
         }
 
+        // Selectable renders its label with the body font, which has no
+        // FontAwesome glyphs, so the icon is drawn separately over the item.
+        var cursor = ImGui.GetCursorScreenPos();
+        var height = ImGui.GetFrameHeight();
         var clicked = ImGui.Selectable(
-            $"{icon.ToIconString()}  {label}##MainNav-{page}",
+            $"##MainNav-{page}",
             selected,
             ImGuiSelectableFlags.None,
-            new Vector2(width, ImGui.GetFrameHeight()));
+            new Vector2(width, height));
 
         if (selected)
         {
             ImGui.PopStyleColor(2);
         }
 
+        var drawList = ImGui.GetWindowDrawList();
+        var iconSlot = height;
+        var textColor = LuminTheme.Col(selected ? LuminTheme.White : LuminTheme.Text);
+        LuminDraw.IconClipped(
+            drawList,
+            cursor,
+            new Vector2(cursor.X + iconSlot, cursor.Y + height),
+            textColor,
+            icon,
+            new Vector2(0.5f, 0.5f));
+        LuminDraw.TextClipped(
+            drawList,
+            new Vector2(cursor.X + iconSlot, cursor.Y),
+            new Vector2(cursor.X + width - LuminTheme.S(6), cursor.Y + height),
+            textColor,
+            label,
+            new Vector2(0f, 0.5f));
+
         return clicked;
     }
 
     public static void PageHeading(string title, string? subtitle = null)
     {
-        ImGui.TextUnformatted(title);
+        var drawList = ImGui.GetWindowDrawList();
+        var pos = ImGui.GetCursorScreenPos();
+        var width = ImGui.GetContentRegionAvail().X;
+        var height = LuminTheme.SlotHeight(40f);
+        var max = pos + new Vector2(width, height);
+        var padding = LuminTheme.S(14);
+
+        LuminDraw.RectFilled(drawList, pos, max, LuminTheme.Col(LuminTheme.Child), LuminTheme.S(14));
+        var titleMin = new Vector2(pos.X + padding, pos.Y);
+        LuminDraw.TextClipped(
+            drawList,
+            titleMin,
+            new Vector2(max.X - padding, max.Y),
+            LuminTheme.Col(LuminTheme.White),
+            title,
+            new Vector2(0f, 0.5f));
+
         if (!string.IsNullOrWhiteSpace(subtitle))
         {
-            ImGui.TextDisabled(subtitle);
+            var subtitleMin = new Vector2(titleMin.X + ImGui.CalcTextSize(title).X + LuminTheme.S(12), pos.Y);
+            LuminDraw.TextClipped(
+                drawList,
+                subtitleMin,
+                new Vector2(max.X - padding, max.Y),
+                LuminTheme.Col(LuminTheme.Text),
+                subtitle,
+                new Vector2(0f, 0.5f));
         }
-        ImGui.Separator();
+
+        ImGui.Dummy(new Vector2(width, height));
         ImGui.Spacing();
     }
 
     public static void SectionHeading(string title)
     {
+        var drawList = ImGui.GetWindowDrawList();
+        var pos = ImGui.GetCursorScreenPos();
+        var width = ImGui.GetContentRegionAvail().X;
+        var height = ImGui.GetTextLineHeight();
+        var barWidth = LuminTheme.S(3);
+
+        LuminDraw.RectFilled(
+            drawList,
+            new Vector2(pos.X, pos.Y + LuminTheme.S(2)),
+            new Vector2(pos.X + barWidth, pos.Y + height - LuminTheme.S(2)),
+            LuminTheme.Col(LuminTheme.Accent),
+            barWidth * 0.5f);
+
+        var textPos = new Vector2(pos.X + barWidth + LuminTheme.S(6), pos.Y);
+        LuminDraw.TextClipped(
+            drawList,
+            textPos,
+            new Vector2(pos.X + width, pos.Y + height),
+            LuminTheme.Col(LuminTheme.White),
+            title,
+            new Vector2(0f, 0.5f));
+        ImGui.Dummy(new Vector2(width, height));
         ImGui.Spacing();
-        ImGui.TextDisabled(title);
-        ImGui.Separator();
     }
 
     public static void Metric(string label, string value)
@@ -325,11 +394,35 @@ public static class BocchiUi
 
     public static void EmptyState(string title, string detail)
     {
-        ImGui.Dummy(new Vector2(0f, 12f));
-        ImGui.TextDisabled(title);
-        ImGui.PushTextWrapPos(ImGui.GetCursorPosX() + MathF.Min(460f, ImGui.GetContentRegionAvail().X));
-        ImGui.TextDisabled(detail);
-        ImGui.PopTextWrapPos();
+        var drawList = ImGui.GetWindowDrawList();
+        var pos = ImGui.GetCursorScreenPos();
+        var width = ImGui.GetContentRegionAvail().X;
+        var lineHeight = ImGui.GetTextLineHeight();
+        var height = MathF.Max(LuminTheme.S(96), lineHeight * 4f);
+        var max = pos + new Vector2(width, height);
+        var padding = LuminTheme.S(12);
+
+        LuminDraw.RectFilled(drawList, pos, max, LuminTheme.Col(LuminTheme.Child), LuminTheme.S(14));
+
+        // Stack the two lines around the vertical centre instead of using
+        // fractional alignment, which overlapped them once the font grew.
+        var titleTop = pos.Y + (height - lineHeight * 2f) * 0.5f;
+        LuminDraw.TextClipped(
+            drawList,
+            new Vector2(pos.X + padding, titleTop),
+            new Vector2(max.X - padding, titleTop + lineHeight),
+            LuminTheme.Col(LuminTheme.White),
+            title,
+            new Vector2(0.5f, 0.5f));
+        LuminDraw.TextClipped(
+            drawList,
+            new Vector2(pos.X + padding, titleTop + lineHeight),
+            new Vector2(max.X - padding, titleTop + lineHeight * 2f),
+            LuminTheme.Col(LuminTheme.Text),
+            detail,
+            new Vector2(0.5f, 0.5f));
+        ImGui.Dummy(new Vector2(width, height));
+        ImGui.Spacing();
     }
 }
 

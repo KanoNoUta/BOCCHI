@@ -8,6 +8,7 @@ using Ocelot.Windows;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
@@ -20,14 +21,22 @@ namespace BOCCHI.Modules.CeCrowdsource;
 public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(plugin, config)
 {
     private const int DataCenterID = 101;
-    // zone=0 is the crowdsource API's aggregate view. Using the current
-    // instance here would hide history uploaded from other island instances.
-    private const int AllZoneServers = 0;
 
-    private readonly HttpClient client = new()
+    private static readonly HttpClient client = CreateClient();
+
+    private static HttpClient CreateClient()
     {
-        Timeout = TimeSpan.FromSeconds(8),
-    };
+        var handler = new HttpClientHandler
+        {
+            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate,
+        };
+        var http = new HttpClient(handler)
+        {
+            Timeout = TimeSpan.FromSeconds(8),
+        };
+        http.DefaultRequestHeaders.AcceptEncoding.ParseAdd("gzip");
+        return http;
+    }
 
     private readonly Panel panel = new();
     private readonly object sync = new();
@@ -51,13 +60,24 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
 
     public List<CeRecord> Records { get; private set; } = [];
 
-    public List<OnlinePlayer> OnlinePlayers { get; private set; } = [];
-
     public int OnlineCount { get; private set; }
 
     public int IslandOnlineCount { get; private set; }
 
+    /// <summary>
+    /// True when the server has leased this client one of the island's upload
+    /// slots. Only a handful of players per island upload; everyone else reads.
+    /// </summary>
+    public bool IsUploader { get; private set; }
+
+    public int UploaderSlots { get; private set; } = 3;
+
+    /// <summary>How long the server keeps records, in minutes (island lifetime).</summary>
+    public int RetentionMinutes { get; private set; } = 180;
+
     public uint CurrentZoneServerId => CeZoneServerId.Current;
+
+    public uint CurrentTerritoryId => Svc.ClientState.TerritoryType;
 
     public uint CurrentInstanceId => GetCurrentInstanceId();
 
@@ -74,6 +94,16 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
     public int UploadCount => Volatile.Read(ref uploadCountField);
 
     private readonly Dictionary<string, string> lastUploadedStates = new();
+
+    // Server-driven pacing: the heartbeat reply carries the cadence, so load
+    // can be shed centrally without shipping a new plugin build.
+    private int serverPollIntervalSeconds = 30;
+    private int serverHeartbeatIntervalSeconds = 30;
+
+    // Cached ETag for the CE list. An unchanged island answers 304 with an
+    // empty body, which is most of the bandwidth saving at scale.
+    private string? ceETag;
+    private string? ceETagScope;
 
     public override void PostInitialize()
     {
@@ -137,7 +167,7 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
 
         if (Config.SendHeartbeat && now >= nextHeartbeatAt)
         {
-            nextHeartbeatAt = now.AddSeconds(30);
+            nextHeartbeatAt = now.AddSeconds(Math.Max(15, serverHeartbeatIntervalSeconds));
             if (activeHeartbeat is not { IsCompleted: false })
             {
                 activeHeartbeat = SendHeartbeatAsync();
@@ -146,7 +176,10 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
 
         if (now >= nextPollAt)
         {
-            nextPollAt = now.AddSeconds(Math.Max(5, Config.PollIntervalSeconds));
+            // The server's cadence wins when it asks for a slower one; the
+            // user's setting can only be as aggressive as the server allows.
+            var interval = Math.Max(Math.Max(5, Config.PollIntervalSeconds), serverPollIntervalSeconds);
+            nextPollAt = now.AddSeconds(interval);
             if (activeFetch is not { IsCompleted: false })
             {
                 activeFetch = FetchAsync();
@@ -181,7 +214,7 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
 
     private void OnLocalCeInactive(CriticalEncounterSnapshot ev)
     {
-        if (!IsEnabled || !Config.UploadObservations || !ZoneData.IsInOccultCrescent())
+        if (!IsEnabled || !IsUploader || !Config.UploadObservations || !ZoneData.IsInOccultCrescent())
         {
             return;
         }
@@ -203,6 +236,7 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
             {
                 name,
                 world,
+                dataCenterID = DataCenterID,
                 zoneServerID = CeZoneServerId.Current,
                 territoryID = Svc.ClientState.TerritoryType,
                 instanceID = GetInstanceIdString(),
@@ -217,13 +251,35 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
             if (response.IsSuccessStatusCode)
             {
                 var body = await response.Content.ReadAsStringAsync(cts.Token);
-                var stats = JsonSerializer.Deserialize<CeStatsResponse>(body, JsonOptions);
+                var stats = JsonSerializer.Deserialize<CeHeartbeatResponse>(body, JsonOptions);
                 if (stats != null)
                 {
                     lock (sync)
                     {
                         OnlineCount = stats.Online;
                         IslandOnlineCount = stats.IslandOnline;
+                        // The heartbeat renews the upload lease, so this flag
+                        // is what gates uploading until the next beat.
+                        IsUploader = stats.IsUploader;
+                        if (stats.UploaderSlots > 0)
+                        {
+                            UploaderSlots = stats.UploaderSlots;
+                        }
+
+                        if (stats.RetentionMinutes > 0)
+                        {
+                            RetentionMinutes = stats.RetentionMinutes;
+                        }
+
+                        if (stats.PollIntervalSeconds > 0)
+                        {
+                            serverPollIntervalSeconds = stats.PollIntervalSeconds;
+                        }
+
+                        if (stats.HeartbeatIntervalSeconds > 0)
+                        {
+                            serverHeartbeatIntervalSeconds = stats.HeartbeatIntervalSeconds;
+                        }
                     }
                 }
             }
@@ -239,10 +295,39 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
         try
         {
             var baseUrl = Config.ServerUrl.TrimEnd('/');
-            var ceUrl = $"{baseUrl}/api/ce?dc={DataCenterID}&zone={AllZoneServers}";
-            var statsUrl = $"{baseUrl}/api/stats?zone={CeZoneServerId.Current}";
+            var inIsland = ZoneData.IsInOccultCrescent();
+            var territory = inIsland ? Svc.ClientState.TerritoryType : 0;
+            var zone = CeZoneServerId.Current;
+            var instance = GetInstanceIdString();
+            // Scope the query to this exact island. The server answers with
+            // that island's records only, already limited to the retention
+            // window, so no client-side instance filtering is needed.
+            var scope = $"{zone}:{instance}:{territory}";
+            var ceUrl = $"{baseUrl}/api/ce?dc={DataCenterID}&zone={zone}&instance={instance}&territory={territory}";
+            var statsUrl = $"{baseUrl}/api/stats?dc={DataCenterID}&zone={zone}&instance={instance}";
 
-            using var ceResponse = await client.GetAsync(ceUrl, cts.Token);
+            using var ceRequest = new HttpRequestMessage(HttpMethod.Get, ceUrl);
+            // A cached ETag only applies to the island it was issued for.
+            if (ceETag != null && ceETagScope == scope)
+            {
+                ceRequest.Headers.TryAddWithoutValidation("If-None-Match", ceETag);
+            }
+
+            using var ceResponse = await client.SendAsync(ceRequest, cts.Token);
+
+            if (ceResponse.StatusCode == HttpStatusCode.NotModified)
+            {
+                // Nothing changed on this island; keep the records we have.
+                lock (sync)
+                {
+                    LastSyncAt = DateTime.Now;
+                    Connected = true;
+                    LastError = null;
+                }
+                await FetchStatsAsync(statsUrl);
+                return;
+            }
+
             if (!ceResponse.IsSuccessStatusCode)
             {
                 SetError($"CE 接口 {ceResponse.StatusCode}");
@@ -257,24 +342,18 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
                 return;
             }
 
-            using var statsResponse = await client.GetAsync(statsUrl, cts.Token);
-            if (statsResponse.IsSuccessStatusCode)
-            {
-                var statsBody = await statsResponse.Content.ReadAsStringAsync(cts.Token);
-                var stats = JsonSerializer.Deserialize<CeStatsResponse>(statsBody, JsonOptions);
-                if (stats != null)
-                {
-                    lock (sync)
-                    {
-                        OnlineCount = stats.Online;
-                        IslandOnlineCount = stats.IslandOnline;
-                        OnlinePlayers = (stats.Players ?? []).ToList();
-                        InstanceCount = stats.Instances;
-                    }
-                }
-            }
+            ceETag = ceResponse.Headers.ETag?.Tag;
+            ceETagScope = scope;
+
+            await FetchStatsAsync(statsUrl);
+
             lock (sync)
             {
+                if (ceList.RetentionMinutes > 0)
+                {
+                    RetentionMinutes = ceList.RetentionMinutes;
+                }
+
                 Records = (ceList.Events ?? [])
                     .Where(r => r.DataCenterID == DataCenterID)
                     .OrderBy(r => r.TerritoryID)
@@ -288,6 +367,33 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException)
         {
             SetError(ex.Message);
+        }
+    }
+
+    private async Task FetchStatsAsync(string statsUrl)
+    {
+        using var statsResponse = await client.GetAsync(statsUrl, cts.Token);
+        if (!statsResponse.IsSuccessStatusCode)
+        {
+            return;
+        }
+
+        var statsBody = await statsResponse.Content.ReadAsStringAsync(cts.Token);
+        var stats = JsonSerializer.Deserialize<CeStatsResponse>(statsBody, JsonOptions);
+        if (stats == null)
+        {
+            return;
+        }
+
+        lock (sync)
+        {
+            OnlineCount = stats.Online;
+            IslandOnlineCount = stats.IslandOnline;
+            InstanceCount = stats.Instances;
+            if (stats.RetentionMinutes > 0)
+            {
+                RetentionMinutes = stats.RetentionMinutes;
+            }
         }
     }
 
@@ -320,7 +426,10 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
 
     private void TryUploadObservations()
     {
-        if (!ZoneData.IsInOccultCrescent() || DateTime.UtcNow < nextUploadAt)
+        // Only lease holders upload. On a busy island most clients are pure
+        // readers, which is what keeps write traffic flat as the population
+        // grows instead of scaling with it.
+        if (!IsUploader || !ZoneData.IsInOccultCrescent() || DateTime.UtcNow < nextUploadAt)
         {
             return;
         }
@@ -386,6 +495,23 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
             using var response = await client.PostAsync($"{Config.ServerUrl}/api/ce/observe", content, cts.Token);
             if (response.IsSuccessStatusCode)
             {
+                var body = await response.Content.ReadAsStringAsync(cts.Token);
+                var result = JsonSerializer.Deserialize<CeObserveResponse>(body, JsonOptions);
+                if (result is { IsUploader: false })
+                {
+                    // The island already has enough reporters. Stand down now
+                    // rather than retrying until the next heartbeat renews.
+                    lock (sync)
+                    {
+                        IsUploader = false;
+                    }
+
+                    // Forget the state we just recorded so the observation is
+                    // re-sent if this client later regains a slot.
+                    lastUploadedStates.Remove($"{territoryId}:CE:{eventId}");
+                    return;
+                }
+
                 Interlocked.Increment(ref uploadCountField);
                 Svc.Log.Info($"[CeCrowdsource] uploaded CE {eventId} state {state}");
             }

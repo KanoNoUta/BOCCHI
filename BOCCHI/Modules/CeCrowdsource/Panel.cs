@@ -33,6 +33,7 @@ public class Panel
             return;
         }
 
+        // 服务端已按当前岛（区服+副本ID）和保留时长过滤，这里不再重复筛选实例。
         var records = module.Records
             .Where(r => r.EventType == "CE")
             .Where(r => !module.Config.ShowOnlyActive || module.IsEffectivelyActive(r))
@@ -83,6 +84,14 @@ public class Panel
         if (module.UploadCount > 0)
         {
             ImGui.TextDisabled(string.Format(module.T("panel.uploaded"), module.UploadCount));
+        }
+
+        // 上传名额由服务端分配：每个岛只有少数人上传，其余只读取。
+        if (module.Config.UploadObservations && ZoneData.IsInOccultCrescent())
+        {
+            ImGui.TextDisabled(module.IsUploader
+                ? string.Format(module.T("panel.uploader_active"), module.UploaderSlots)
+                : module.T("panel.uploader_standby"));
         }
 
         ImGui.Spacing();

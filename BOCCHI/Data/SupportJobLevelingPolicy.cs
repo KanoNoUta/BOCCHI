@@ -11,10 +11,12 @@ public readonly record struct SupportJobLevelCandidate(
 
 public static class SupportJobLevelingPolicy
 {
+    private const byte FreelancerRowId = (byte)JobId.Freelancer;
+
     public static bool ShouldKeepCurrent(JobId job, byte level, byte levelMax)
     {
-        _ = job;
-        return level > 0
+        return job != JobId.Freelancer
+               && level > 0
                && level < levelMax;
     }
 
@@ -22,7 +24,8 @@ public static class SupportJobLevelingPolicy
     {
         return candidates
             .Where(candidate =>
-                candidate.Level > 0
+                candidate.RowId != FreelancerRowId
+                && candidate.Level > 0
                 && candidate.Level < candidate.LevelMax)
             .OrderBy(candidate => candidate.Level)
             .ThenBy(candidate => candidate.RowId)

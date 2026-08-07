@@ -1,9 +1,11 @@
-﻿using BOCCHI.Data;
+using BOCCHI.Data;
 using BOCCHI.Modules;
 using BOCCHI.Modules.Automator;
 using BOCCHI.Modules.MobFarmer;
 using BOCCHI.Ui;
+using BOCCHI.Ui.Lumin;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
 using Ocelot;
@@ -97,6 +99,7 @@ public class ConfigWindow(Plugin primaryPlugin, Config config) : OcelotConfigWin
 
     private IModule? selectedConfigModule;
     private string settingsSearch = string.Empty;
+    private LuminUiStyleScope? luminStyleScope;
     private string southHornMobSearch = string.Empty;
     private string northHornMobSearch = string.Empty;
 
@@ -115,6 +118,22 @@ public class ConfigWindow(Plugin primaryPlugin, Config config) : OcelotConfigWin
         };
         Size = new Vector2(1040, 720);
         SizeCondition = ImGuiCond.FirstUseEver;
+    }
+
+    private const float SidebarMinWidth = 168f;
+
+    public override void PreDraw()
+    {
+        luminStyleScope?.Dispose();
+        luminStyleScope = LuminTheme.PushGlobalStyle();
+        base.PreDraw();
+    }
+
+    public override void PostDraw()
+    {
+        base.PostDraw();
+        luminStyleScope?.Dispose();
+        luminStyleScope = null;
     }
 
     protected override void Render(RenderContext context)
@@ -145,23 +164,13 @@ public class ConfigWindow(Plugin primaryPlugin, Config config) : OcelotConfigWin
             selectedConfigModule = visibleEntries.FirstOrDefault()?.Module;
         }
 
-        var wide = ImGui.GetContentRegionAvail().X >= 840f;
-        if (wide)
+        using (ImRaii.Child("##ConfigNavigation", new Vector2(SidebarMinWidth, 0f), false))
         {
-            using (ImRaii.Child("##ConfigNavigation", new Vector2(248f, 0f), false))
-            {
-                DrawSettingsSearch();
-                ImGui.Spacing();
-                DrawGroupedNavigation(visibleEntries);
-            }
-            ImGui.SameLine();
-            DrawConfigContent(context);
-            return;
+            DrawSettingsSearch();
+            ImGui.Spacing();
+            DrawGroupedNavigation(visibleEntries);
         }
-
-        DrawSettingsSearch();
-        DrawNarrowNavigation(visibleEntries);
-        ImGui.Separator();
+        ImGui.SameLine();
         DrawConfigContent(context);
     }
 
@@ -237,8 +246,10 @@ public class ConfigWindow(Plugin primaryPlugin, Config config) : OcelotConfigWin
 
     private void DrawConfigContent(RenderContext context)
     {
-        var width = MathF.Min(760f, ImGui.GetContentRegionAvail().X);
-        using (ImRaii.Child("##ConfigContent", new Vector2(width, 0f), false))
+        // Content used to cap at 760 design px; the rest of the window kept the
+        // dark WindowBg and showed as a black band whenever the window was
+        // resized wider. Fill the remaining width instead.
+        using (ImRaii.Child("##ConfigContent", Vector2.Zero, false))
         {
             if (selectedConfigModule != null
                 && BocchiUiPolicy.GetSettingsGroup(selectedConfigModule.GetType().Name) == BocchiSettingsGroup.Advanced)
@@ -337,9 +348,28 @@ public class ConfigWindow(Plugin primaryPlugin, Config config) : OcelotConfigWin
         DrawSectionTitle(T("editors.automation.instance_rotation"));
         DrawInitialInstanceArea(module);
         DrawBoolean(module, cfg, nameof(cfg.AutoRotateInstance));
+        DrawInstanceEntryTest(module);
         DrawFloat(module, cfg, nameof(cfg.InstanceStayMinutes), 15f, 180f, T("units.minutes_0"), !cfg.AutoRotateInstance);
         DrawBoolean(module, cfg, nameof(cfg.RotateWhenPopulationLow), !cfg.AutoRotateInstance);
         DrawInt(module, cfg, nameof(cfg.MinimumInstancePopulation), 1, 72, !cfg.AutoRotateInstance || !cfg.RotateWhenPopulationLow);
+    }
+
+    private void DrawInstanceEntryTest(AutomatorModule module)
+    {
+        module.instanceRotation.PumpPendingEntryFromUi(module);
+        ImGui.TextWrapped(module.T("config.test_instance_entry_help"));
+
+        var state = module.instanceRotation.State;
+        var entryBusy = state is InstanceRotationState.WaitingForExit
+            or InstanceRotationState.Cooldown
+            or InstanceRotationState.WaitingForEntry;
+        var disabled = ZoneData.IsInOccultCrescent() || entryBusy;
+        ImGui.BeginDisabled(disabled);
+        if (ImGui.Button($"{module.T("config.test_instance_entry")}##AutomatorTestInstanceEntry"))
+        {
+            module.instanceRotation.TryStartFromOutside(module);
+        }
+        ImGui.EndDisabled();
     }
 
     private void DrawInitialInstanceArea(AutomatorModule module)
@@ -389,7 +419,7 @@ public class ConfigWindow(Plugin primaryPlugin, Config config) : OcelotConfigWin
         IReadOnlyList<string> criticalEncounterProperties)
     {
         ImGui.TextDisabled(T("editors.automation.island_help"));
-        var columns = BocchiUiPolicy.GetWorkspaceColumns(ImGui.GetContentRegionAvail().X);
+        var columns = BocchiUiPolicy.GetWorkspaceColumns(LuminTheme.ToDesign(ImGui.GetContentRegionAvail().X));
         if (ImGui.BeginTable(
                 $"##{id}EventColumns",
                 columns,
@@ -497,7 +527,7 @@ public class ConfigWindow(Plugin primaryPlugin, Config config) : OcelotConfigWin
         List<Mob> selected,
         ref string search)
     {
-        ImGui.SetNextItemWidth(MathF.Min(360f, ImGui.GetContentRegionAvail().X));
+        ImGui.SetNextItemWidth(MathF.Min(LuminTheme.S(360f), ImGui.GetContentRegionAvail().X));
         ImGui.InputTextWithHint($"##{id}MobSearch", T("editors.farming.search_hint"), ref search, 128);
 
         var searchTerm = search.Trim();
@@ -544,7 +574,7 @@ public class ConfigWindow(Plugin primaryPlugin, Config config) : OcelotConfigWin
 
         using (ImRaii.Child($"##{id}MobList", new Vector2(0, 0), true))
         {
-            var columns = ImGui.GetContentRegionAvail().X >= 620f ? 2 : 1;
+            var columns = ImGui.GetContentRegionAvail().X >= LuminTheme.S(620f) ? 2 : 1;
             if (!ImGui.BeginTable($"##{id}MobTable", columns, ImGuiTableFlags.SizingStretchSame | ImGuiTableFlags.RowBg))
             {
                 return;
@@ -623,7 +653,7 @@ public class ConfigWindow(Plugin primaryPlugin, Config config) : OcelotConfigWin
         var property = GetProperty(target, propertyName, typeof(float));
         var value = (float)(property.GetValue(target) ?? minimum);
         ImGui.BeginDisabled(disabled);
-        ImGui.SetNextItemWidth(MathF.Min(420f, ImGui.GetContentRegionAvail().X));
+        ImGui.SetNextItemWidth(MathF.Min(LuminTheme.S(420f), ImGui.GetContentRegionAvail().X));
         if (ImGui.SliderFloat($"{ConfigLabel(module, propertyName)}##{target.GetType().Name}-{propertyName}", ref value, minimum, maximum, format))
         {
             property.SetValue(target, value);
@@ -644,7 +674,7 @@ public class ConfigWindow(Plugin primaryPlugin, Config config) : OcelotConfigWin
         var property = GetProperty(target, propertyName, typeof(int));
         var value = (int)(property.GetValue(target) ?? minimum);
         ImGui.BeginDisabled(disabled);
-        ImGui.SetNextItemWidth(MathF.Min(420f, ImGui.GetContentRegionAvail().X));
+        ImGui.SetNextItemWidth(MathF.Min(LuminTheme.S(420f), ImGui.GetContentRegionAvail().X));
         if (ImGui.SliderInt($"{ConfigLabel(module, propertyName)}##{target.GetType().Name}-{propertyName}", ref value, minimum, maximum))
         {
             property.SetValue(target, value);

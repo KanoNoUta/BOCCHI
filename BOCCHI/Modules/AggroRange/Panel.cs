@@ -2,6 +2,7 @@ using BOCCHI.Data;
 using BOCCHI.Pathfinding;
 using BOCCHI.Ui;
 using Dalamud.Bindings.ImGui;
+using BOCCHI.Ui.Lumin;
 
 namespace BOCCHI.Modules.AggroRange;
 
@@ -16,7 +17,7 @@ public sealed class Panel
             return;
         }
 
-        var availableWidth = ImGui.GetContentRegionAvail().X;
+        var availableWidth = LuminTheme.ToDesign(ImGui.GetContentRegionAvail().X);
         var columns = availableWidth >= 800f ? 4 : BocchiUiPolicy.GetWorkspaceColumns(availableWidth);
         if (ImGui.BeginTable(
                 "##AggroRangeMetrics",

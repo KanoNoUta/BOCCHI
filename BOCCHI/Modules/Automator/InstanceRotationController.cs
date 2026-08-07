@@ -13,6 +13,24 @@ using System.Linq;
 
 namespace BOCCHI.Modules.Automator;
 
+public static class InstanceEntryConfirmationPolicy
+{
+    public static readonly TimeSpan RetryInterval = TimeSpan.FromSeconds(1);
+
+    public static bool CanAttempt(
+        InstanceRotationState state,
+        DateTimeOffset? commandDispatchedAt,
+        DateTimeOffset nextAttemptAt,
+        DateTimeOffset now)
+    {
+        return state == InstanceRotationState.WaitingForEntry
+               && commandDispatchedAt is { } dispatchedAt
+               && now >= dispatchedAt
+               && now - dispatchedAt <= InstanceRotationStateMachine.EntryTimeout
+               && now >= nextAttemptAt;
+    }
+}
+
 public sealed class InstanceRotationController
 {
     public const string LeaveCommand = "/pdr leaveduty";
@@ -27,6 +45,9 @@ public sealed class InstanceRotationController
     private bool dailyRoutinesEnableNoticeShown;
     private bool dailyRoutinesModulesReady;
     private DateTimeOffset nextDailyRoutinesModuleCheck;
+    private DateTimeOffset? entryCommandDispatchedAt;
+    private DateTimeOffset nextEntryConfirmationAttemptAt;
+    private int entryConfirmationAttempts;
 
     public static bool IsTransitionActive { get; private set; }
 
@@ -117,6 +138,7 @@ public sealed class InstanceRotationController
         {
             pendingEntryCommand = null;
             pendingEntryMessageKey = null;
+            ResetEntryConfirmation();
             Svc.Chat.PrintError(module.T("messages.rotation.failed"));
         }
 
@@ -136,6 +158,13 @@ public sealed class InstanceRotationController
         if (stateMachine.IsBusy)
         {
             return true;
+        }
+
+        // A failed test entry must be retryable from the settings button without
+        // requiring the user to toggle the whole automation mode.
+        if (stateMachine.State == InstanceRotationState.Failed)
+        {
+            Reset();
         }
 
         if (!IsDailyRoutinesLoaded())
@@ -184,6 +213,38 @@ public sealed class InstanceRotationController
         return status;
     }
 
+    public void PumpPendingEntryFromUi(AutomatorModule module)
+    {
+        if (pendingEntryCommand != null)
+        {
+            TryDispatchPendingEntry(module);
+        }
+    }
+
+    public bool TryReserveEntryConfirmationAttempt()
+    {
+        var now = DateTimeOffset.UtcNow;
+        if (!InstanceEntryConfirmationPolicy.CanAttempt(
+                stateMachine.State,
+                entryCommandDispatchedAt,
+                nextEntryConfirmationAttemptAt,
+                now))
+        {
+            return false;
+        }
+
+        nextEntryConfirmationAttemptAt = now + InstanceEntryConfirmationPolicy.RetryInterval;
+        entryConfirmationAttempts++;
+        return true;
+    }
+
+    public void RecordEntryConfirmationClick()
+    {
+        Svc.Log.Info(
+            $"Instance rotation clicked ContentsFinderConfirm Commence " +
+            $"(attempt={entryConfirmationAttempts}, targetTerritory={stateMachine.OriginalTerritoryId}).");
+    }
+
     public void PollDailyRoutinesCommandModules(AutomatorModule module)
     {
         if (!module.Config.ShouldAutoRotateInstance
@@ -225,6 +286,7 @@ public sealed class InstanceRotationController
         {
             pendingEntryCommand = null;
             pendingEntryMessageKey = null;
+            ResetEntryConfirmation();
         }
         IsTransitionActive = stateMachine.IsBusy;
     }
@@ -236,6 +298,7 @@ public sealed class InstanceRotationController
         dutyTimerProvider.Reset();
         pendingEntryCommand = null;
         pendingEntryMessageKey = null;
+        ResetEntryConfirmation();
         IsTransitionActive = false;
     }
 
@@ -366,7 +429,17 @@ public sealed class InstanceRotationController
         pendingEntryCommand = null;
         pendingEntryMessageKey = null;
         Chat.ExecuteCommand(command);
+        entryCommandDispatchedAt = DateTimeOffset.UtcNow;
+        nextEntryConfirmationAttemptAt = entryCommandDispatchedAt.Value;
+        entryConfirmationAttempts = 0;
         Svc.Chat.Print(module.T(messageKey));
         return true;
+    }
+
+    private void ResetEntryConfirmation()
+    {
+        entryCommandDispatchedAt = null;
+        nextEntryConfirmationAttemptAt = default;
+        entryConfirmationAttempts = 0;
     }
 }

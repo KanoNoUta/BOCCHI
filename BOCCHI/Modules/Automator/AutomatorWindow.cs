@@ -1,4 +1,5 @@
 using BOCCHI.Ui;
+using BOCCHI.Ui.Lumin;
 using BOCCHI.Modules.Carrots;
 using BOCCHI.Modules.MobFarmer;
 using BOCCHI.Modules.Treasure;
@@ -12,6 +13,21 @@ namespace BOCCHI.Modules.Automator;
 [OcelotWindow]
 public class AutomatorWindow(Plugin _plugin, Config _config) : OcelotWindow(_plugin, _config)
 {
+    private LuminUiStyleScope? luminStyleScope;
+
+    public override void PreDraw()
+    {
+        luminStyleScope?.Dispose();
+        luminStyleScope = LuminTheme.PushGlobalStyle();
+        base.PreDraw();
+    }
+
+    public override void PostDraw()
+    {
+        base.PostDraw();
+        luminStyleScope?.Dispose();
+        luminStyleScope = null;
+    }
     protected override void Render(RenderContext context)
     {
         var automator = Plugin.Modules.GetModule<AutomatorModule>();

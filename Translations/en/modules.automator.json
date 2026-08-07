@@ -38,6 +38,8 @@
           "label": "Automatically rotate instance",
           "tooltip": "Leave the current Occult Crescent instance and automatically return to the same area for unattended operation"
         },
+        "test_instance_entry": "Test instance entry",
+        "test_instance_entry_help": "Stand beside the matching NPC outside the Occult Crescent and click to request entry to the selected area. DailyRoutines must have AutoTalkSkip and FieldEntryCommand enabled.",
         "instance_stay_minutes": {
           "label": "Time in instance (minutes)",
           "tooltip": "Use the actual Duty Information addon countdown; rotate after this many minutes in the instance when no FATE, CE, combat, or automation task is active"

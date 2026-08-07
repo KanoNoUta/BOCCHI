@@ -42,6 +42,8 @@
           "label": "自动轮换副本",
           "tooltip": "无人值守时自动退出当前蜃景岛，并重新进入刚才所在的南征或北征区域"
         },
+        "test_instance_entry": "测试进入副本",
+        "test_instance_entry_help": "站在蜃景岛外对应 NPC 旁，点击按钮即可按上面选择的区域直接申请进入。需要在 DailyRoutines 开启“自动跳过对话”和“特殊场景探索进入指令”。",
         "instance_stay_minutes": {
           "label": "岛内停留时间（分钟）",
           "tooltip": "按任务情报Addon显示的实际副本倒计时计算；达到该停留时间后，等待无FATE、CE、战斗和自动化任务时开始轮换"

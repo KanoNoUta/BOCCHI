@@ -34,6 +34,8 @@
         "events": "Events",
         "last_sync": "Last sync",
         "uploaded": "{0} observations uploaded",
+        "uploader_active": "Uploading ({0} reporters per island)",
+        "uploader_standby": "Read-only: this island already has enough reporters",
         "connecting": "Connecting to server...",
         "server_error": "Server connection failed",
         "last_error": "Error",

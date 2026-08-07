@@ -3,6 +3,10 @@
     "config": {
       "title": "BOCCHI Config",
       "search_hint": "Search settings or modules...",
+      "buttons": {
+        "collapse": "Collapse",
+        "expand": "Expand"
+      },
       "groups": {
         "automation": "Automation",
         "events": "Events",

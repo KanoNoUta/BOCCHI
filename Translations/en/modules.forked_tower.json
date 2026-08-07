@@ -35,7 +35,22 @@
           "label": "Draw explosion range for big traps",
           "tooltip":  "This only renders for discovered traps. Range is still being finalized."
         },
-        "stop_rendering_complete_groups" : {
+        "draw_element_sectors": {
+          "label": "Draw elemental sectors (thunder/fire/ice)",
+          "tooltip": "Draw elemental sectors in Magic/Super Magic Tower (60 degree cone + opposite; thunder=blue-violet, fire=orange, ice=cyan)"
+        },
+        "draw_element_rings": {
+          "label": "Draw elemental rings",
+          "tooltip": "Draw elemental ring hit areas (same shape as sectors)"
+        },
+        "draw_element_balls": {
+          "label": "Draw elemental orbs",
+          "tooltip": "Draw thunder/fire/ice orb positions"
+        },
+        "element_draw_range": {
+          "label": "Element draw range",
+          "tooltip": "Radius around the player for drawing elemental zones (meters)"
+        },        "stop_rendering_complete_groups" : {
           "label": "Stop rendering discovered groups",
           "tooltip": "Stop rendering trap locations for fully discovered groups. This feature is a work in progress."
         }

@@ -3,8 +3,11 @@ using BOCCHI.Modules.Buff;
 using BOCCHI.Modules.Carrots;
 using BOCCHI.Modules.MobFarmer;
 using BOCCHI.Modules.Treasure;
+using Dalamud.Game.Addon.Lifecycle;
+using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
 using ECommons.DalamudServices;
 using BOCCHI.Pathfinding;
+using FFXIVClientStructs.FFXIV.Client.UI;
 using Ocelot;
 using Ocelot.Chain;
 using Ocelot.IPC;
@@ -74,6 +77,19 @@ public class AutomatorModule : Module
     {
         config.AutomatorConfig.Enabled = false;
         config.Save();
+
+        Svc.AddonLifecycle.RegisterListener(
+            AddonEvent.PostDraw,
+            "ContentsFinderConfirm",
+            OnContentsFinderConfirmPostDraw);
+    }
+
+    public override void Dispose()
+    {
+        Svc.AddonLifecycle.UnregisterListener(
+            AddonEvent.PostDraw,
+            "ContentsFinderConfirm",
+            OnContentsFinderConfirmPostDraw);
     }
 
 
@@ -523,5 +539,23 @@ public class AutomatorModule : Module
         {
             Config.AiProvider.Off();
         }
+    }
+
+    private unsafe void OnContentsFinderConfirmPostDraw(AddonEvent type, AddonArgs args)
+    {
+        var addon = (AddonContentsFinderConfirm*)args.Addon.Address;
+        if (addon == null
+            || !addon->AtkUnitBase.IsVisible
+            || addon->CommenceButton == null
+            || !addon->CommenceButton->IsEnabled
+            || addon->CommenceButton->AtkResNode == null
+            || !addon->CommenceButton->AtkResNode->IsVisible()
+            || !instanceRotation.TryReserveEntryConfirmationAttempt())
+        {
+            return;
+        }
+
+        addon->AtkUnitBase.FireCallbackInt(8);
+        instanceRotation.RecordEntryConfirmationClick();
     }
 }

@@ -8,6 +8,8 @@
         "toggle_illegal_mode": "自動運転を切替",
         "open_settings": "設定を開く",
         "enter_compact": "コンパクト表示に切替",
+        "expand": "展開",
+        "collapse": "折りたたむ",
         "leave_compact": "通常表示に戻す",
         "start_automatic": "自動運転を開始",
         "cancel_start": "開始をキャンセル",

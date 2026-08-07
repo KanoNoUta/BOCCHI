@@ -38,6 +38,8 @@
           "label": "CC : Face de griffes",
           "tooltip": "Active/Désactive la participation à la confrontation critique 'Face de griffes'."
         },
+        "test_instance_entry": "Tester l'entrée dans l'instance",
+        "test_instance_entry_help": "Placez-vous près du PNJ correspondant à l'extérieur du Croissant occulte et cliquez pour demander l'entrée dans la zone sélectionnée. DailyRoutines doit avoir AutoTalkSkip et FieldEntryCommand activés.",
         "do_critical_encounters": {
           "label": "Faire les Confrontations Critiques",
           "tooltip": "Considère les confrontations critiques lors du choix d'une activité"

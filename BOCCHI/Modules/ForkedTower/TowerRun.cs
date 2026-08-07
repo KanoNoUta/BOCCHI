@@ -1,4 +1,4 @@
-﻿using BOCCHI.Data.Traps;
+using BOCCHI.Data.Traps;
 using BOCCHI.Enums;
 using BOCCHI.Modules.Data;
 using Dalamud.Game.ClientState.Objects.SubKinds;
@@ -107,6 +107,9 @@ public class TowerRun(string hash, uint dynamicEventId = 0, TowerHelper.TowerTyp
                 context.DrawCircle(trap.Position, 30f, ImGuiColors.DalamudOrange);
             }
         }
+
+        // 魔之塔/超魔之塔元素雷区（60° 扇形×2 / 元素球），参考 BossMod FTMN4Index 逆向。
+        ThunderZone.Render(context, config.ForkedTowerConfig);
     }
 
     private IEnumerable<IEventObj> GetNearbyTraps()

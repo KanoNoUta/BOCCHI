@@ -1,4 +1,4 @@
-﻿using Ocelot.Config.Attributes;
+using Ocelot.Config.Attributes;
 using Ocelot.Modules;
 using System.Numerics;
 
@@ -34,4 +34,14 @@ public class ForkedTowerConfig : ModuleConfig
     [Checkbox][Experimental] public bool DrawBigTrapRange { get; set; } = false;
 
     [Checkbox][Experimental] public bool StopRenderingCompleteGroups { get; set; } = false;
+
+    [Checkbox] public bool DrawElementSectors { get; set; } = true;
+
+    [Checkbox] public bool DrawElementRings { get; set; } = true;
+
+    [Checkbox] public bool DrawElementBalls { get; set; } = true;
+
+    [FloatRange(20f, 300f)]
+    [RangeIndicator]
+    public float ElementDrawRange { get; set; } = 150f;
 }

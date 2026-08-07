@@ -3,6 +3,10 @@
     "config": {
       "title": "BOCCHI 设置",
       "search_hint": "搜索设置或模块……",
+      "buttons": {
+        "collapse": "收起",
+        "expand": "展开"
+      },
       "groups": {
         "automation": "自动化",
         "events": "事件",

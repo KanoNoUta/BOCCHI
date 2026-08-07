@@ -6,6 +6,7 @@ using BOCCHI.Enums;
 using BOCCHI.Modules.Automator;
 using BOCCHI.Modules.AggroRange;
 using BOCCHI.Modules.Carrots;
+using BOCCHI.Modules.CeCrowdsource;
 using BOCCHI.Modules.CriticalEncounters;
 using BOCCHI.Modules.Currency;
 using BOCCHI.Modules.StateManager;
@@ -26,6 +27,26 @@ static void Assert(bool condition, string message)
     {
         throw new InvalidOperationException(message);
     }
+}
+
+static void RunCeCrowdsourceTests()
+{
+    Assert(CeCrowdsourceDisplayPolicy.ResolveState("Battle", null, isActive: false) == "Inactive"
+           && CeCrowdsourceDisplayPolicy.ResolveState("Battle", "Inactive", isActive: true) == "Inactive"
+           && CeCrowdsourceDisplayPolicy.ResolveState("Battle", null, isActive: true) == "Battle"
+           && CeCrowdsourceDisplayPolicy.ResolveState("Register", null, isActive: false) == "Inactive"
+           && CeCrowdsourceDisplayPolicy.ResolveState("Register", null, isActive: true) == "Register",
+        "Crowdsource CE history must remain visible as ended, while live CE observations keep their active state.");
+
+    var legacyConfig = new Config
+    {
+        Version = 3,
+        CeCrowdsourceConfig = new CeCrowdsourceConfig { ShowOnlyActive = true },
+    };
+    Assert(legacyConfig.Migrate()
+           && legacyConfig.Version == Config.CurrentVersion
+           && !legacyConfig.CeCrowdsourceConfig.ShowOnlyActive,
+        "The CE history default must migrate existing configurations away from active-only filtering.");
 }
 
 static void RunCurrencyTrackerTests()
@@ -595,6 +616,13 @@ static void RunTreasureRoutePolicyTests()
         "Promoting a live treasure must stop the old route movement before resetting navigation for the coffer.");
 }
 
+if (args.Contains("--ce-crowdsource", StringComparer.OrdinalIgnoreCase))
+{
+    RunCeCrowdsourceTests();
+    Console.WriteLine("BOCCHI CE crowdsource display tests passed.");
+    return;
+}
+
 if (args.Contains("--currency-tracker", StringComparer.OrdinalIgnoreCase))
 {
     RunCurrencyTrackerTests();
@@ -736,6 +764,9 @@ if (args.Contains("--automator-run-state", StringComparer.OrdinalIgnoreCase))
     var configWindowSource = File.ReadAllText(Path.Combine("BOCCHI", "Windows", "ConfigWindow.cs"));
     Assert(!configWindowSource.Contains("##AutomatorEnabled", StringComparison.Ordinal),
         "Runtime start/stop must not be duplicated in settings.");
+    Assert(configWindowSource.Contains("TryStartFromOutside", StringComparison.Ordinal)
+           && configWindowSource.Contains("test_instance_entry_help", StringComparison.Ordinal),
+        "Instance rotation settings must expose a direct outside-NPC entry test and its DailyRoutines prerequisites.");
 
     var automatorWindowSource = File.ReadAllText(Path.Combine(
         "BOCCHI", "Modules", "Automator", "AutomatorWindow.cs"));
@@ -1383,10 +1414,33 @@ Assert(ActivityParticipationState.GetCombatStartupDecision(false, 0) == CombatSt
        && ActivityParticipationState.GetCombatStartupDecision(true, 8000) == CombatStartupDecision.TimedOut,
     "Combat automation must wait for a confirmed dismount and fail closed after the bounded retry window.");
 
-Assert(SupportJobLevelingPolicy.ShouldKeepCurrent(JobId.Freelancer, 1, 24)
+var entryCommandDispatchedAt = new DateTimeOffset(2026, 8, 7, 12, 0, 0, TimeSpan.Zero);
+Assert(InstanceEntryConfirmationPolicy.CanAttempt(
+           InstanceRotationState.WaitingForEntry,
+           entryCommandDispatchedAt,
+           entryCommandDispatchedAt,
+           entryCommandDispatchedAt)
+       && !InstanceEntryConfirmationPolicy.CanAttempt(
+           InstanceRotationState.Idle,
+           entryCommandDispatchedAt,
+           entryCommandDispatchedAt,
+           entryCommandDispatchedAt)
+       && !InstanceEntryConfirmationPolicy.CanAttempt(
+           InstanceRotationState.WaitingForEntry,
+           entryCommandDispatchedAt,
+           entryCommandDispatchedAt.AddSeconds(1),
+           entryCommandDispatchedAt)
+       && !InstanceEntryConfirmationPolicy.CanAttempt(
+           InstanceRotationState.WaitingForEntry,
+           entryCommandDispatchedAt,
+           entryCommandDispatchedAt,
+           entryCommandDispatchedAt + InstanceRotationStateMachine.EntryTimeout + TimeSpan.FromMilliseconds(1)),
+    "Instance entry confirmation must be armed only by a recent command, while waiting for entry, and respect retry throttling.");
+
+Assert(!SupportJobLevelingPolicy.ShouldKeepCurrent(JobId.Freelancer, 1, 24)
        && SupportJobLevelingPolicy.ShouldKeepCurrent(JobId.Ninja, 1, 10)
        && !SupportJobLevelingPolicy.ShouldKeepCurrent(JobId.Ninja, 10, 10),
-    "An unfinished Freelancer must remain eligible for automatic leveling like every other unlocked support job.");
+    "Freelancer must be excluded from automatic low-level job retention.");
 var lowestSupportJob = SupportJobLevelingPolicy.SelectLowestIncomplete([
     new SupportJobLevelCandidate((byte)JobId.Freelancer, 5, 24),
     new SupportJobLevelCandidate((byte)JobId.Ninja, 3, 10),
@@ -1400,8 +1454,12 @@ var unfinishedFreelancer = SupportJobLevelingPolicy.SelectLowestIncomplete([
     new SupportJobLevelCandidate((byte)JobId.Freelancer, 1, 24),
     new SupportJobLevelCandidate((byte)JobId.WhiteMage, 2, 10),
 ]);
-Assert(unfinishedFreelancer == (byte)JobId.Freelancer,
-    "Freelancer must still be selected when its real level is the lowest unfinished level.");
+Assert(unfinishedFreelancer == (byte)JobId.WhiteMage,
+    "Freelancer must be filtered out of automatic low-level job selection.");
+Assert(SupportJobLevelingPolicy.SelectLowestIncomplete([
+           new SupportJobLevelCandidate((byte)JobId.Freelancer, 1, 24),
+       ]) == null,
+    "Freelancer must not be selected when it is the only incomplete support job.");
 var northCampShard = Aethernet.NorthBaseCamp.GetData();
 Assert(ZoneData.IsWithinKnownAethernetRange(
            new Vector3(881.836f, 258.5f, 881.894f),
@@ -1728,6 +1786,7 @@ Assert(typeof(CriticalEncounterSnapshot).GetProperties().All(property =>
             "FFXIVClientStructs.FFXIV.Client.System.String.Utf8String" and not
             "FFXIVClientStructs.FFXIV.Client.Game.UI.MapMarkerData"),
     "Critical Encounter snapshots must copy native strings and map markers into managed values.");
+RunCeCrowdsourceTests();
 var clientStructsAssembly = Assembly.Load(
     typeof(CriticalEncounterTracker).Assembly.GetReferencedAssemblies()
         .Single(reference => reference.Name == "FFXIVClientStructs"));

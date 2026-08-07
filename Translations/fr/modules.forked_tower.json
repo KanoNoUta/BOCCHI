@@ -36,7 +36,22 @@
           "label": null,
           "tooltip": null
         },
-        "stop_rendering_complete_groups": {
+                "draw_element_sectors": {
+          "label": "Afficher les secteurs elementaires (foudre/feu/glace)",
+          "tooltip": "Affiche les secteurs elementaires dans la Tour magique (cone 60 degres + oppose)"
+        },
+        "draw_element_rings": {
+          "label": "Afficher les anneaux elementaires",
+          "tooltip": "Affiche les zones de frappe des anneaux elementaires"
+        },
+        "draw_element_balls": {
+          "label": "Afficher les orbes elementaires",
+          "tooltip": "Affiche les positions des orbes de foudre/feu/glace"
+        },
+        "element_draw_range": {
+          "label": "Portee d affichage elementaire",
+          "tooltip": "Rayon autour du joueur pour dessiner les zones (metres)"
+        },"stop_rendering_complete_groups": {
           "label": null,
           "tooltip": null
         }

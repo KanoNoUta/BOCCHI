@@ -1,5 +1,6 @@
 using BOCCHI.Ui;
 using Dalamud.Bindings.ImGui;
+using BOCCHI.Ui.Lumin;
 
 namespace BOCCHI.Modules.Treasure;
 
@@ -14,7 +15,7 @@ public class Panel
             return;
         }
 
-        var columns = BocchiUiPolicy.GetWorkspaceColumns(ImGui.GetContentRegionAvail().X);
+        var columns = BocchiUiPolicy.GetWorkspaceColumns(LuminTheme.ToDesign(ImGui.GetContentRegionAvail().X));
         if (ImGui.BeginTable(
                 "##TreasureCounts",
                 columns,

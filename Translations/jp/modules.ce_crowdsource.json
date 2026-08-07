@@ -34,6 +34,8 @@
         "events": "イベント",
         "last_sync": "最終同期",
         "uploaded": "{0} 件の観測をアップロード",
+        "uploader_active": "アップロード中（島ごとに {0} 人まで）",
+        "uploader_standby": "読み取り専用：この島の報告枠は満員です",
         "connecting": "サーバーに接続中...",
         "server_error": "サーバー接続に失敗しました",
         "last_error": "エラー",

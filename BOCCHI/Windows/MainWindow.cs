@@ -13,14 +13,18 @@ using BOCCHI.Modules.MobFarmer;
 using BOCCHI.Modules.StateManager;
 using BOCCHI.Modules.Treasure;
 using BOCCHI.Ui;
+using BOCCHI.Ui.Lumin;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
+using Dalamud.Interface.Textures;
+using Dalamud.Interface.Textures.TextureWraps;
 using Dalamud.Interface.Windowing;
 using ECommons.DalamudServices;
 using Ocelot;
 using Ocelot.Windows;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Numerics;
 
@@ -33,14 +37,47 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
     private Vector2? fullWindowSize;
     private Vector2? compactWindowSize;
     private bool initialLayoutApplied;
+    private Vector4 sidebarSelectedRect;
+    private Vector4 sidebarOverlay;
+    private Vector4 sidebarIndicator;
+    private MainWindowPage? lastDrawnPage;
+    private float pageAlpha = 1f;
+    private LuminUiStyleScope? luminStyleScope;
+    private ISharedImmediateTexture? pluginIconTexture;
+
+    /// <summary>
+    /// The plugin's own icon.png, shipped next to the assembly, used as the
+    /// sidebar brand mark. Returns null while the texture is still loading or if
+    /// the file is missing, in which case the vector mark is drawn instead.
+    /// </summary>
+    private IDalamudTextureWrap? GetPluginIcon()
+    {
+        if (pluginIconTexture == null)
+        {
+            var iconPath = Path.Join(
+                Svc.PluginInterface.AssemblyLocation.DirectoryName,
+                "icon.png");
+            if (!File.Exists(iconPath))
+            {
+                return null;
+            }
+
+            pluginIconTexture = Svc.Texture.GetFromFile(iconPath);
+        }
+
+        return pluginIconTexture.TryGetWrap(out var wrap, out _) ? wrap : null;
+    }
 
     public override void PostInitialize()
     {
         base.PostInitialize();
 
+        // Compact mode is a single capsule row, so the window has to be allowed
+        // to shrink far below the full layout's width; the old 520px floor is
+        // what left a black strip to the right of the capsule.
         SizeConstraints = new WindowSizeConstraints
         {
-            MinimumSize = new Vector2(520, 110),
+            MinimumSize = new Vector2(280, 60),
             MaximumSize = new Vector2(float.MaxValue, float.MaxValue),
         };
         Size = new Vector2(860, 680);
@@ -75,6 +112,22 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
         });
     }
 
+    public override void PreDraw()
+    {
+        // Style is scoped to this window's full frame (frame + content) and is
+        // released in PostDraw, so it never leaks into other plugins' windows.
+        luminStyleScope?.Dispose();
+        luminStyleScope = LuminTheme.PushGlobalStyle();
+        base.PreDraw();
+    }
+
+    public override void PostDraw()
+    {
+        base.PostDraw();
+        luminStyleScope?.Dispose();
+        luminStyleScope = null;
+    }
+
     protected override void Render(RenderContext context)
     {
         if (!initialLayoutApplied)
@@ -82,8 +135,21 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
             initialLayoutApplied = true;
             if (config.CompactMainWindow)
             {
-                ImGui.SetWindowSize(new Vector2(620f, 110f));
+                ImGui.SetWindowSize(new Vector2(
+                    CompactCapsuleWidth() + ImGui.GetStyle().WindowPadding.X * 2f,
+                    ImGui.GetFrameHeight() + LuminTheme.S(24f)));
             }
+        }
+
+        // The full layout needs ~860px to breathe; clamp only when the capsule
+        // row is what will be drawn, so entering compact mode never leaves
+        // empty window to the right of the gear.
+        if (config.CompactMainWindow)
+        {
+            var width = MathF.Max(
+                CompactCapsuleWidth() + ImGui.GetStyle().WindowPadding.X * 2f,
+                (SizeConstraints?.MinimumSize.X ?? 0f));
+            ImGui.SetWindowSize(new Vector2(width, ImGui.GetWindowSize().Y));
         }
 
         if (config.CompactMainWindow)
@@ -101,21 +167,28 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
     {
         var automator = Plugin.Modules.GetModule<AutomatorModule>();
         var snapshot = GetOperationSnapshot(automator);
-        if (ImGui.GetContentRegionAvail().X < 700f)
+        if (ImGui.GetContentRegionAvail().X < LuminTheme.S(700f))
         {
             DrawNarrowCommandBar(automator, snapshot);
             return;
         }
+
+        var toolsWidth = FullToolColumnWidth();
+        var startWidth = LuminTheme.S(126f);
+        var stopWidth = LuminTheme.S(108f);
 
         if (ImGui.BeginTable(
                 "##MainCommandBar",
                 4,
                 ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.NoPadOuterX))
         {
-            ImGui.TableSetupColumn("Area", ImGuiTableColumnFlags.WidthFixed, 150f);
+            ImGui.TableSetupColumn("Area", ImGuiTableColumnFlags.WidthFixed, LuminTheme.S(150f));
             ImGui.TableSetupColumn("Operation", ImGuiTableColumnFlags.WidthStretch);
-            ImGui.TableSetupColumn("Commands", ImGuiTableColumnFlags.WidthFixed, 246f);
-            ImGui.TableSetupColumn("Tools", ImGuiTableColumnFlags.WidthFixed, ImGui.GetFrameHeight() * 2f + 8f);
+            ImGui.TableSetupColumn(
+                "Commands",
+                ImGuiTableColumnFlags.WidthFixed,
+                startWidth + stopWidth + ImGui.GetStyle().ItemSpacing.X);
+            ImGui.TableSetupColumn("Tools", ImGuiTableColumnFlags.WidthFixed, toolsWidth);
 
             ImGui.TableNextColumn();
             DrawAreaStatus();
@@ -124,9 +197,9 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
             DrawOperationStatus(snapshot, compact: false);
 
             ImGui.TableNextColumn();
-            DrawAutomatorButton(automator, "Full", 126f);
+            DrawAutomatorButton(automator, "Full", startWidth);
             ImGui.SameLine();
-            DrawStopAllButton(automator, snapshot, 108f);
+            DrawStopAllButton(automator, snapshot, stopWidth);
 
             ImGui.TableNextColumn();
             if (BocchiUi.IconButton(FontAwesomeIcon.Cog, "OpenSettings", T("buttons.open_settings")))
@@ -134,20 +207,25 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
                 Plugin.Windows.ToggleConfigUI();
             }
             ImGui.SameLine();
-            if (BocchiUi.IconButton(FontAwesomeIcon.Compress, "EnterCompact", T("buttons.enter_compact")))
-            {
-                SetCompactMode(true);
-            }
+            DrawModePill(snapshot, "EnterCompact", compact: false);
 
             ImGui.EndTable();
         }
 
         if (!string.IsNullOrWhiteSpace(snapshot.Detail))
         {
-            ImGui.TextColored(BocchiUi.GetStatusColor(snapshot.State), snapshot.Detail);
+            ImGui.PushStyleColor(ImGuiCol.Text, BocchiUi.GetStatusColor(snapshot.State));
+            ImGui.TextWrapped(snapshot.Detail);
+            ImGui.PopStyleColor();
         }
         ImGui.Separator();
     }
+
+    /// <summary>Settings icon button plus the mode pill, including the gap between them.</summary>
+    private static float FullToolColumnWidth() =>
+        ImGui.GetFrameHeight()
+        + ImGui.GetStyle().ItemSpacing.X
+        + LuminWidgets.PillToggleWidth(LongestStateLabel(), T("buttons.collapse"));
 
     private void DrawNarrowCommandBar(
         AutomatorModule automator,
@@ -158,9 +236,9 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
                 3,
                 ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.NoPadOuterX))
         {
-            ImGui.TableSetupColumn("Area", ImGuiTableColumnFlags.WidthFixed, 138f);
+            ImGui.TableSetupColumn("Area", ImGuiTableColumnFlags.WidthFixed, LuminTheme.S(138f));
             ImGui.TableSetupColumn("Operation", ImGuiTableColumnFlags.WidthStretch);
-            ImGui.TableSetupColumn("Tools", ImGuiTableColumnFlags.WidthFixed, ImGui.GetFrameHeight() * 2f + 8f);
+            ImGui.TableSetupColumn("Tools", ImGuiTableColumnFlags.WidthFixed, FullToolColumnWidth());
             ImGui.TableNextColumn();
             DrawAreaStatus();
             ImGui.TableNextColumn();
@@ -171,16 +249,13 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
                 Plugin.Windows.ToggleConfigUI();
             }
             ImGui.SameLine();
-            if (BocchiUi.IconButton(FontAwesomeIcon.Compress, "EnterCompactNarrow", T("buttons.enter_compact")))
-            {
-                SetCompactMode(true);
-            }
+            DrawModePill(snapshot, "EnterCompactNarrow", compact: false);
             ImGui.EndTable();
         }
 
-        DrawAutomatorButton(automator, "FullNarrow", 140f);
+        DrawAutomatorButton(automator, "FullNarrow", LuminTheme.S(140f));
         ImGui.SameLine();
-        DrawStopAllButton(automator, snapshot, 108f);
+        DrawStopAllButton(automator, snapshot, LuminTheme.S(108f));
         if (!string.IsNullOrWhiteSpace(snapshot.Detail))
         {
             ImGui.PushStyleColor(ImGuiCol.Text, BocchiUi.GetStatusColor(snapshot.State));
@@ -195,27 +270,15 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
         var automator = Plugin.Modules.GetModule<AutomatorModule>();
         var snapshot = GetOperationSnapshot(automator);
 
-        if (!ImGui.BeginTable(
-                "##CompactCommandBar",
-                5,
-                ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.NoPadOuterX))
+        // Minimal capsule: state pill on the left, gear + stop icon on the right.
+        // Nothing else, so the collapsed window is just this row.
+        DrawModePill(snapshot, "LeaveCompact", compact: true);
+        ImGui.SameLine();
+        if (BocchiUi.IconButton(FontAwesomeIcon.Cog, "CompactSettings", T("buttons.open_settings")))
         {
-            return;
+            Plugin.Windows.ToggleConfigUI();
         }
-
-        ImGui.TableSetupColumn("Area", ImGuiTableColumnFlags.WidthFixed, 118f);
-        ImGui.TableSetupColumn("Operation", ImGuiTableColumnFlags.WidthStretch);
-        ImGui.TableSetupColumn("Toggle", ImGuiTableColumnFlags.WidthFixed, 116f);
-        ImGui.TableSetupColumn("Stop", ImGuiTableColumnFlags.WidthFixed, ImGui.GetFrameHeight());
-        ImGui.TableSetupColumn("Tools", ImGuiTableColumnFlags.WidthFixed, ImGui.GetFrameHeight() * 2f + 8f);
-
-        ImGui.TableNextColumn();
-        DrawAreaStatus();
-        ImGui.TableNextColumn();
-        DrawOperationStatus(snapshot, compact: true);
-        ImGui.TableNextColumn();
-        DrawAutomatorButton(automator, "Compact", 108f);
-        ImGui.TableNextColumn();
+        ImGui.SameLine();
         if (BocchiUi.IconButton(
                 FontAwesomeIcon.Stop,
                 "CompactStopAll",
@@ -224,18 +287,46 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
         {
             automator.RequestStopAll();
         }
-        ImGui.TableNextColumn();
-        if (BocchiUi.IconButton(FontAwesomeIcon.Cog, "CompactSettings", T("buttons.open_settings")))
+    }
+
+    /// <summary>
+    /// Mode pill: a status half naming the current operation state and an action
+    /// half that switches between the compact and full layouts.
+    /// </summary>
+    private void DrawModePill(BocchiOperationSnapshot snapshot, string id, bool compact)
+    {
+        if (LuminWidgets.PillToggle(
+                $"##ModePill-{id}",
+                GetStateLabel(snapshot.State),
+                BocchiUi.GetStatusColor(snapshot.State),
+                T(compact ? "buttons.expand" : "buttons.collapse"),
+                T(compact ? "buttons.leave_compact" : "buttons.enter_compact")))
         {
-            Plugin.Windows.ToggleConfigUI();
+            SetCompactMode(!compact);
         }
-        ImGui.SameLine();
-        if (BocchiUi.IconButton(FontAwesomeIcon.Expand, "LeaveCompact", T("buttons.leave_compact")))
+    }
+
+    /// <summary>
+    /// The pill lives in a fixed-width table column, so it has to be sized for
+    /// the widest state label; otherwise the label clips whenever the operation
+    /// state changes to a longer one.
+    /// </summary>
+    private static string LongestStateLabel()
+    {
+        var longest = string.Empty;
+        var width = 0f;
+        foreach (var state in Enum.GetValues<BocchiOperationState>())
         {
-            SetCompactMode(false);
+            var label = GetStateLabel(state);
+            var labelWidth = ImGui.CalcTextSize(label).X;
+            if (labelWidth > width)
+            {
+                width = labelWidth;
+                longest = label;
+            }
         }
 
-        ImGui.EndTable();
+        return longest;
     }
 
     private void DrawWorkspace(RenderContext context)
@@ -249,7 +340,7 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
             selectedPage = pages[0];
         }
 
-        var availableWidth = ImGui.GetContentRegionAvail().X;
+        var availableWidth = LuminTheme.ToDesign(ImGui.GetContentRegionAvail().X);
         if (BocchiUiPolicy.UseSidebar(availableWidth))
         {
             DrawSidebar(pages);
@@ -273,17 +364,58 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
 
     private void DrawSidebar(IReadOnlyList<MainWindowPage> pages)
     {
-        if (ImGui.BeginChild("##MainNavigation", new Vector2(156f, 0f), false))
+        var sidebarWidth = LuminTheme.S(LuminTheme.SidebarWidth);
+        if (ImGui.BeginChild("##MainNavigation", new Vector2(sidebarWidth, 0f), false))
         {
-            ImGui.TextDisabled(T("nav.workspace"));
+            LuminWidgets.BrandHeader("BOCCHI", T("nav.workspace"), GetPluginIcon());
             ImGui.Spacing();
+
+            var drawList = ImGui.GetWindowDrawList();
+            var selectedIndex = 0;
+            for (var i = 0; i < pages.Count; i++)
+            {
+                if (pages[i] == selectedPage)
+                {
+                    selectedIndex = i;
+                    break;
+                }
+            }
+
+            LuminDraw.EaseRect(ref sidebarOverlay, sidebarSelectedRect, 18f);
+            if (sidebarOverlay.Z > sidebarOverlay.X + 1f)
+            {
+                LuminDraw.RectFilled(
+                    drawList,
+                    new Vector2(sidebarOverlay.X, sidebarOverlay.Y),
+                    new Vector2(sidebarOverlay.Z, sidebarOverlay.W),
+                    LuminTheme.Col(LuminTheme.Widget),
+                    LuminTheme.S(LuminTheme.SidebarTabRounding));
+            }
+
+            var index = 0;
             foreach (var page in pages)
             {
                 var (label, icon) = GetPagePresentation(page);
-                if (BocchiUi.NavigationItem(page, label, icon, page == selectedPage, 146f))
+                if (LuminWidgets.TabButton(label, index, ref selectedIndex, ref sidebarSelectedRect, icon))
                 {
                     selectedPage = page;
                 }
+
+                index++;
+            }
+
+            LuminDraw.EaseRect(ref sidebarIndicator, sidebarSelectedRect, 18f);
+            if (sidebarIndicator.W > sidebarIndicator.Y + 1f)
+            {
+                var barWidth = LuminTheme.S(2);
+                var barInsetY = LuminTheme.S(6);
+                var barX = sidebarIndicator.X + LuminTheme.S(2);
+                LuminDraw.RectFilled(
+                    drawList,
+                    new Vector2(barX, sidebarIndicator.Y + barInsetY),
+                    new Vector2(barX + barWidth, sidebarIndicator.W - barInsetY),
+                    LuminTheme.Col(LuminTheme.Accent),
+                    barWidth * 0.5f);
             }
         }
         ImGui.EndChild();
@@ -301,7 +433,8 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
             foreach (var page in pages)
             {
                 var (label, icon) = GetPagePresentation(page);
-                var width = ImGui.CalcTextSize(label).X + 42f;
+                // Icon slot (one frame height) + label + trailing padding.
+                var width = ImGui.GetFrameHeight() + ImGui.CalcTextSize(label).X + LuminTheme.S(12);
                 if (BocchiUi.NavigationItem(page, label, icon, page == selectedPage, width))
                 {
                     selectedPage = page;
@@ -314,7 +447,17 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
 
     private void DrawSelectedPage(RenderContext context)
     {
-        switch (selectedPage)
+        if (selectedPage != lastDrawnPage)
+        {
+            lastDrawnPage = selectedPage;
+            pageAlpha = 0f;
+        }
+
+        LuminDraw.StaticEase(ref pageAlpha, 1f, 7f);
+        ImGui.PushStyleVar(ImGuiStyleVar.Alpha, pageAlpha);
+        try
+        {
+            switch (selectedPage)
         {
             case MainWindowPage.Events:
                 DrawEventsPage(context);
@@ -339,12 +482,21 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
                 DrawOverviewPage();
                 break;
         }
+        }
+        finally
+        {
+            ImGui.PopStyleVar();
+        }
     }
 
     private void DrawOverviewPage()
     {
         BocchiUi.PageHeading(T("pages.overview.title"), T("pages.overview.subtitle"));
+
+        LuminWidgets.BeginSection(T("pages.overview.title"));
         DrawRuntimeSummary();
+        LuminWidgets.EndSection();
+        ImGui.Spacing();
 
         uint? territory = ZoneData.IsInSouthHorn()
             ? ZoneData.SOUTHHORN
@@ -353,8 +505,9 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
                 : null;
         if (territory is { } activeTerritory)
         {
-            BocchiUi.SectionHeading(T("pages.overview.current_area"));
+            LuminWidgets.BeginSection(T("pages.overview.current_area"));
             DrawIslandSummary(activeTerritory);
+            LuminWidgets.EndSection();
         }
         else
         {
@@ -372,23 +525,24 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
     private void DrawEventsPage(RenderContext context)
     {
         BocchiUi.PageHeading(T("pages.events.title"), T("pages.events.subtitle"));
-        if (!ZoneData.IsInOccultCrescent())
+        if (ZoneData.IsInOccultCrescent())
+        {
+            var columns = BocchiUiPolicy.GetWorkspaceColumns(LuminTheme.ToDesign(ImGui.GetContentRegionAvail().X));
+            if (ImGui.BeginTable(
+                    "##EventWorkspace",
+                    columns,
+                    ImGuiTableFlags.SizingStretchSame | (columns > 1 ? ImGuiTableFlags.BordersInnerV : ImGuiTableFlags.None)))
+            {
+                ImGui.TableNextColumn();
+                Plugin.Modules.GetModule<FatesModule>().RenderMainUi(context);
+                ImGui.TableNextColumn();
+                Plugin.Modules.GetModule<CriticalEncountersModule>().RenderMainUi(context);
+                ImGui.EndTable();
+            }
+        }
+        else
         {
             BocchiUi.EmptyState(T("pages.events.empty_title"), T("pages.events.empty_detail"));
-            return;
-        }
-
-        var columns = BocchiUiPolicy.GetWorkspaceColumns(ImGui.GetContentRegionAvail().X);
-        if (ImGui.BeginTable(
-                "##EventWorkspace",
-                columns,
-                ImGuiTableFlags.SizingStretchSame | (columns > 1 ? ImGuiTableFlags.BordersInnerV : ImGuiTableFlags.None)))
-        {
-            ImGui.TableNextColumn();
-            Plugin.Modules.GetModule<FatesModule>().RenderMainUi(context);
-            ImGui.TableNextColumn();
-            Plugin.Modules.GetModule<CriticalEncountersModule>().RenderMainUi(context);
-            ImGui.EndTable();
         }
 
         ImGui.Spacing();
@@ -427,7 +581,7 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
     private void DrawStatisticsPage(RenderContext context)
     {
         BocchiUi.PageHeading(T("pages.statistics.title"), T("pages.statistics.subtitle"));
-        var columns = BocchiUiPolicy.GetWorkspaceColumns(ImGui.GetContentRegionAvail().X);
+        var columns = BocchiUiPolicy.GetWorkspaceColumns(LuminTheme.ToDesign(ImGui.GetContentRegionAvail().X));
         if (!ImGui.BeginTable("##StatisticsWorkspace", columns, ImGuiTableFlags.SizingStretchSame))
         {
             return;
@@ -464,18 +618,19 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
             _ => T("buttons.start_automatic"),
         };
         var stopping = automator.RunState == AutomatorRunState.Stopping;
-        var color = automator.RequestedEnabled
-            ? new Vector4(0.52f, 0.25f, 0.20f, 0.92f)
-            : new Vector4(0.16f, 0.48f, 0.30f, 0.92f);
+        var stoppingRequested = automator.RequestedEnabled;
 
-        ImGui.BeginDisabled(stopping);
-        ImGui.PushStyleColor(ImGuiCol.Button, color);
-        if (ImGui.Button($"{label}##AutomatorRun-{id}", new Vector2(width, 0f)))
+        var background = stoppingRequested ? LuminTheme.ErrorAccent : LuminTheme.Accent;
+        var text = stoppingRequested ? LuminTheme.White : LuminTheme.Black;
+        if (LuminWidgets.PrimaryButton(
+                label,
+                width: width,
+                enabled: !stopping,
+                backgroundOverride: background,
+                textOverride: text))
         {
             automator.RequestEnabled(!automator.RequestedEnabled);
         }
-        ImGui.PopStyleColor();
-        ImGui.EndDisabled();
     }
 
     private static void DrawStopAllButton(
@@ -483,17 +638,15 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
         BocchiOperationSnapshot snapshot,
         float width)
     {
-        ImGui.BeginDisabled(!snapshot.CanStopAll);
-        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.58f, 0.20f, 0.18f, 0.92f));
-        if (ImGui.Button($"{T("buttons.stop_all")}##StopAllAutomation", new Vector2(width, 0f)))
+        if (LuminWidgets.PrimaryButton(
+                T("buttons.stop_all"),
+                tooltip: T("buttons.stop_all_tooltip"),
+                width: width,
+                enabled: snapshot.CanStopAll,
+                backgroundOverride: new Vector4(0.58f, 0.20f, 0.18f, 1f),
+                textOverride: LuminTheme.White))
         {
             automator.RequestStopAll();
-        }
-        ImGui.PopStyleColor();
-        ImGui.EndDisabled();
-        if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
-        {
-            ImGui.SetTooltip(T("buttons.stop_all_tooltip"));
         }
     }
 
@@ -544,13 +697,29 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
             Plugin.Modules.GetModule<MobFarmerModule>().Farmer.Running));
     }
 
+    /// <summary>
+    /// Width of the collapsed capsule row's contents: mode pill plus the
+    /// settings and stop icon buttons, including the gaps between them. Window
+    /// padding is added by the caller so the number stays a pure content width.
+    /// </summary>
+    private static float CompactCapsuleWidth()
+    {
+        var spacing = ImGui.GetStyle().ItemSpacing.X;
+        return LuminWidgets.PillToggleWidth(LongestStateLabel(), T("buttons.expand"))
+               + spacing + ImGui.GetFrameHeight() // settings gear
+               + spacing + ImGui.GetFrameHeight(); // stop all
+    }
+
     private void SetCompactMode(bool compact)
     {
         var currentSize = ImGui.GetWindowSize();
         if (compact)
         {
             fullWindowSize = currentSize;
-            ImGui.SetWindowSize(compactWindowSize ?? new Vector2(620f, 110f));
+            ImGui.SetWindowSize(
+                compactWindowSize ?? new Vector2(
+                    CompactCapsuleWidth() + ImGui.GetStyle().WindowPadding.X * 2f,
+                    ImGui.GetFrameHeight() + LuminTheme.S(24f)));
         }
         else
         {
@@ -678,7 +847,7 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
         var ceIds = EventData.GetCriticalEncountersForTerritory(territoryId).Select(data => data.Id).Distinct().ToArray();
         var enabledFates = fateIds.Count(id => automator.FatesMap.TryGetValue(id, out var enabled) && enabled);
         var enabledCes = ceIds.Count(id => automator.CriticalEncountersMap.TryGetValue(id, out var enabled) && enabled);
-        var columns = BocchiUiPolicy.GetWorkspaceColumns(ImGui.GetContentRegionAvail().X);
+        var columns = BocchiUiPolicy.GetWorkspaceColumns(LuminTheme.ToDesign(ImGui.GetContentRegionAvail().X));
 
         if (ImGui.BeginTable("##IslandSummary", columns, ImGuiTableFlags.SizingStretchSame | ImGuiTableFlags.BordersInnerV))
         {
@@ -712,7 +881,7 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
         }
 
         ImGui.TextDisabled(string.Format(T("mobs.selected"), selected.Count));
-        var columns = BocchiUiPolicy.GetWorkspaceColumns(ImGui.GetContentRegionAvail().X);
+        var columns = BocchiUiPolicy.GetWorkspaceColumns(LuminTheme.ToDesign(ImGui.GetContentRegionAvail().X));
         if (ImGui.BeginTable("##ConfiguredMobNames", columns, ImGuiTableFlags.SizingStretchSame | ImGuiTableFlags.RowBg))
         {
             foreach (var mob in selected)

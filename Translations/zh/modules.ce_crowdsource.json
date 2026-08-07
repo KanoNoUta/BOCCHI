@@ -34,6 +34,8 @@
         "events": "事件",
         "last_sync": "上次同步",
         "uploaded": "已上传 {0} 条观测",
+        "uploader_active": "上传中（本岛限 {0} 人）",
+        "uploader_standby": "只读模式：本岛上传名额已满",
         "connecting": "连接服务器中……",
         "server_error": "服务器连接失败",
         "last_error": "错误",
