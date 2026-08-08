@@ -135,11 +135,6 @@ public class Panel
         return $"{module.T("panel.ce")} {record.EventID}";
     }
 
-    private static string FormatZoneServerId(uint id)
-    {
-        return id == 0 ? "--" : id.ToString();
-    }
-
     private static (string Label, Vector4 Color) GetStatePresentation(string? state, CeCrowdsourceModule module)
     {
         return state switch

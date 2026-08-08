@@ -1,6 +1,5 @@
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
-using Dalamud.Interface.Utility;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
@@ -10,8 +9,8 @@ namespace BOCCHI.Ui.Lumin;
 /// <summary>
 /// Lumin visual theme: colors, element metrics and global style stack.
 /// Values mirror framework/settings/colors.h + elements.h from the
-/// Lumin-Free-Imgui-Menu project. Scale follows Dalamud's GlobalScale so the
-/// design stays crisp at any UI scale.
+/// Lumin-Free-Imgui-Menu project. Scale follows the active ImGui font so the
+/// design stays crisp at any UI scale without applying Dalamud's scale twice.
 /// </summary>
 public static class LuminTheme
 {
@@ -50,16 +49,20 @@ public static class LuminTheme
     public const float BrandHeaderHeight = 50f;
 
     /// <summary>
-    /// Design-space to screen-space scale. Lumin's metrics assume a 12px UI
-    /// font; Dalamud rasterises at the user's configured size and exposes the
-    /// combined DPI/user scale via GlobalScale, so we follow both. Otherwise
-    /// fixed-height slots (tabs, switches, cards) stay at design size while the
-    /// text inside them grows, and the text gets clipped.
+    /// The UI font size used when the Lumin metrics were tuned. Dalamud's
+    /// default UI font is approximately 17px.
     /// </summary>
-    public static float Scale => ImGuiHelpers.GlobalScale * (ImGui.GetFontSize() / DesignFontSize);
+    public const float DesignFontSize = 17f;
 
-    /// <summary>The UI font size Lumin's element metrics were authored against.</summary>
-    private const float DesignFontSize = 12f;
+    /// <summary>
+    /// Design-space to screen-space scale. ImGui.GetFontSize() already includes
+    /// the user's Dalamud/DPI scale, so multiplying GlobalScale again would make
+    /// title-bar controls, switches and command buttons grow twice.
+    /// </summary>
+    public static float Scale => CalculateScale(ImGui.GetFontSize());
+
+    public static float CalculateScale(float fontSize) =>
+        fontSize > 0f ? fontSize / DesignFontSize : 1f;
 
     /// <summary>Frame height implied by the design font plus its 6px frame padding.</summary>
     private const float DesignFrameHeight = DesignFontSize + 6f * 2f;

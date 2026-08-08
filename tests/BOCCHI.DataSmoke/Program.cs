@@ -2,6 +2,7 @@ using BOCCHI;
 using BOCCHI.Chains;
 using BOCCHI.Commands;
 using BOCCHI.Data;
+using BOCCHI.Data.Traps;
 using BOCCHI.Enums;
 using BOCCHI.Modules.Automator;
 using BOCCHI.Modules.AggroRange;
@@ -13,6 +14,7 @@ using BOCCHI.Modules.StateManager;
 using BOCCHI.Modules.Treasure;
 using BOCCHI.Pathfinding;
 using BOCCHI.Ui;
+using BOCCHI.Ui.Lumin;
 using System.Numerics;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -129,6 +131,10 @@ static HashSet<string> GetFormatArguments(string? value)
 
 static void RunUiShellTests()
 {
+    Assert(Math.Abs(LuminTheme.CalculateScale(17f) - 1f) < 0.001f
+           && Math.Abs(LuminTheme.CalculateScale(25.5f) - 1.5f) < 0.001f,
+        "Lumin UI scaling must follow the already-scaled ImGui font without applying a second DPI multiplier.");
+
     Assert(BocchiUiPolicy.UseSidebar(900f)
            && !BocchiUiPolicy.UseSidebar(BocchiUiPolicy.SidebarBreakpoint - 1f),
         "The main shell must switch to compact navigation below its sidebar breakpoint.");
@@ -140,9 +146,12 @@ static void RunUiShellTests()
     Assert(outsidePages.SequenceEqual(new[]
            {
                MainWindowPage.Overview,
+               MainWindowPage.Events,
+               MainWindowPage.Explore,
+               MainWindowPage.Farming,
                MainWindowPage.Statistics,
            }),
-        "Outside the island, the shell must keep only useful overview and statistics pages.");
+        "The redesigned shell must keep its primary navigation stable outside the island.");
 
     var northPages = BocchiUiPolicy.GetVisiblePages(true, false, true);
     Assert(northPages.Contains(MainWindowPage.Events)
@@ -217,10 +226,16 @@ static void RunUiShellTests()
         "The redesigned main shell must not use collapsing headers as primary navigation.");
     Assert(!Regex.IsMatch(mainWindowSource, @"Checkbox\([^\r\n]*CompactMainWindow"),
         "Compact mode must be a button control, not a checkbox.");
+    Assert(mainWindowSource.Contains("ImGuiWindowFlags.NoCollapse", StringComparison.Ordinal)
+           && mainWindowSource.Contains("compactTitleBarButton", StringComparison.Ordinal)
+           && mainWindowSource.Contains("SetCompactMode(!config.CompactMainWindow)", StringComparison.Ordinal),
+        "Title-bar and command-bar compact controls must share one synchronized state.");
     Assert(mainWindowSource.Contains("RequestStopAll", StringComparison.Ordinal),
         "The global command bar must call an explicit stop-all operation.");
 
     var configWindowSource = File.ReadAllText(Path.Combine("BOCCHI", "Windows", "ConfigWindow.cs"));
+    Assert(configWindowSource.Contains("LuminWidgets.Checkbox(label, description, ref value)", StringComparison.Ordinal),
+        "Boolean settings must use the compact Lumin switch instead of an oversized check box.");
     Assert(configWindowSource.Contains("SettingsSearch", StringComparison.Ordinal)
            && configWindowSource.Contains("GetSettingsGroup", StringComparison.Ordinal),
         "The settings shell must expose grouped search navigation.");
@@ -233,6 +248,11 @@ static void RunUiShellTests()
     Assert(towerPanelSource.Contains("ShowAdvancedUi", StringComparison.Ordinal)
            && criticalPanelSource.Contains("ShowAdvancedUi", StringComparison.Ordinal),
         "Raw tower IDs, coordinates, and capture tools must stay behind the Advanced UI preference.");
+
+    var towerRunSource = File.ReadAllText(Path.Combine(
+        "BOCCHI", "Modules", "ForkedTower", "TowerRun.cs"));
+    Assert(!towerRunSource.Contains("ThunderZone.Render", StringComparison.Ordinal),
+        "The opaque ice/fire/thunder final-boss overlay must remain disabled until its phase-gated redesign.");
 
     var responsivePanelSources = new[]
     {
@@ -716,12 +736,17 @@ if (args.Contains("--automator-run-state", StringComparer.OrdinalIgnoreCase))
     var mainWindowSource = File.ReadAllText(Path.Combine("BOCCHI", "Windows", "MainWindow.cs"));
     Assert(!mainWindowSource.Contains("EnsureDailyRoutinesCommandModules", StringComparison.Ordinal),
         "Rendering the compact window must never enable DailyRoutines modules.");
-    Assert(!mainWindowSource.Contains("TitleBarButtons.Add", StringComparison.Ordinal),
-        "The main title bar must not duplicate the automation switch.");
-    Assert(Regex.Matches(mainWindowSource, "DrawAutomatorButton\\(").Count == 4,
-        "Wide, narrow, and compact layouts must share exactly one run-toggle renderer.");
+    var postInitializeStart = mainWindowSource.IndexOf("public override void PostInitialize()", StringComparison.Ordinal);
+    var preDrawStart = mainWindowSource.IndexOf("public override void PreDraw()", postInitializeStart, StringComparison.Ordinal);
+    var postInitializeSource = mainWindowSource[postInitializeStart..preDrawStart];
+    Assert(!postInitializeSource.Contains("RequestEnabled(", StringComparison.Ordinal)
+           && !postInitializeSource.Contains("DrawAutomatorButton(", StringComparison.Ordinal),
+        "The title bar may control compact layout, emergency stop and illegal mode, but must not duplicate the automation switch.");
+    Assert(Regex.Matches(mainWindowSource, "DrawAutomatorButton\\(").Count == 3,
+        "Wide and narrow layouts must share exactly one run-toggle renderer without duplicating it in compact mode.");
     Assert(!mainWindowSource.Contains("ImGui.Checkbox($\"自动运行##AutomatorRun-", StringComparison.Ordinal)
-           && mainWindowSource.Contains("ImGui.Button($\"{label}##AutomatorRun-{id}\"", StringComparison.Ordinal),
+           && postInitializeSource.Contains("SetCompactMode(!config.CompactMainWindow)", StringComparison.Ordinal)
+           && mainWindowSource.Contains("LuminWidgets.PrimaryButton(", StringComparison.Ordinal),
         "The single automation control must be a button, not a checkbox.");
 
     var automatorModuleSource = File.ReadAllText(Path.Combine(
@@ -1588,6 +1613,18 @@ Assert(northTowerDefinitions.Count == 2 &&
     "North Horn tower definitions must independently map dynamic events 64 and 65.");
 Assert(northTowerDefinitions.All(definition => !definition.HasPlatformGeometry),
     "North Horn platform geometry must remain unset until captured from the live client.");
+
+var grandMagicTrapGroups = TrapData.GetGroups(TowerHelper.TowerType.GrandMagic);
+var grandMagicTraps = grandMagicTrapGroups.SelectMany(group => group.Traps).ToArray();
+Assert(grandMagicTrapGroups.Count == 57
+       && grandMagicTraps.Count(trap => trap.Type == OccultObjectType.Trap) == 41
+       && grandMagicTraps.Count(trap => trap.Type == OccultObjectType.BigTrap) == 16
+       && grandMagicTraps.Select(trap => trap.GetKey()).Distinct().Count() == 57,
+    "Grand Magic Tower must expose the 57 unique ARR-observed potential trap positions.");
+Assert(grandMagicTraps.Any(trap => trap.GetKey() == "2014584:638.50,-700.00,922.50")
+       && grandMagicTraps.Any(trap => trap.GetKey() == "2014585:807.00,-700.00,782.00")
+       && TrapData.GetGroups(TowerHelper.TowerType.Magic).Count == 0,
+    "Grand Magic known anchors must remain mapped without leaking its layout into normal Magic Tower.");
 
 var towerClock = new DateTime(2026, 7, 29, 0, 0, 0, DateTimeKind.Utc);
 var magicTowerCycle = new TowerCycleState(towerClock);

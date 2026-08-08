@@ -219,6 +219,11 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
             return;
         }
 
+        if (ev.EventType >= 4)
+        {
+            return;
+        }
+
         var territoryId = Svc.ClientState.TerritoryType;
         var key = $"{territoryId}:CE:{ev.DynamicEventId}";
         lastUploadedStates[key] = "Inactive";
@@ -452,6 +457,13 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
                     continue;
                 }
 
+                // 只上报 CE；塔等事件的 EventType >= 4，且其 StartTimestamp 是
+                // 未来的开始时间，误当出现时间上传会显示成"凌晨出现"。
+                if (ev.EventType >= 4)
+                {
+                    continue;
+                }
+
                 var key = $"{territoryId}:CE:{ev.DynamicEventId}";
                 var stateName = ev.State.ToString();
                 if (lastUploadedStates.TryGetValue(key, out var last) && last == stateName)
@@ -473,6 +485,11 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
     {
         try
         {
+            var nowSec = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            // Once a CE is in Battle, StartTimestamp holds the countdown
+            // deadline rather than the spawn time, so it points into the
+            // future. Never report a spawn that hasn't happened yet.
+            var spawnedAt = startTimestamp > 0 && startTimestamp <= nowSec ? startTimestamp : nowSec;
             var payload = new
             {
                 dataCenterID = DataCenterID,
@@ -481,7 +498,7 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
                 eventType = "CE",
                 eventID = eventId,
                 name,
-                lastSpawnedAt = startTimestamp > 0 ? startTimestamp : DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                lastSpawnedAt = spawnedAt,
                 observedState = state.ToString(),
                 instanceID = GetInstanceIdString(),
                 playerName = Svc.Objects.LocalPlayer?.Name.TextValue ?? "unknown",

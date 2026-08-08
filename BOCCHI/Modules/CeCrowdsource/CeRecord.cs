@@ -16,7 +16,9 @@ public sealed record CeRecord(
     [property: JsonPropertyName("sourceCount")] int SourceCount,
     [property: JsonPropertyName("source")] string? Source,
     [property: JsonPropertyName("updatedAt")] long UpdatedAt,
-    [property: JsonPropertyName("uploader")] string? Uploader,
+    // Note: there is deliberately no Uploader field. The server records who
+    // reported an event but never returns it, so having no property here means
+    // no future UI code can accidentally surface a player identity.
     [property: JsonPropertyName("instanceID")] string? InstanceID,
     [property: JsonPropertyName("isActive")] bool? ServerIsActive)
 {
@@ -28,8 +30,27 @@ public sealed record CeRecord(
     {
         get
         {
-            var seconds = LastSpawnedAt > 0 ? LastSpawnedAt : UpdatedAt / 1000L;
-            return DateTimeOffset.FromUnixTimeSeconds(seconds).ToLocalTime().DateTime;
+            var now = DateTimeOffset.UtcNow;
+            // When the record was observed. This is the best available stand-in
+            // for a spawn time, and unlike "now" it stays correct for records
+            // that arrived a while ago.
+            var observed = UpdatedAt > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(UpdatedAt) : now;
+            if (observed > now)
+            {
+                observed = now;
+            }
+
+            var time = LastSpawnedAt > 0 ? DateTimeOffset.FromUnixTimeSeconds(LastSpawnedAt) : observed;
+
+            // 塔类事件、以及战斗中的 CE，其 StartTimestamp 是未来的倒计时截止
+            // 时间，直接显示会变成"凌晨出现"。任何未来时间都退回到观测时间。
+            // 服务端也会做同样的清洗，这里是对旧服务端/旧数据的兜底。
+            if (time > now)
+            {
+                time = observed;
+            }
+
+            return time.ToLocalTime().DateTime;
         }
     }
 }

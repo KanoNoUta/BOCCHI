@@ -55,10 +55,7 @@ public class TowerRun(string hash, uint dynamicEventId = 0, TowerHelper.TowerTyp
                 continue;
             }
 
-            // The precomputed group table is Blood Tower-only. North Horn is
-            // captured as managed coordinates until its real layout is known.
-            if (TowerType != TowerHelper.TowerType.Blood
-                || !TrapData.TryGetGroup(trap, out var group))
+            if (!TrapData.TryGetGroup(trap, TowerType, out var group))
             {
                 DiscoveredUnmappedTraps.Add(trapKey);
                 Svc.Log.Info(
@@ -108,8 +105,9 @@ public class TowerRun(string hash, uint dynamicEventId = 0, TowerHelper.TowerTyp
             }
         }
 
-        // 魔之塔/超魔之塔元素雷区（60° 扇形×2 / 元素球），参考 BossMod FTMN4Index 逆向。
-        ThunderZone.Render(context, config.ForkedTowerConfig);
+        // Temporarily disabled: the current filled ice/fire/thunder projection
+        // obscures the final-boss arena. Keep ThunderZone available for a later
+        // phase-gated, low-opacity redesign, but never submit it to the renderer.
     }
 
     private IEnumerable<IEventObj> GetNearbyTraps()

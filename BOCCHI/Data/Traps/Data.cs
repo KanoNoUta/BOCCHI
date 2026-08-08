@@ -9,6 +9,8 @@ public static partial class TrapData
 {
     public readonly static List<TrapGroup> Groups;
 
+    private static readonly IReadOnlyList<TrapGroup> EmptyGroups = [];
+
     static TrapData()
     {
         Groups =
@@ -25,7 +27,7 @@ public static partial class TrapData
 
     public static TrapGroup GetGroup(IEventObj obj)
     {
-        if (TryGetGroup(obj, out var group))
+        if (TryGetGroup(obj, TowerHelper.TowerType.Blood, out var group))
         {
             return group;
         }
@@ -35,8 +37,26 @@ public static partial class TrapData
 
     public static bool TryGetGroup(IEventObj obj, out TrapGroup group)
     {
+        return TryGetGroup(obj, TowerHelper.TowerType.Blood, out group);
+    }
+
+    public static IReadOnlyList<TrapGroup> GetGroups(TowerHelper.TowerType? towerType)
+    {
+        return towerType switch
+        {
+            TowerHelper.TowerType.Blood => Groups,
+            TowerHelper.TowerType.GrandMagic => GrandMagic,
+            _ => EmptyGroups,
+        };
+    }
+
+    public static bool TryGetGroup(
+        IEventObj obj,
+        TowerHelper.TowerType? towerType,
+        out TrapGroup group)
+    {
         var key = obj.GetKey();
-        foreach (var candidate in Groups)
+        foreach (var candidate in GetGroups(towerType))
         {
             foreach (var trap in candidate.Traps)
             {

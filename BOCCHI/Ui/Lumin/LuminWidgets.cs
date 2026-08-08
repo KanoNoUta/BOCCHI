@@ -213,13 +213,13 @@ public static class LuminWidgets
         var height = LuminTheme.SlotHeight(40f);
         var innerMin = new Vector2(pos.X, pos.Y + LuminTheme.S(6));
         var innerMax = new Vector2(pos.X + width, pos.Y + height - LuminTheme.S(6));
-        var switchSize = LuminTheme.S(36.3f, 20.9f);
+        var switchSize = LuminTheme.S(32f, 18f);
         var centerY = pos.Y + height * 0.5f;
         var buttonMin = new Vector2(innerMax.X - switchSize.X, centerY - switchSize.Y * 0.5f);
         var buttonMax = new Vector2(innerMax.X, centerY + switchSize.Y * 0.5f);
 
         ImGui.InvisibleButton(name, new Vector2(width, height));
-        var hovered = ImGui.IsItemHovered();
+        var hovered = ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled);
         var held = ImGui.IsItemActive();
         // Toggle on release inside the row, matching ImGui.Checkbox, so dragging
         // off the row cancels instead of flipping the setting.
@@ -266,20 +266,20 @@ public static class LuminWidgets
 
         var switchRounding = LuminTheme.S(999);
         var knobCenter = new Vector2(
-            MathF.Round(buttonMin.X + LuminTheme.S(10.45f) + (buttonMax.X - LuminTheme.S(10.45f) - buttonMin.X - LuminTheme.S(10.45f)) * state.Pos),
+            MathF.Round(buttonMin.X + LuminTheme.S(9f) + (buttonMax.X - LuminTheme.S(9f) - buttonMin.X - LuminTheme.S(9f)) * state.Pos),
             centerY);
-        var markerX = buttonMax.X - LuminTheme.S(9.98f) + (buttonMin.X + LuminTheme.S(9.98f) - (buttonMax.X - LuminTheme.S(9.98f))) * state.Pos;
-        var markerMin = new Vector2(markerX - LuminTheme.S(1.35f), centerY - LuminTheme.S(4.35f));
-        var markerMax = new Vector2(markerX + LuminTheme.S(1.35f), centerY + LuminTheme.S(4.35f));
+        var markerX = buttonMax.X - LuminTheme.S(8.6f) + (buttonMin.X + LuminTheme.S(8.6f) - (buttonMax.X - LuminTheme.S(8.6f))) * state.Pos;
+        var markerMin = new Vector2(markerX - LuminTheme.S(1.2f), centerY - LuminTheme.S(3.8f));
+        var markerMax = new Vector2(markerX + LuminTheme.S(1.2f), centerY + LuminTheme.S(3.8f));
 
         LuminDraw.RectFilled(drawList, buttonMin, buttonMax, LuminTheme.Col(state.Background), switchRounding);
         var markerCol = LuminTheme.Col(value ? LuminTheme.Accent : LuminTheme.Rgb(132, 113, 198), value ? 0.92f : 0.58f);
         drawList.AddRectFilled(markerMin, markerMax, markerCol, markerMax.X - markerMin.X);
-        LuminDraw.CircleFilled(drawList, knobCenter, LuminTheme.S(7f), LuminTheme.Col(state.Circle), 32);
+        LuminDraw.CircleFilled(drawList, knobCenter, LuminTheme.S(5.8f), LuminTheme.Col(state.Circle), 32);
         LuminDraw.CircleFilled(
             drawList,
             knobCenter,
-            LuminTheme.S(3.65f),
+            LuminTheme.S(3f),
             LuminTheme.Col(value ? LuminTheme.OnKnobInner : LuminTheme.OffKnobInner, value ? 1f : 0.95f),
             32);
 

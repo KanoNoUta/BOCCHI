@@ -35,13 +35,13 @@ public class ForkedTowerConfig : ModuleConfig
 
     [Checkbox][Experimental] public bool StopRenderingCompleteGroups { get; set; } = false;
 
-    [Checkbox] public bool DrawElementSectors { get; set; } = true;
+    // Temporarily hidden together with ThunderZone.Render. Preserve the stored
+    // values so a later redesigned renderer can migrate them deliberately.
+    public bool DrawElementSectors { get; set; } = false;
 
-    [Checkbox] public bool DrawElementRings { get; set; } = true;
+    public bool DrawElementRings { get; set; } = false;
 
-    [Checkbox] public bool DrawElementBalls { get; set; } = true;
+    public bool DrawElementBalls { get; set; } = false;
 
-    [FloatRange(20f, 300f)]
-    [RangeIndicator]
     public float ElementDrawRange { get; set; } = 150f;
 }

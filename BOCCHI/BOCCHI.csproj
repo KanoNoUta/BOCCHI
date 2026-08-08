@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Dalamud.CN.NET.Sdk/15.0.0">
     <PropertyGroup>
-        <Version>3.3.26</Version>
+        <Version>3.3.27</Version>
         <Authors>KanoNoUta;岚玉棠</Authors>
         <Description>A helper for Occult Crescent.</Description>
         <PackageProjectUrl>https://github.com/KanoNoUta/BOCCHI</PackageProjectUrl>

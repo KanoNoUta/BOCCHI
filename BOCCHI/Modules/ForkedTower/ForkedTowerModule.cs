@@ -85,10 +85,10 @@ public class ForkedTowerModule(Plugin plugin, Config config) : Module(plugin, co
 
         EnsureCurrentTowerRun();
 
-        // The precomputed potential layout belongs to Blood Tower only.  Live
-        // trap objects are still rendered below for both verified North Horn
-        // tower IDs, so those towers work without projecting false geometry.
-        if (Config.DrawPotentialTrapPositions && ZoneData.IsInSouthHorn())
+        // Potential layouts are tower-specific. Grand Magic uses the union of
+        // observed ARR spawn positions; the normal Magic Tower deliberately
+        // stays empty until its own layout has been captured.
+        if (Config.DrawPotentialTrapPositions)
         {
             var traps = GetTrapsToRender().ToList();
             foreach (var trap in traps)
@@ -128,7 +128,7 @@ public class ForkedTowerModule(Plugin plugin, Config config) : Module(plugin, co
 
     private IEnumerable<TrapDatum> GetTrapsToRender()
     {
-        var groups = TrapData.Groups.AsEnumerable();
+        var groups = TrapData.GetGroups(TowerRun.TowerType).AsEnumerable();
 
 #if DEBUG
         if (!Config.IgnoreDrawRange)
@@ -139,7 +139,9 @@ public class ForkedTowerModule(Plugin plugin, Config config) : Module(plugin, co
         groups = groups.Where(group => group.GetDistance() <= Config.TrapDrawRange);
 #endif
 
-        if (Config.StopRenderingCompleteGroups)
+        // Grand Magic's middle-floor mechanic can rearrange traps during the
+        // same run, so a previously discovered point must remain a candidate.
+        if (Config.StopRenderingCompleteGroups && TowerRun.TowerType == TowerHelper.TowerType.Blood)
         {
             groups = groups.Where(group => !TowerRun.HasDiscoveredAllTraps(group));
         }

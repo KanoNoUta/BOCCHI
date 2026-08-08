@@ -44,6 +44,7 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
     private float pageAlpha = 1f;
     private LuminUiStyleScope? luminStyleScope;
     private ISharedImmediateTexture? pluginIconTexture;
+    private TitleBarButton? compactTitleBarButton;
 
     /// <summary>
     /// The plugin's own icon.png, shipped next to the assembly, used as the
@@ -82,6 +83,26 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
         };
         Size = new Vector2(860, 680);
         SizeCondition = ImGuiCond.FirstUseEver;
+        // The native ImGui collapse arrow has its own hidden state and cannot
+        // stay synchronized with our compact command bar. One shared compact
+        // state now drives both title-bar and in-content controls.
+        Flags |= ImGuiWindowFlags.NoCollapse;
+
+        compactTitleBarButton = new TitleBarButton
+        {
+            Click = m =>
+            {
+                if (m == ImGuiMouseButton.Left)
+                {
+                    SetCompactMode(!config.CompactMainWindow);
+                }
+            },
+            Icon = FontAwesomeIcon.Compress,
+            IconOffset = new Vector2(1, 1),
+            ShowTooltip = () => ImGui.SetTooltip(T(
+                config.CompactMainWindow ? "buttons.leave_compact" : "buttons.enter_compact")),
+        };
+        TitleBarButtons.Add(compactTitleBarButton);
 
         TitleBarButtons.Add(new TitleBarButton
         {
@@ -93,7 +114,7 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
                 }
             },
             Icon = FontAwesomeIcon.Stop,
-            IconOffset = new Vector2(2, 2),
+            IconOffset = new Vector2(1, 1),
             ShowTooltip = () => ImGui.SetTooltip(T("buttons.emergency_stop")),
         });
 
@@ -107,13 +128,20 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
                 }
             },
             Icon = FontAwesomeIcon.Skull,
-            IconOffset = new Vector2(2, 2),
+            IconOffset = new Vector2(1, 1),
             ShowTooltip = () => ImGui.SetTooltip(T("buttons.toggle_illegal_mode")),
         });
     }
 
     public override void PreDraw()
     {
+        if (compactTitleBarButton != null)
+        {
+            compactTitleBarButton.Icon = config.CompactMainWindow
+                ? FontAwesomeIcon.Expand
+                : FontAwesomeIcon.Compress;
+        }
+
         // Style is scoped to this window's full frame (frame + content) and is
         // released in PostDraw, so it never leaks into other plugins' windows.
         luminStyleScope?.Dispose();

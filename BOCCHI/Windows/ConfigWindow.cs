@@ -631,13 +631,19 @@ public class ConfigWindow(Plugin primaryPlugin, Config config) : OcelotConfigWin
     {
         var property = GetProperty(target, propertyName, typeof(bool));
         var value = (bool)(property.GetValue(target) ?? false);
+        var label = ConfigLabel(module, propertyName);
+        var description = propertyName == "Enabled"
+            ? null
+            : module.T($"config.{ToSnakeCase(propertyName)}.tooltip");
+
         ImGui.BeginDisabled(disabled);
-        if (ImGui.Checkbox($"{ConfigLabel(module, propertyName)}##{target.GetType().Name}-{propertyName}", ref value))
+        ImGui.PushID($"{target.GetType().Name}-{propertyName}");
+        if (LuminWidgets.Checkbox(label, description, ref value))
         {
             property.SetValue(target, value);
             primaryPlugin.Config.Save();
         }
-        ConfigTooltip(module, propertyName);
+        ImGui.PopID();
         ImGui.EndDisabled();
     }
 
