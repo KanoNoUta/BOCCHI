@@ -146,6 +146,11 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
         // released in PostDraw, so it never leaks into other plugins' windows.
         luminStyleScope?.Dispose();
         luminStyleScope = LuminTheme.PushGlobalStyle();
+        if (config.CompactMainWindow)
+        {
+            ImGui.PushStyleVar(ImGuiStyleVar.WindowTitleAlign, new Vector2(0f, 0.5f));
+            luminStyleScope.RecordVar();
+        }
         base.PreDraw();
     }
 

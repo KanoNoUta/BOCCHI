@@ -624,10 +624,11 @@ public class AutomatorConfig : ModuleConfig
     [Checkbox]
     [Indent]
     [DependsOn(nameof(DoFates))]
-    // These two North Horn FATEs replace the old opt-in pot FATEs.  Keep the
-    // conservative default until Config migration copies an existing user's
-    // explicit legacy selection.
-    public bool DoNorthHornFate2072 { get; set; } = false;
+    // 2072/2073 are ordinary North Horn FATEs and default to enabled, exactly
+    // like every other North Horn FATE. A saved configuration keeps whatever
+    // value it stored, so an existing user who explicitly disabled them is
+    // never silently re-enabled.
+    public bool DoNorthHornFate2072 { get; set; } = true;
 
     public bool ShouldDoNorthHornFate2072
     {
@@ -637,7 +638,7 @@ public class AutomatorConfig : ModuleConfig
     [Checkbox]
     [Indent]
     [DependsOn(nameof(DoFates))]
-    public bool DoNorthHornFate2073 { get; set; } = false;
+    public bool DoNorthHornFate2073 { get; set; } = true;
 
     public bool ShouldDoNorthHornFate2073
     {

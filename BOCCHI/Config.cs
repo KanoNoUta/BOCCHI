@@ -81,8 +81,13 @@ public class Config : IOcelotConfig
 
     /// <summary>
     /// Applies one-way configuration migrations immediately after deserialization.
-    /// The old pot FATE switches were opt-in; their North Horn replacements must
-    /// keep that explicit user choice instead of silently becoming enabled.
+    /// The v1 pot FATE switches (PersistentPots / PleadingPots) are South Horn
+    /// events, unrelated to North Horn 2072/2073, so migration deliberately does
+    /// NOT copy them: a v1 config predates the North Horn switches entirely and
+    /// 2072/2073 fall back to their enabled-by-default initializer values, just
+    /// like a fresh install. Any config that already stored values for these
+    /// switches (v2+) keeps its stored value, so an explicit user choice is
+    /// never overridden.
     /// </summary>
     public bool Migrate()
     {
@@ -90,9 +95,10 @@ public class Config : IOcelotConfig
 
         if (Version < 2)
         {
+            // Version 1 never serialized DoNorthHornFate2072/2073. Leave them
+            // alone so they keep the new defaults; only fix up null subtrees
+            // that pre-date nested config objects.
             AutomatorConfig ??= new AutomatorConfig();
-            AutomatorConfig.DoNorthHornFate2072 = AutomatorConfig.DoPersistentPots;
-            AutomatorConfig.DoNorthHornFate2073 = AutomatorConfig.DoPleadingPots;
             Version = 2;
             changed = true;
         }

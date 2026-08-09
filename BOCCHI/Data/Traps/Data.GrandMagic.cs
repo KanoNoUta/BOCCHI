@@ -7,7 +7,8 @@ namespace BOCCHI.Data.Traps;
 
 public static partial class TrapData
 {
-    // CN 7.55 ARR ObjectSpawn union from three Grand Magic Tower clears.
+    // CN 7.55 union of ARR ObjectSpawn observations and extracted level-map
+    // coordinates from maps 1178/1179/1180/1181/1182/1189.
     // These are potential positions, not a claim that every point is active in
     // the current layout. Runtime EventObj discovery remains the source of
     // truth for the 7m/30m danger ranges.
@@ -26,9 +27,12 @@ public static partial class TrapData
             new(730.500f, -680.000f, 728.500f),
             new(717.500f, -680.000f, 732.000f),
             new(723.500f, -680.000f, 735.500f),
+            new(763.500f, -690.000f, 660.000f),
             new(835.000f, -698.000f, 758.500f),
+            new(825.000f, -698.000f, 798.500f),
             new(603.500f, -684.000f, 776.000f),
             new(639.000f, -680.000f, 832.500f),
+            new(639.000f, -680.000f, 825.500f),
             new(678.500f, -680.000f, 861.000f),
 
             // Middle-floor cross and adjoining corridors.
@@ -59,10 +63,72 @@ public static partial class TrapData
             // Upper locked-door area.
             new(-9.000f, -707.950f, -430.000f),
             new(4.000f, -707.950f, -430.000f),
+            new(0.000f, -707.950f, -421.000f),
             new(36.000f, -715.950f, -397.000f),
             new(27.000f, -715.950f, -394.000f),
             new(32.000f, -715.950f, -394.000f),
             new(36.000f, -715.950f, -385.000f),
+
+            // Extracted map 1178 candidates not present in the ARR union.
+            new(554.500f, -700.000f, 922.500f),
+            new(554.500f, -700.000f, 929.500f),
+            new(561.500f, -700.000f, 922.500f),
+            new(561.500f, -700.000f, 929.500f),
+            new(568.508f, -700.000f, 922.500f),
+            new(568.508f, -700.000f, 929.500f),
+            new(596.500f, -700.000f, 943.000f),
+            new(596.500f, -700.010f, 950.000f),
+            new(603.500f, -700.000f, 943.000f),
+            new(603.500f, -700.000f, 950.000f),
+            new(631.500f, -700.000f, 922.500f),
+            new(638.500f, -700.000f, 929.500f),
+            new(645.500f, -700.000f, 922.500f),
+
+            // Extracted map 1179 candidates.
+            new(365.000f, -698.000f, 798.500f),
+            new(365.000f, -698.000f, 805.500f),
+            new(372.000f, -698.000f, 798.500f),
+            new(372.000f, -698.000f, 805.500f),
+            new(561.000f, -680.000f, 825.500f),
+            new(561.000f, -680.000f, 832.500f),
+            new(365.000f, -698.000f, 758.500f),
+            new(365.000f, -698.000f, 765.500f),
+            new(372.000f, -698.000f, 765.500f),
+            new(375.000f, -698.000f, 758.500f),
+            new(463.500f, -680.000f, 732.000f),
+            new(469.500f, -680.000f, 728.500f),
+            new(469.500f, -680.000f, 735.500f),
+            new(476.500f, -680.000f, 728.500f),
+            new(476.500f, -680.000f, 735.500f),
+            new(482.500f, -680.000f, 732.000f),
+            new(436.500f, -690.000f, 672.000f),
+
+            // Extracted map 1180 candidate.
+            new(685.500f, -680.020f, 849.000f),
+
+            // Extracted map 1182 candidates.
+            new(561.000f, -700.000f, 120.500f),
+            new(561.000f, -700.000f, 127.500f),
+            new(568.000f, -700.000f, 120.500f),
+            new(600.000f, -700.070f, 112.990f),
+            new(584.990f, -700.010f, 131.000f),
+            new(588.980f, -700.070f, 123.980f),
+            new(584.990f, -700.010f, 116.980f),
+            new(592.000f, -699.950f, 132.000f),
+            new(600.000f, -699.960f, 107.000f),
+            new(600.000f, -699.950f, 135.000f),
+            new(607.000f, -700.000f, 139.000f),
+            new(498.500f, -700.000f, 127.500f),
+            new(530.500f, -700.010f, 166.500f),
+            new(537.500f, -700.010f, 159.500f),
+            new(530.500f, -700.000f, 81.500f),
+            new(537.500f, -700.000f, 81.500f),
+
+            // Extracted map 1189 candidates.
+            new(36.000f, -715.950f, -391.000f),
+            new(10.000f, -708.000f, -430.000f),
+            new(-4.000f, -707.950f, -430.000f),
+            new(-0.020f, -707.970f, -433.010f),
         ]),
 
         ..CreateSingletonGroups(OccultObjectType.BigTrap,
@@ -70,9 +136,12 @@ public static partial class TrapData
             // Lower corridors and side rooms.
             new(800.000f, -700.000f, 772.000f),
             new(807.000f, -700.000f, 772.000f),
+            new(800.000f, -699.940f, 782.000f),
             new(596.500f, -684.000f, 776.000f),
             new(723.500f, -680.000f, 780.500f),
+            new(723.500f, -680.000f, 787.500f),
             new(807.000f, -700.000f, 782.000f),
+            new(807.000f, -700.000f, 792.000f),
             new(482.500f, -680.000f, 784.000f),
             new(736.500f, -680.000f, 784.000f),
 
@@ -86,6 +155,38 @@ public static partial class TrapData
             new(528.343f, -700.000f, 129.657f),
             new(634.500f, -700.000f, 131.000f),
             new(677.500f, -700.000f, 131.000f),
+
+            // Extracted map 1179 candidates not present in the ARR union.
+            new(386.000f, -700.000f, 778.000f),
+            new(386.000f, -700.000f, 785.000f),
+            new(386.000f, -700.000f, 792.000f),
+            new(393.000f, -700.000f, 778.000f),
+            new(393.000f, -700.000f, 785.000f),
+            new(393.000f, -700.000f, 792.000f),
+            new(400.000f, -700.000f, 778.000f),
+            new(400.000f, -700.000f, 785.000f),
+            new(400.000f, -700.000f, 792.000f),
+            new(463.500f, -680.000f, 784.000f),
+            new(469.500f, -680.000f, 780.500f),
+            new(469.500f, -680.000f, 787.500f),
+            new(476.500f, -680.000f, 780.500f),
+            new(476.500f, -680.000f, 787.500f),
+
+            // Extracted map 1181 candidate.
+            new(603.500f, -684.020f, 776.000f),
+
+            // Extracted map 1182 candidates.
+            new(670.500f, -700.000f, 117.000f),
+            new(670.500f, -700.000f, 124.000f),
+            new(670.500f, -700.000f, 131.000f),
+            new(677.500f, -700.000f, 124.000f),
+            new(677.500f, -700.000f, 137.000f),
+            new(641.500f, -700.000f, 117.000f),
+            new(641.500f, -700.000f, 124.000f),
+            new(641.500f, -700.000f, 131.000f),
+            new(534.000f, -700.010f, 123.970f),
+            new(539.690f, -700.010f, 118.280f),
+            new(539.690f, -700.010f, 129.660f),
         ]),
     ];
 

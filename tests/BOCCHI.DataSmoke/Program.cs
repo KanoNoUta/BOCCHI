@@ -230,6 +230,10 @@ static void RunUiShellTests()
            && mainWindowSource.Contains("compactTitleBarButton", StringComparison.Ordinal)
            && mainWindowSource.Contains("SetCompactMode(!config.CompactMainWindow)", StringComparison.Ordinal),
         "Title-bar and command-bar compact controls must share one synchronized state.");
+    Assert(mainWindowSource.Contains("ImGuiStyleVar.WindowTitleAlign", StringComparison.Ordinal)
+           && mainWindowSource.Contains("new Vector2(0f, 0.5f)", StringComparison.Ordinal)
+           && !mainWindowSource.Contains("TitleBarButtons.Remove(", StringComparison.Ordinal),
+        "Compact mode must left-align its title without removing title-bar controls.");
     Assert(mainWindowSource.Contains("RequestStopAll", StringComparison.Ordinal),
         "The global command bar must call an explicit stop-all operation.");
 
@@ -1598,6 +1602,14 @@ Assert(northFates.Count == 13, $"Expected 13 North Horn FATEs, got {northFates.C
 Assert(southCriticalEncounters.Count == 16, $"Expected 16 South Horn dynamic events, got {southCriticalEncounters.Count}.");
 Assert(northCriticalEncounters.Count == 17, $"Expected 17 North Horn dynamic events, got {northCriticalEncounters.Count}.");
 Assert(northFates.Count(fate => fate.IsPot) == 2, "North Horn must contain exactly two pot FATEs.");
+Assert(EventData.Fates[2072].TerritoryId == ZoneData.NORTHHORN
+       && EventData.Fates[2072].EffectiveTerritoryId == ZoneData.NORTHHORN
+       && EventData.Fates[2072].IsPot && EventData.Fates[2072].Type == EventType.Fate,
+    "North Horn FATE 2072 (被欺负的魔法罐) must be a North Horn pot FATE.");
+Assert(EventData.Fates[2073].TerritoryId == ZoneData.NORTHHORN
+       && EventData.Fates[2073].EffectiveTerritoryId == ZoneData.NORTHHORN
+       && EventData.Fates[2073].IsPot && EventData.Fates[2073].Type == EventType.Fate,
+    "North Horn FATE 2073 (被吹飞的魔法罐) must be a North Horn pot FATE.");
 Assert(northCriticalEncounters.Count(encounter => encounter.Id is >= 49 and <= 63) == 15,
     "North Horn must contain CE IDs 49 through 63.");
 Assert(EventData.CriticalEncounters[56].NavigationPositionOverride == new Vector3(238f, 15f, 352f),
@@ -1616,13 +1628,29 @@ Assert(northTowerDefinitions.All(definition => !definition.HasPlatformGeometry),
 
 var grandMagicTrapGroups = TrapData.GetGroups(TowerHelper.TowerType.GrandMagic);
 var grandMagicTraps = grandMagicTrapGroups.SelectMany(group => group.Traps).ToArray();
-Assert(grandMagicTrapGroups.Count == 57
-       && grandMagicTraps.Count(trap => trap.Type == OccultObjectType.Trap) == 41
-       && grandMagicTraps.Count(trap => trap.Type == OccultObjectType.BigTrap) == 16
-       && grandMagicTraps.Select(trap => trap.GetKey()).Distinct().Count() == 57,
-    "Grand Magic Tower must expose the 57 unique ARR-observed potential trap positions.");
+Assert(grandMagicTrapGroups.Count == 141
+       && grandMagicTraps.Count(trap => trap.Type == OccultObjectType.Trap) == 96
+       && grandMagicTraps.Count(trap => trap.Type == OccultObjectType.BigTrap) == 45
+       && grandMagicTraps.Select(trap => trap.GetKey()).Distinct().Count() == 141,
+    "Grand Magic Tower must expose the 141 unique ARR/map/screenshot-extracted potential trap positions.");
+Assert(!grandMagicTraps.SelectMany((left, index) => grandMagicTraps.Skip(index + 1)
+           .Where(right => right.Type == left.Type)
+           .Select(right => Vector3.Distance(left.Position, right.Position)))
+       .Any(distance => distance <= 0.1f),
+    "Grand Magic Tower candidates must be de-duplicated by type within a 0.1m 3D tolerance.");
 Assert(grandMagicTraps.Any(trap => trap.GetKey() == "2014584:638.50,-700.00,922.50")
        && grandMagicTraps.Any(trap => trap.GetKey() == "2014585:807.00,-700.00,782.00")
+       && grandMagicTraps.Any(trap => trap.GetKey() == "2014584:-0.02,-707.97,-433.01")
+       && grandMagicTraps.Any(trap => trap.GetKey() == "2014585:386.00,-700.00,778.00")
+       && grandMagicTraps.Any(trap => trap.GetKey() == "2014584:592.00,-699.95,132.00")
+       && grandMagicTraps.Any(trap => trap.GetKey() == "2014584:600.00,-699.95,135.00")
+       && grandMagicTraps.Any(trap => trap.GetKey() == "2014584:763.50,-690.00,660.00")
+       && grandMagicTraps.Any(trap => trap.GetKey() == "2014584:825.00,-698.00,798.50")
+       && grandMagicTraps.Any(trap => trap.GetKey() == "2014584:639.00,-680.00,825.50")
+       && grandMagicTraps.Any(trap => trap.GetKey() == "2014584:0.00,-707.95,-421.00")
+       && grandMagicTraps.Any(trap => trap.GetKey() == "2014585:723.50,-680.00,787.50")
+       && grandMagicTraps.Any(trap => trap.GetKey() == "2014585:800.00,-699.94,782.00")
+       && grandMagicTraps.Any(trap => trap.GetKey() == "2014585:807.00,-700.00,792.00")
        && TrapData.GetGroups(TowerHelper.TowerType.Magic).Count == 0,
     "Grand Magic known anchors must remain mapped without leaking its layout into normal Magic Tower.");
 
@@ -1871,10 +1899,8 @@ Assert(automatorConfig.CriticalEncountersMap.Keys.Where(northCriticalEncounterId
 Assert(!automatorConfig.CriticalEncountersMap.ContainsKey(64)
        && !automatorConfig.CriticalEncountersMap.ContainsKey(65),
     "Forked Tower events 64/65 must remain under the tower module, not Automator participation.");
-Assert(!automatorConfig.FatesMap[2072] && !automatorConfig.FatesMap[2073],
-    "North Horn pot FATE replacements 2072/2073 must preserve the legacy opt-in default.");
-Assert(northFateIds.Where(id => id >= 2074).All(id => automatorConfig.FatesMap[id]),
-    "Ordinary North Horn Automator FATE switches must be enabled by default.");
+Assert(northFateIds.All(id => automatorConfig.FatesMap[id]),
+    "Every North Horn Automator FATE switch, including the pot FATEs 2072/2073, must be enabled by default.");
 Assert(northCriticalEncounterIds.All(id => automatorConfig.CriticalEncountersMap[id]),
     "North Horn Automator CE switches must retain the previous enabled-by-default behavior.");
 
@@ -1925,10 +1951,28 @@ var legacyConfig = new Config
 };
 Assert(legacyConfig.Migrate(), "Legacy configuration version 1 was not migrated.");
 Assert(legacyConfig.Version == Config.CurrentVersion
-       && legacyConfig.AutomatorConfig.DoNorthHornFate2072
-       && !legacyConfig.AutomatorConfig.DoNorthHornFate2073,
-    "Legacy pot FATE selections were not copied to North Horn FATE 2072/2073.");
+       && legacyConfig.AutomatorConfig.DoPersistentPots
+       && !legacyConfig.AutomatorConfig.DoPleadingPots,
+    "Migration must preserve the user's explicit South Horn pot choices.");
+Assert(legacyConfig.AutomatorConfig.DoNorthHornFate2072
+       && legacyConfig.AutomatorConfig.DoNorthHornFate2073,
+    "Version-1 configs predate the North Horn switches, so 2072/2073 must adopt the enabled-by-default state instead of inheriting unrelated South Horn pot choices.");
 Assert(!legacyConfig.Migrate(), "Configuration migration must be idempotent.");
+
+var explicitChoiceConfig = new Config
+{
+    Version = Config.CurrentVersion,
+    AutomatorConfig = new AutomatorConfig
+    {
+        DoNorthHornFate2072 = false,
+        DoNorthHornFate2073 = true,
+    },
+};
+Assert(!explicitChoiceConfig.Migrate(),
+    "A current-version configuration must not be flagged as migrated.");
+Assert(!explicitChoiceConfig.AutomatorConfig.DoNorthHornFate2072
+       && explicitChoiceConfig.AutomatorConfig.DoNorthHornFate2073,
+    "Migration must never re-enable a user who explicitly disabled North Horn FATE 2072.");
 
 automatorConfig.DoFates = false;
 automatorConfig.DoCriticalEncounters = false;
