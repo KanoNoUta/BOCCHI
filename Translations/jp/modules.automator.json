@@ -58,7 +58,27 @@
         },
         "delay_critical_encounters": {
           "label": "クリティカルエンカウントに向かうまでの遅延",
-          "tooltip": "クリティカルエンカウントに向かう前に10〜15秒の遅延を追加します"
+          "tooltip": "クリティカルエンカウントに向かう前に個別設定したランダム遅延を追加します"
+        },
+        "min_delay": {
+          "label": "CEの最小遅延",
+          "tooltip": "クリティカルエンカウントに向かう前の最小遅延を設定します"
+        },
+        "max_delay": {
+          "label": "CEの最大遅延",
+          "tooltip": "クリティカルエンカウントに向かう前の最大遅延を設定します"
+        },
+        "delay_fates": {
+          "label": "F.A.T.E.に向かうまでの遅延",
+          "tooltip": "F.A.T.E.に向かう前に個別設定したランダム遅延を追加します"
+        },
+        "min_fate_delay": {
+          "label": "F.A.T.E.の最小遅延",
+          "tooltip": "F.A.T.E.に向かう前の最小遅延を設定します"
+        },
+        "max_fate_delay": {
+          "label": "F.A.T.E.の最大遅延",
+          "tooltip": "F.A.T.E.に向かう前の最大遅延を設定します"
         },
         "do_scourge_of_the_mind": {
           "label": "CE: 脳髄愛好家「マインドフレア」",

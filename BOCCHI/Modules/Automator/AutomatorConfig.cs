@@ -475,6 +475,49 @@ public class AutomatorConfig : ModuleConfig
     }
 
     [Checkbox]
+    [DependsOn(nameof(DoFates))]
+    public bool DelayFates { get; set; } = false;
+
+    private float _minFateDelay = 5f;
+
+    [FloatRange(0f, 30f)]
+    [DependsOn(nameof(DelayFates))]
+    public float MinFateDelay
+    {
+        get => _minFateDelay;
+        set
+        {
+            _minFateDelay = value;
+            if (_minFateDelay >= MaxFateDelay)
+            {
+                MaxFateDelay = _minFateDelay + 0.1f;
+            }
+        }
+    }
+
+    private float _maxFateDelay = 15f;
+
+    [FloatRange(0f, 30f)]
+    [DependsOn(nameof(DelayFates))]
+    public float MaxFateDelay
+    {
+        get => _maxFateDelay;
+        set
+        {
+            _maxFateDelay = value;
+            if (_maxFateDelay <= MinFateDelay)
+            {
+                MinFateDelay = _maxFateDelay - 0.1f;
+            }
+        }
+    }
+
+    public bool ShouldDelayFates
+    {
+        get => IsPropertyEnabled(nameof(DelayFates));
+    }
+
+    [Checkbox]
     [Indent]
     [DependsOn(nameof(DoFates))]
 

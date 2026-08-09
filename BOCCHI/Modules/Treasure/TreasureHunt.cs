@@ -29,11 +29,7 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
 {
     private const float LiveTreasureMatchRadius = 12f;
 
-    private const float LiveTreasurePriorityRadius = 120f;
-
     private List<TreasureData.TreasureDatum> Treasure = [];
-
-    private readonly Dictionary<uint, Vector3> liveTreasurePositions = [];
 
     private uint? loadedTreasureTerritory;
 
@@ -222,6 +218,27 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
 
         var scale = imageSize / NorthHornTreasureRoute.MapImageSize;
         var drawList = ImGui.GetWindowDrawList();
+        drawList.PushClipRect(topLeft, topLeft + new Vector2(imageSize, imageSize), true);
+        if (module.Config.ShouldShowSpiritPotPrediction
+            && module.SpiritPotPredictor.HasPrediction)
+        {
+            foreach (var hint in module.SpiritPotPredictor.Hints)
+            {
+                DrawSpiritPotSector(drawList, topLeft, scale, hint);
+            }
+
+            foreach (var candidate in module.SpiritPotPredictor.Candidates)
+            {
+                DrawMapMarker(
+                    drawList,
+                    topLeft,
+                    NorthHornTreasureRoute.WorldToMapPoint(candidate),
+                    scale,
+                    4.5f,
+                    new Vector4(0.58f, 0.94f, 0.38f, 0.95f));
+            }
+        }
+
         foreach (var treasure in GetValidObjects())
         {
             DrawMapMarker(
@@ -256,6 +273,89 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
                 6f,
                 new Vector4(0.96f, 0.26f, 0.2f, 1f));
         }
+
+        drawList.PopClipRect();
+
+        if (module.Config.ShouldShowSpiritPotPrediction
+            && module.SpiritPotPredictor.HasPrediction)
+        {
+            ImGui.TextDisabled(string.Format(
+                module.T("panel.hunt.spirit_pot_candidates"),
+                module.SpiritPotPredictor.Candidates.Count));
+            if (module.SpiritPotPredictor.HasConflict)
+            {
+                ImGui.TextColored(
+                    new Vector4(0.95f, 0.55f, 0.25f, 1f),
+                    module.T("panel.hunt.spirit_pot_conflict"));
+            }
+        }
+    }
+
+    private static void DrawSpiritPotSector(
+        ImDrawListPtr drawList,
+        Vector2 topLeft,
+        float scale,
+        SpiritPotHint hint)
+    {
+        const int segments = 24;
+        const float maximumMapDistance = 3000f;
+        var direction = hint.DirectionVector;
+        var centerAngle = MathF.Atan2(direction.X, -direction.Y);
+        var halfAngle = (SpiritPotHint.SectorHalfAngleDegrees
+                         + SpiritPotHint.AngleToleranceDegrees)
+                        * MathF.PI / 180f;
+        var innerDistance = Math.Max(
+            0f,
+            hint.MinimumDistance - SpiritPotHint.DistanceTolerance);
+        var outerDistance = float.IsPositiveInfinity(hint.MaximumDistance)
+            ? maximumMapDistance
+            : hint.MaximumDistance + SpiritPotHint.DistanceTolerance;
+        var fill = ImGui.GetColorU32(new Vector4(0.94f, 0.72f, 0.18f, 0.10f));
+        var outline = ImGui.GetColorU32(new Vector4(0.98f, 0.80f, 0.28f, 0.75f));
+
+        var previousInner = ToScreenPoint(centerAngle - halfAngle, innerDistance);
+        var previousOuter = ToScreenPoint(centerAngle - halfAngle, outerDistance);
+        for (var index = 1; index <= segments; index++)
+        {
+            var angle = centerAngle - halfAngle + 2f * halfAngle * index / segments;
+            var currentInner = ToScreenPoint(angle, innerDistance);
+            var currentOuter = ToScreenPoint(angle, outerDistance);
+            drawList.AddQuadFilled(
+                previousInner,
+                previousOuter,
+                currentOuter,
+                currentInner,
+                fill);
+            drawList.AddLine(previousOuter, currentOuter, outline, 1.5f);
+            if (innerDistance > 0f)
+            {
+                drawList.AddLine(previousInner, currentInner, outline, 1.5f);
+            }
+
+            previousInner = currentInner;
+            previousOuter = currentOuter;
+        }
+
+        drawList.AddLine(
+            ToScreenPoint(centerAngle - halfAngle, innerDistance),
+            ToScreenPoint(centerAngle - halfAngle, outerDistance),
+            outline,
+            1.5f);
+        drawList.AddLine(
+            ToScreenPoint(centerAngle + halfAngle, innerDistance),
+            ToScreenPoint(centerAngle + halfAngle, outerDistance),
+            outline,
+            1.5f);
+        return;
+
+        Vector2 ToScreenPoint(float angle, float distance)
+        {
+            var world = new Vector3(
+                hint.Origin.X + MathF.Sin(angle) * distance,
+                hint.Origin.Y,
+                hint.Origin.Z - MathF.Cos(angle) * distance);
+            return topLeft + NorthHornTreasureRoute.WorldToMapPoint(world) * scale;
+        }
     }
 
     private static void DrawMapMarker(
@@ -278,7 +378,6 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
 
     protected override void OnStarted()
     {
-        liveTreasurePositions.Clear();
         if (TreasureSightRefreshPolicy.ShouldCast(
                 module.Config.CastTreasureSightBeforeHunt,
                 module.Tracker.CountInitialised))
@@ -319,15 +418,8 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
 
     protected override IGameObject? ResolveLiveObjectForNode(uint nodeId, Vector3 expectedPosition)
     {
-        var isNorthHorn = ZoneData.IsInNorthHorn();
         return GetValidObjects()
-            .Where(candidate => TreasureObjectMatchPolicy.IsMatch(
-                isNorthHorn,
-                nodeId,
-                candidate.BaseId,
-                Vector3.DistanceSquared(candidate.Position, expectedPosition),
-                LiveTreasureMatchRadius,
-                candidate.BaseId == nodeId || IsLiveTreasureEligible(candidate)))
+            .Where(candidate => IsMatchingTreasureObject(nodeId, expectedPosition, candidate))
             .OrderBy(candidate => candidate.BaseId == nodeId ? 0 : 1)
             .ThenBy(candidate => Vector3.DistanceSquared(candidate.Position, expectedPosition))
             .FirstOrDefault();
@@ -335,11 +427,6 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
 
     protected override bool TryGetDestinationForCurrentStep(out Vector3 destination)
     {
-        if (liveTreasurePositions.TryGetValue(CurrentStep.NodeId, out destination))
-        {
-            return true;
-        }
-
         if (pathfinder?.TryGetNodePosition(CurrentStep.NodeId, out destination) == true)
         {
             return true;
@@ -455,39 +542,13 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
         uint currentNodeId,
         IReadOnlyCollection<uint> remainingNodeIds)
     {
-        if (!ZoneData.IsInNorthHorn() || pathfinder == null)
-        {
-            return null;
-        }
-
+        // North Horn uses a reviewed numbered route. Real-time detection is
+        // handled by ResolveLiveObjectForNode for the current checkpoint only;
+        // inserting an arbitrary nearby BaseId here opens future coffers early
+        // and makes their numbered checkpoints appear to be skipped later.
+        _ = currentNodeId;
         _ = remainingNodeIds;
-        var candidates = GetValidObjects()
-            .Where(IsLiveTreasureEligible)
-            .Select(candidate => new LiveTreasureCandidate(candidate.BaseId, candidate.Position))
-            .ToArray();
-        foreach (var candidatesById in candidates.GroupBy(candidate => candidate.BaseId))
-        {
-            var nearest = candidatesById
-                .OrderBy(candidate => Vector3.DistanceSquared(Player.Position, candidate.Position))
-                .First();
-            liveTreasurePositions[candidatesById.Key] = nearest.Position;
-        }
-
-        var priorityNodeId = LiveTreasurePriorityPolicy.Select(
-            Player.Position,
-            currentNodeId,
-            candidates,
-            LiveTreasurePriorityRadius);
-        if (priorityNodeId != null)
-        {
-            var selected = candidates
-                .Where(candidate => candidate.BaseId == priorityNodeId.Value)
-                .OrderBy(candidate => Vector3.DistanceSquared(Player.Position, candidate.Position))
-                .First();
-            liveTreasurePositions[priorityNodeId.Value] = selected.Position;
-        }
-
-        return priorityNodeId;
+        return null;
     }
 
     protected override IReadOnlyList<uint>? ReorderRemainingNodes(
@@ -637,17 +698,10 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
 
     private IGameObject? ResolveTarget(uint nodeId, Vector3 expectedPosition, ulong gameObjectId)
     {
-        var isNorthHorn = ZoneData.IsInNorthHorn();
         var candidates = Svc.Objects
             .Where(candidate => candidate.ObjectKind == ObjectKind.Treasure
                                 && candidate.IsValid()
-                                && TreasureObjectMatchPolicy.IsMatch(
-                                    isNorthHorn,
-                                    nodeId,
-                                    candidate.BaseId,
-                                    Vector3.DistanceSquared(candidate.Position, expectedPosition),
-                                    LiveTreasureMatchRadius,
-                                    candidate.BaseId == nodeId || IsLiveTreasureEligible(candidate)))
+                                && IsMatchingTreasureObject(nodeId, expectedPosition, candidate))
             .ToList();
 
         return candidates.FirstOrDefault(candidate => candidate.GameObjectId == gameObjectId)
@@ -655,6 +709,34 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
                    .OrderBy(candidate => candidate.BaseId == nodeId ? 0 : 1)
                    .ThenBy(candidate => Vector3.DistanceSquared(candidate.Position, expectedPosition))
                    .FirstOrDefault();
+    }
+
+    private bool IsMatchingTreasureObject(
+        uint nodeId,
+        Vector3 expectedPosition,
+        IGameObject candidate)
+    {
+        var distanceSquared = Vector3.DistanceSquared(candidate.Position, expectedPosition);
+        if (ZoneData.IsInNorthHorn() && NorthHornTreasureRoute.IsWaypointId(nodeId))
+        {
+            // A numbered checkpoint owns only a coffer at its reviewed map
+            // position. This rule is shared by travel and interaction rechecks
+            // so a future coffer can neither jump the queue nor be clicked by
+            // the current number.
+            return NorthHornCurrentTreasurePolicy.IsMatch(
+                       expectedPosition,
+                       candidate.Position,
+                       LiveTreasureMatchRadius)
+                   && IsLiveTreasureEligible(candidate);
+        }
+
+        return TreasureObjectMatchPolicy.IsMatch(
+            ZoneData.IsInNorthHorn(),
+            nodeId,
+            candidate.BaseId,
+            distanceSquared,
+            LiveTreasureMatchRadius,
+            candidate.BaseId == nodeId || IsLiveTreasureEligible(candidate));
     }
 
     private static unsafe bool IsOpened(IGameObject target)

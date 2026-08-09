@@ -61,14 +61,23 @@ public static class NorthHornTreasureRoute
     public static Dictionary<uint, Vector3> BuildWaypointPositions(
         IEnumerable<Vector3> packagedTreasurePositions)
     {
-        var packaged = packagedTreasurePositions
+        var unassignedPackaged = packagedTreasurePositions
             .Where(IsFinite)
             .Distinct()
-            .ToArray();
-        var unassignedPackaged = packaged.ToList();
+            .ToList();
         var positions = new Dictionary<uint, Vector3>(RouteCount);
         for (var index = 0; index < RouteCount; index++)
         {
+            // A numbered checkpoint must own one real layout position. Reusing
+            // a position after the packaged candidates are exhausted makes
+            // several route numbers complete at the same place and appears as
+            // skipped points. Leave incomplete data incomplete so the caller
+            // can report the missing checkpoints instead of fabricating them.
+            if (unassignedPackaged.Count == 0)
+            {
+                break;
+            }
+
             var mapPoint = RouteMapPoints[index];
             var x = (mapPoint.X - MapCenter) / MapScale;
             var z = (mapPoint.Y - MapCenter) / MapScale;
@@ -77,21 +86,13 @@ public static class NorthHornTreasureRoute
             // vnavmesh polygon. Snap each number to the closest real layout
             // spawn so the route remains faithful and pathable. Prefer an
             // unused spawn to prevent adjacent numbers collapsing together.
-            IEnumerable<Vector3> candidates = unassignedPackaged.Count > 0
-                ? unassignedPackaged
-                : packaged;
-            var nearestPackagedPosition = candidates
+            var nearestPackagedPosition = unassignedPackaged
                 .OrderBy(position => HorizontalDistanceSquared(position, x, z))
                 .ThenBy(position => position.X)
                 .ThenBy(position => position.Z)
                 .FirstOrDefault();
-            positions[RouteNodeIds[index]] = packaged.Length > 0
-                ? nearestPackagedPosition
-                : new Vector3(x, 0f, z);
-            if (unassignedPackaged.Count > 0)
-            {
-                unassignedPackaged.Remove(nearestPackagedPosition);
-            }
+            positions[RouteNodeIds[index]] = nearestPackagedPosition;
+            unassignedPackaged.Remove(nearestPackagedPosition);
         }
 
         return positions;
@@ -210,8 +211,6 @@ public static class NorthHornTreasureRoute
     }
 }
 
-public readonly record struct LiveTreasureCandidate(uint BaseId, Vector3 Position);
-
 public static class TreasureLevelPolicy
 {
     public static bool IsEligible(bool isNorthHorn, uint? verifiedLevel, int maximumLevel)
@@ -253,52 +252,23 @@ public static class NorthHornRouteRejoinPolicy
     }
 }
 
-public static class LiveTreasurePriorityPolicy
+public static class NorthHornCurrentTreasurePolicy
 {
-    public static uint? Select(
-        Vector3 playerPosition,
-        uint currentNodeId,
-        IEnumerable<LiveTreasureCandidate> liveCandidates,
-        float priorityRadius)
+    public static bool IsMatch(
+        Vector3 expectedPosition,
+        Vector3 candidatePosition,
+        float matchRadius)
     {
-        if (!float.IsFinite(priorityRadius)
-            || priorityRadius <= 0f)
+        if (!IsFinite(expectedPosition)
+            || !IsFinite(candidatePosition)
+            || !float.IsFinite(matchRadius)
+            || matchRadius < 0f)
         {
-            return null;
+            return false;
         }
 
-        var priorityRadiusSquared = priorityRadius * priorityRadius;
-        var bestNodeId = 0u;
-        var bestDistance = float.MaxValue;
-
-        foreach (var candidate in liveCandidates)
-        {
-            if (!IsFinite(candidate.Position))
-            {
-                continue;
-            }
-
-            var playerDistance = Vector3.DistanceSquared(playerPosition, candidate.Position);
-            if (playerDistance > priorityRadiusSquared)
-            {
-                continue;
-            }
-
-            if (candidate.BaseId == 0 || candidate.BaseId == currentNodeId)
-            {
-                continue;
-            }
-
-            if (playerDistance < bestDistance
-                || (Math.Abs(playerDistance - bestDistance) < 0.001f
-                    && (bestNodeId == 0 || candidate.BaseId < bestNodeId)))
-            {
-                bestNodeId = candidate.BaseId;
-                bestDistance = playerDistance;
-            }
-        }
-
-        return bestNodeId == 0 ? null : bestNodeId;
+        return Vector3.DistanceSquared(expectedPosition, candidatePosition)
+               <= matchRadius * matchRadius;
     }
 
     private static bool IsFinite(Vector3 position)

@@ -5,10 +5,13 @@ using System.Numerics;
 using BOCCHI.Data;
 using BOCCHI.Modules.Automator;
 using Dalamud.Game.ClientState.Conditions;
+using Dalamud.Game.Text;
+using Dalamud.Game.Text.SeStringHandling;
 using ECommons.DalamudServices;
 using ECommons.GameHelpers;
 using Ocelot.IPC;
 using System;
+using System.Linq;
 
 namespace BOCCHI.Modules.Treasure;
 
@@ -43,6 +46,10 @@ public class TreasureModule(Plugin _plugin, Config config) : Module(_plugin, con
     private Job? pendingTreasureSightJobRestore;
 
     private long nextTreasureSightJobRestoreAt;
+
+    private IReadOnlyList<Vector3>? spiritPotCandidatePositions;
+
+    public SpiritPotTreasurePredictor SpiritPotPredictor { get; } = new();
 
     public List<Treasure> Treasures
     {
@@ -91,10 +98,53 @@ public class TreasureModule(Plugin _plugin, Config config) : Module(_plugin, con
     {
         StopHunt();
         Tracker.Reset();
+        SpiritPotPredictor.Reset();
+        spiritPotCandidatePositions = null;
         if (!ZoneData.IsOccultCrescentTerritory(id))
         {
             pendingTreasureSightJobRestore = null;
             nextTreasureSightJobRestoreAt = 0;
+        }
+    }
+
+    public override void OnChatMessage(
+        XivChatType type,
+        int timestamp,
+        SeString sender,
+        SeString message,
+        bool isHandled)
+    {
+        _ = timestamp;
+        _ = sender;
+        _ = isHandled;
+        if (type != XivChatType.SystemMessage || !ZoneData.IsInNorthHorn())
+        {
+            return;
+        }
+
+        var text = message.TextValue;
+        if (SpiritPotTreasurePredictor.ShouldResetForMessage(text))
+        {
+            SpiritPotPredictor.Reset();
+            return;
+        }
+
+        var player = Svc.Objects.LocalPlayer;
+        if (player == null)
+        {
+            return;
+        }
+
+        spiritPotCandidatePositions ??= TreasureLayoutData
+            .ReadNorthHornFieldPoints(Svc.ClientState.TerritoryType)
+            .Select(point => point.Position)
+            .ToArray();
+        if (SpiritPotPredictor.TryApplyHint(text, player.Position, spiritPotCandidatePositions))
+        {
+            Svc.Log.Info(
+                $"Spirit-pot treasure hint accepted: " +
+                $"{SpiritPotPredictor.Candidates.Count} of {spiritPotCandidatePositions.Count} candidates remain" +
+                (SpiritPotPredictor.HasConflict ? " (conflicting hint retained separately)." : "."));
         }
     }
 
@@ -194,6 +244,8 @@ public class TreasureModule(Plugin _plugin, Config config) : Module(_plugin, con
     {
         StopHunt();
         pendingTreasureSightJobRestore = null;
+        SpiritPotPredictor.Reset();
+        spiritPotCandidatePositions = null;
         Tracker.Dispose();
         base.Dispose();
     }

@@ -14,6 +14,10 @@
         "show_hunt_button": {
           "label": "Show Treasure Hunt Button"
         },
+        "show_spirit_pot_prediction": {
+          "label": "Show spirit-pot treasure prediction",
+          "tooltip": "Show the predicted area and candidate points from spirit-pot direction and distance hints on the North Horn route map"
+        },
         "cast_treasure_sight_before_hunt": {
           "label": "Cast Treasuresight on the first hunt",
           "tooltip": "When this territory's coffer count is not initialized, unmount, switch to Freelancer, cast Treasuresight, and restore the previous support job; later starts reuse the tracked count"
@@ -46,7 +50,9 @@
           "route_point": "Route point",
           "live_count": "Live coffers",
           "elapsed": "Elapsed",
-          "map_missing": "Route map asset is unavailable"
+          "map_missing": "Route map asset is unavailable",
+          "spirit_pot_candidates": "Spirit-pot candidates: {0}",
+          "spirit_pot_conflict": "The new hint conflicts with the existing area; the previous candidates were kept"
         },
         "active_bronze": {
           "label": "Active Bronze"

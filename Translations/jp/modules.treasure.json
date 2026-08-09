@@ -14,6 +14,10 @@
         "show_hunt_button": {
           "label": "宝探しボタンを表示"
         },
+        "show_spirit_pot_prediction": {
+          "label": "壺の宝予測を表示",
+          "tooltip": "壺が示す方角と距離から、北島ルートマップに予測範囲と候補地点を表示します"
+        },
         "cast_treasure_sight_before_hunt": {
           "label": "宝探し開始前にマギトレジャーサーチを使用",
           "tooltip": "マウントを降り、フリーランサーに切り替えて使用後、元のサポートジョブへ戻します"
@@ -46,7 +50,9 @@
           "route_point": "ルート地点",
           "live_count": "検出した宝箱",
           "elapsed": "経過時間",
-          "map_missing": "ルートマップを読み込めません"
+          "map_missing": "ルートマップを読み込めません",
+          "spirit_pot_candidates": "壺の候補地点：{0}",
+          "spirit_pot_conflict": "新しい手掛かりが既存範囲と一致しないため、前の候補を維持しました"
         },
         "active_bronze": {
           "label": "銅の宝箱"

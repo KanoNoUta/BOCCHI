@@ -13,6 +13,10 @@
         "show_hunt_button": {
           "label": "Afficher le bouton de chasse au coffres"
         },
+        "show_spirit_pot_prediction": {
+          "label": "Afficher la prediction du pot",
+          "tooltip": "Affiche la zone et les points candidats indiques par le pot sur la carte de North Horn"
+        },
         "cast_treasure_sight_before_hunt": {
           "label": "Utiliser Détection de trésors avant la chasse",
           "tooltip": "Descend de monture, passe en Freelancer, utilise Détection de trésors puis restaure le job précédent"
@@ -42,7 +46,9 @@
           "route_point": "Point de route",
           "live_count": "Coffres visibles",
           "elapsed": "Temps ecoule",
-          "map_missing": "La carte de route est indisponible"
+          "map_missing": "La carte de route est indisponible",
+          "spirit_pot_candidates": "Points candidats du pot : {0}",
+          "spirit_pot_conflict": "Le nouvel indice est incompatible ; les points precedents sont conserves"
         },
         "none": "Pas de coffre à proximité.",
         "title": "Coffres",

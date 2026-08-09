@@ -74,15 +74,27 @@
         },
         "delay_critical_encounters": {
           "label": "延迟前往CE",
-          "tooltip": "前往CE前添加10-15秒延迟"
+          "tooltip": "前往CE前添加单独配置的随机延迟"
         },
         "min_delay": {
-          "label": "最低延迟",
+          "label": "CE最低延迟",
           "tooltip": "设置前往CE的最低延迟"
         },
         "max_delay": {
-          "label": "最高延迟",
+          "label": "CE最高延迟",
           "tooltip": "设置前往CE的最高延迟"
+        },
+        "delay_fates": {
+          "label": "延迟前往FATE",
+          "tooltip": "前往FATE前添加单独配置的随机延迟"
+        },
+        "min_fate_delay": {
+          "label": "FATE最低延迟",
+          "tooltip": "设置前往FATE的最低延迟"
+        },
+        "max_fate_delay": {
+          "label": "FATE最高延迟",
+          "tooltip": "设置前往FATE的最高延迟"
         },
         "do_scourge_of_the_mind": {
           "label": "CE: 脑髓爱好者——夺心魔",

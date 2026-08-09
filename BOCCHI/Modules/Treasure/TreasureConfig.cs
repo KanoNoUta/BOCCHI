@@ -54,4 +54,14 @@ public class TreasureConfig : ModuleConfig
     public int NorthHornManualRouteStart { get; set; } = 1;
 
     public bool ShowNorthHornRouteMap { get; set; } = true;
+
+    [Checkbox]
+    [DependsOn(nameof(Enabled), nameof(EnableTreasureHunt))]
+    [Label("modules.treasure.config.show_spirit_pot_prediction.label")]
+    public bool ShowSpiritPotPrediction { get; set; } = true;
+
+    public bool ShouldShowSpiritPotPrediction
+    {
+        get => IsPropertyEnabled(nameof(ShowSpiritPotPrediction));
+    }
 }

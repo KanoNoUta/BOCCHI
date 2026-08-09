@@ -23,6 +23,8 @@ public static class TreasureLayoutData
 {
     public readonly record struct TreasureNode(uint Id, Vector3 Position, uint Sgb);
 
+    public readonly record struct FieldTreasurePoint(uint InstanceId, Vector3 Position);
+
     // SGB models that identify a lootable bronze / silver coffer. Any other SGB
     // (decorative props, quest chests, ...) is intentionally ignored.
     private const uint BronzeSgb = 1596;
@@ -35,6 +37,17 @@ public static class TreasureLayoutData
         if (!ZoneData.IsOccultCrescentTerritory(territoryId))
         {
             return results;
+        }
+
+        // North Horn's field treasure layer does not expose a usable Treasure
+        // row id through Lumina (ParentData.BaseId is 0). Its dedicated layer
+        // contains the reviewed 68 surface positions, each with a stable and
+        // unique instance id, so preserve those points directly.
+        if (territoryId == ZoneData.NORTHHORN)
+        {
+            return ReadNorthHornFieldPoints(territoryId)
+                .Select(point => new TreasureNode(point.InstanceId, point.Position, 0))
+                .ToList();
         }
 
         var territoryRow = Svc.Data.GetExcelSheet<Lumina.Excel.Sheets.TerritoryType>()?.GetRow(territoryId);
@@ -123,5 +136,67 @@ public static class TreasureLayoutData
         }
 
         return unique;
+    }
+
+    public static List<FieldTreasurePoint> ReadNorthHornFieldPoints(uint territoryId)
+    {
+        if (territoryId != ZoneData.NORTHHORN)
+        {
+            return [];
+        }
+
+        var territoryRow = Svc.Data.GetExcelSheet<Lumina.Excel.Sheets.TerritoryType>()?.GetRow(territoryId);
+        var bg = territoryRow?.Bg.ExtractText();
+        if (string.IsNullOrEmpty(bg))
+        {
+            Svc.Log.Warning($"Could not resolve the background path for territory {territoryId}; North Horn treasure positions unavailable.");
+            return [];
+        }
+
+        var levelIndex = bg.IndexOf("/level/", StringComparison.Ordinal);
+        if (levelIndex < 0)
+        {
+            Svc.Log.Warning($"Could not determine the level path for territory {territoryId} (bg='{bg}').");
+            return [];
+        }
+
+        var levelPath = "bg/" + bg[..(levelIndex + 1)] + "level/";
+        var lgb = Svc.Data.GetFile<LgbFile>(levelPath + "planmap.lgb");
+        if (lgb == null)
+        {
+            Svc.Log.Warning("North Horn planmap.lgb is unavailable; treasure positions could not be loaded.");
+            return [];
+        }
+
+        var points = lgb.Layers
+            .Where(layer => string.Equals(layer.Name, "LVD_FLD_treasure", StringComparison.Ordinal))
+            .SelectMany(layer => layer.InstanceObjects)
+            .Where(instance => instance.AssetType == LayerEntryType.Treasure)
+            .Select(instance =>
+            {
+                var translation = instance.Transform.Translation;
+                return new FieldTreasurePoint(
+                    instance.InstanceId,
+                    new Vector3(translation.X, translation.Y, translation.Z));
+            })
+            .Where(point => IsFinite(point.Position))
+            .DistinctBy(point => point.InstanceId)
+            .OrderBy(point => point.InstanceId)
+            .ToList();
+
+        if (points.Count != 68)
+        {
+            Svc.Log.Warning(
+                $"Expected 68 North Horn field treasure positions, but loaded {points.Count}.");
+        }
+
+        return points;
+    }
+
+    private static bool IsFinite(Vector3 position)
+    {
+        return float.IsFinite(position.X)
+               && float.IsFinite(position.Y)
+               && float.IsFinite(position.Z);
     }
 }

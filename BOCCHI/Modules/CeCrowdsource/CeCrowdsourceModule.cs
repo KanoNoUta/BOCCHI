@@ -48,6 +48,10 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
     private Task? activeFetch;
     private Task? activeHeartbeat;
     private bool frameworkTickRegistered;
+    private long presenceRevision;
+    private uint presenceTerritoryId;
+    private string lastHeartbeatPlayerName = "unknown";
+    private string lastHeartbeatWorld = string.Empty;
 
     public override CeCrowdsourceConfig Config
     {
@@ -108,6 +112,8 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
     public override void PostInitialize()
     {
         base.PostInitialize();
+        presenceTerritoryId = Svc.ClientState.TerritoryType;
+        CacheHeartbeatIdentity();
         Svc.Framework.Update += OnFrameworkTick;
         frameworkTickRegistered = true;
         if (TryGetModule<CriticalEncountersModule>(out var ceModule) && ceModule != null)
@@ -193,6 +199,27 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
         return true;
     }
 
+    public override void OnTerritoryChanged(uint id)
+    {
+        Volatile.Write(ref presenceTerritoryId, id);
+        Interlocked.Increment(ref presenceRevision);
+
+        // Do not wait for the next regular cadence to retire the previous
+        // island presence. The cached player identity lets the heartbeat
+        // overwrite the old server entry even while LocalPlayer is unloaded.
+        nextHeartbeatAt = DateTime.UtcNow;
+        nextPollAt = DateTime.UtcNow;
+        ceETag = null;
+        ceETagScope = null;
+
+        lock (sync)
+        {
+            IslandOnlineCount = 0;
+            InstanceCount = 0;
+            IsUploader = false;
+        }
+    }
+
     public override void Dispose()
     {
         if (TryGetModule<CriticalEncountersModule>(out var ceModule) && ceModule != null)
@@ -232,19 +259,28 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
 
     private async Task SendHeartbeatAsync()
     {
+        var revision = Volatile.Read(ref presenceRevision);
+        var presence = CapturePresenceScope();
+        if (presence.IsIsland && presence.InstanceId == 0)
+        {
+            // PublicInstance can lag briefly during island entry. Retrying is
+            // safer than publishing a blank instance and moving this player
+            // in and out of the island count during a loading screen.
+            nextHeartbeatAt = DateTime.UtcNow.AddSeconds(2);
+            return;
+        }
+
         try
         {
-            var player = Svc.Objects.LocalPlayer;
-            var world = player?.HomeWorld.Value.Name.ToString() ?? "";
-            var name = player?.Name.TextValue ?? "unknown";
+            var (name, world) = CacheHeartbeatIdentity();
             var payload = new
             {
                 name,
                 world,
                 dataCenterID = DataCenterID,
-                zoneServerID = CeZoneServerId.Current,
-                territoryID = Svc.ClientState.TerritoryType,
-                instanceID = GetInstanceIdString(),
+                zoneServerID = presence.ZoneServerId,
+                territoryID = presence.TerritoryId,
+                instanceID = FormatInstanceId(presence.InstanceId),
             };
             var json = JsonSerializer.Serialize(payload);
             using var content = new StringContent(json, Encoding.UTF8, "application/json");
@@ -261,11 +297,16 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
                 {
                     lock (sync)
                     {
+                        if (revision != Volatile.Read(ref presenceRevision))
+                        {
+                            return;
+                        }
+
                         OnlineCount = stats.Online;
-                        IslandOnlineCount = stats.IslandOnline;
+                        IslandOnlineCount = presence.IsIsland ? stats.IslandOnline : 0;
                         // The heartbeat renews the upload lease, so this flag
                         // is what gates uploading until the next beat.
-                        IsUploader = stats.IsUploader;
+                        IsUploader = presence.IsIsland && stats.IsUploader;
                         if (stats.UploaderSlots > 0)
                         {
                             UploaderSlots = stats.UploaderSlots;
@@ -297,13 +338,20 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
 
     private async Task FetchAsync()
     {
+        var revision = Volatile.Read(ref presenceRevision);
+        var presence = CapturePresenceScope();
+        if (presence.IsIsland && presence.InstanceId == 0)
+        {
+            nextPollAt = DateTime.UtcNow.AddSeconds(2);
+            return;
+        }
+
         try
         {
             var baseUrl = Config.ServerUrl.TrimEnd('/');
-            var inIsland = ZoneData.IsInOccultCrescent();
-            var territory = inIsland ? Svc.ClientState.TerritoryType : 0;
-            var zone = CeZoneServerId.Current;
-            var instance = GetInstanceIdString();
+            var territory = presence.IsIsland ? presence.TerritoryId : 0;
+            var zone = presence.IsIsland ? presence.ZoneServerId : 0;
+            var instance = presence.IsIsland ? FormatInstanceId(presence.InstanceId) : string.Empty;
             // Scope the query to this exact island. The server answers with
             // that island's records only, already limited to the retention
             // window, so no client-side instance filtering is needed.
@@ -325,11 +373,16 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
                 // Nothing changed on this island; keep the records we have.
                 lock (sync)
                 {
+                    if (revision != Volatile.Read(ref presenceRevision))
+                    {
+                        return;
+                    }
+
                     LastSyncAt = DateTime.Now;
                     Connected = true;
                     LastError = null;
                 }
-                await FetchStatsAsync(statsUrl);
+                await FetchStatsAsync(statsUrl, revision, presence.IsIsland);
                 return;
             }
 
@@ -347,13 +400,23 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
                 return;
             }
 
+            if (revision != Volatile.Read(ref presenceRevision))
+            {
+                return;
+            }
+
             ceETag = ceResponse.Headers.ETag?.Tag;
             ceETagScope = scope;
 
-            await FetchStatsAsync(statsUrl);
+            await FetchStatsAsync(statsUrl, revision, presence.IsIsland);
 
             lock (sync)
             {
+                if (revision != Volatile.Read(ref presenceRevision))
+                {
+                    return;
+                }
+
                 if (ceList.RetentionMinutes > 0)
                 {
                     RetentionMinutes = ceList.RetentionMinutes;
@@ -375,7 +438,7 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
         }
     }
 
-    private async Task FetchStatsAsync(string statsUrl)
+    private async Task FetchStatsAsync(string statsUrl, long revision, bool isIslandScope)
     {
         using var statsResponse = await client.GetAsync(statsUrl, cts.Token);
         if (!statsResponse.IsSuccessStatusCode)
@@ -392,9 +455,14 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
 
         lock (sync)
         {
+            if (revision != Volatile.Read(ref presenceRevision))
+            {
+                return;
+            }
+
             OnlineCount = stats.Online;
-            IslandOnlineCount = stats.IslandOnline;
-            InstanceCount = stats.Instances;
+            IslandOnlineCount = isIslandScope ? stats.IslandOnline : 0;
+            InstanceCount = isIslandScope ? stats.Instances : 0;
             if (stats.RetentionMinutes > 0)
             {
                 RetentionMinutes = stats.RetentionMinutes;
@@ -404,8 +472,50 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
 
     private static string GetInstanceIdString()
     {
-        var id = GetCurrentInstanceId();
-        return id > 0 ? id.ToString() : "";
+        return FormatInstanceId(GetCurrentInstanceId());
+    }
+
+    private static string FormatInstanceId(uint id)
+    {
+        return id > 0 ? id.ToString() : string.Empty;
+    }
+
+    private PresenceScope CapturePresenceScope()
+    {
+        var territoryId = Volatile.Read(ref presenceTerritoryId);
+        if (!ZoneData.IsOccultCrescentTerritory(territoryId))
+        {
+            return new PresenceScope(false, territoryId, 0, 0);
+        }
+
+        // Territory membership is authoritative. Nearby player objects are
+        // streamed and may disappear briefly; they must never clear presence.
+        return new PresenceScope(
+            true,
+            territoryId,
+            CeZoneServerId.Current,
+            GetCurrentInstanceId());
+    }
+
+    private (string Name, string World) CacheHeartbeatIdentity()
+    {
+        var player = Svc.Objects.LocalPlayer;
+        if (player != null)
+        {
+            var name = player.Name.TextValue;
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                lastHeartbeatPlayerName = name;
+            }
+
+            var world = player.HomeWorld.Value.Name.ToString();
+            if (!string.IsNullOrWhiteSpace(world))
+            {
+                lastHeartbeatWorld = world;
+            }
+        }
+
+        return (lastHeartbeatPlayerName, lastHeartbeatWorld);
     }
 
     private static unsafe uint GetCurrentInstanceId()
@@ -548,6 +658,12 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
     {
         PropertyNameCaseInsensitive = true,
     };
+
+    private readonly record struct PresenceScope(
+        bool IsIsland,
+        uint TerritoryId,
+        uint ZoneServerId,
+        uint InstanceId);
 }
 
 

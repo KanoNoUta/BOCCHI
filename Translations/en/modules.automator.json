@@ -58,7 +58,27 @@
         },
         "delay_critical_encounters": {
           "label": "Delay before heading to Critical Encounter",
-          "tooltip": "Add a 10 - 15 second delay before heading to a critical Encounter"
+          "tooltip": "Add a separately configured random delay before heading to a Critical Encounter"
+        },
+        "min_delay": {
+          "label": "Minimum CE delay",
+          "tooltip": "Set the minimum delay before heading to a Critical Encounter"
+        },
+        "max_delay": {
+          "label": "Maximum CE delay",
+          "tooltip": "Set the maximum delay before heading to a Critical Encounter"
+        },
+        "delay_fates": {
+          "label": "Delay before heading to FATE",
+          "tooltip": "Add a separately configured random delay before heading to a FATE"
+        },
+        "min_fate_delay": {
+          "label": "Minimum FATE delay",
+          "tooltip": "Set the minimum delay before heading to a FATE"
+        },
+        "max_fate_delay": {
+          "label": "Maximum FATE delay",
+          "tooltip": "Set the maximum delay before heading to a FATE"
         },
         "do_scourge_of_the_mind": {
           "label": "CE: Scourge of the Mind",

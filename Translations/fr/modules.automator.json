@@ -8,7 +8,27 @@
         },
         "delay_critical_encounters": {
           "label": "Délai avant de se diriger vers une confrontation critique",
-          "tooltip": "Ajoute un délai de 10 à 15 secondes avant de se diriger vers une confrontation critique"
+          "tooltip": "Ajoute un délai aléatoire configuré séparément avant une confrontation critique"
+        },
+        "min_delay": {
+          "label": "Délai CE minimum",
+          "tooltip": "Définit le délai minimum avant une confrontation critique"
+        },
+        "max_delay": {
+          "label": "Délai CE maximum",
+          "tooltip": "Définit le délai maximum avant une confrontation critique"
+        },
+        "delay_fates": {
+          "label": "Délai avant de se diriger vers un Aléa",
+          "tooltip": "Ajoute un délai aléatoire configuré séparément avant un Aléa"
+        },
+        "min_fate_delay": {
+          "label": "Délai Aléa minimum",
+          "tooltip": "Définit le délai minimum avant un Aléa"
+        },
+        "max_fate_delay": {
+          "label": "Délai Aléa maximum",
+          "tooltip": "Définit le délai maximum avant un Aléa"
         },
         "do_a_delicate_balance": {
           "label": "Aléa : Humidité zéro",

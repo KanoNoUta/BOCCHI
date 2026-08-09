@@ -128,11 +128,19 @@ public abstract class Activity : IDisposable
                 pathfinderConfig.ReturnCost,
                 pathfinderConfig.TeleportCost,
                 "Fast runtime selection; candidate precomputation is not allowed to block movement.");
+            var delayFate = isFate && module.Config.ShouldDelayFates;
             var delayCriticalEncounter = !isFate && module.Config.ShouldDelayCriticalEncounters;
+            var delayDeparture = delayFate || delayCriticalEncounter;
+            var minimumDepartureDelay = isFate
+                ? module.Config.MinFateDelay
+                : module.Config.MinDelay;
+            var maximumDepartureDelay = isFate
+                ? module.Config.MaxFateDelay
+                : module.Config.MaxDelay;
             var departureDelayMilliseconds = DepartureDelayPolicy.GetDelayMilliseconds(
-                delayCriticalEncounter,
-                module.Config.MinDelay,
-                module.Config.MaxDelay,
+                delayDeparture,
+                minimumDepartureDelay,
+                maximumDepartureDelay,
                 Random.Shared.NextDouble());
             var isAtBaseCampAethernet = delayCriticalEncounter
                                         && ZoneData.IsNearAethernetShard(
@@ -170,7 +178,8 @@ public abstract class Activity : IDisposable
             if (departureDelayMilliseconds > 0)
             {
                 Svc.Log.Info(
-                    $"Delaying CE departure for {departureDelayMilliseconds / 1000d:F1}s: {GetName()}");
+                    $"Delaying {(isFate ? "FATE" : "CE")} departure for " +
+                    $"{departureDelayMilliseconds / 1000d:F1}s: {GetName()}");
                 chain.Wait(departureDelayMilliseconds);
             }
 

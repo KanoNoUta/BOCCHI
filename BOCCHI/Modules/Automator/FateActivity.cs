@@ -38,6 +38,11 @@ public static class FateNavigationPolicy
         return !navigationActive && targetMovement > RepathDistance;
     }
 
+    public static bool ShouldTakeOverInitialTargetRoute(bool hasSubmittedTargetRoute)
+    {
+        return !hasSubmittedTargetRoute;
+    }
+
     public static bool IsTargetInEngagementRange(float centerDistance, float hitboxRadius, float engagementRange)
     {
         if (!float.IsFinite(centerDistance) || !float.IsFinite(hitboxRadius) || !float.IsFinite(engagementRange))
@@ -77,6 +82,7 @@ public class FateActivity(EventData data, Lifestream lifestream, VNavmesh vnav, 
     {
         var lastTargetPos = Vector3.Zero;
         var followingActivityTarget = false;
+        var hasSubmittedInitialTargetRoute = false;
         long? watcherStartedAt = null;
         var hasObservedNavigation = false;
 
@@ -107,7 +113,10 @@ public class FateActivity(EventData data, Lifestream lifestream, VNavmesh vnav, 
 
             if (target == null && EzThrottler.Throttle("FatePathfindingWatcher.EnemyScan", 100))
             {
-                target = GetEnemies().Centroid();
+                // During travel, the nearest live enemy is the most useful
+                // approach target. A centroid can sit behind terrain or pull
+                // the route through the far side of a spread-out FATE pack.
+                target = GetEnemies().Closest();
                 if (target != null)
                 {
                     Svc.Targets.Target = target;
@@ -139,14 +148,31 @@ public class FateActivity(EventData data, Lifestream lifestream, VNavmesh vnav, 
                     return true;
                 }
 
+                if (FateNavigationPolicy.ShouldTakeOverInitialTargetRoute(
+                        hasSubmittedInitialTargetRoute)
+                    && EzThrottler.Throttle("FatePathfindingWatcher.InitialTarget", 250))
+                {
+                    // The activity-center route is only a fallback until a
+                    // real enemy becomes visible. Replace it exactly once even
+                    // while vnavmesh is running so terrain around broad FATE
+                    // circles cannot send the player around the far side.
+                    if (BOCCHI.Pathfinding.AggroAvoidanceNavigation.PathfindAndMoveTo(
+                            vnav,
+                            target.Position,
+                            false))
+                    {
+                        hasSubmittedInitialTargetRoute = true;
+                        lastTargetPos = target.Position;
+                    }
+                }
                 // Target selectors can switch targets several times per second.
-                // Let the active route finish before repathing; replacing a
-                // running SimpleMove every second causes visible stop/start.
-                if (FateNavigationPolicy.ShouldRepath(
-                        IsNavigationActive(),
-                        Vector3.Distance(target.Position, lastTargetPos))
-                    && EzThrottler.Throttle("FatePathfindingWatcher.Repath", 1000)
-                    && BOCCHI.Pathfinding.AggroAvoidanceNavigation.PathfindAndMoveTo(vnav, target.Position, false))
+                // After the initial handoff, let the active route finish before
+                // repathing to avoid a visible run/stop/run cycle.
+                else if (FateNavigationPolicy.ShouldRepath(
+                             IsNavigationActive(),
+                             Vector3.Distance(target.Position, lastTargetPos))
+                         && EzThrottler.Throttle("FatePathfindingWatcher.Repath", 1000)
+                         && BOCCHI.Pathfinding.AggroAvoidanceNavigation.PathfindAndMoveTo(vnav, target.Position, false))
                 {
                     lastTargetPos = target.Position;
                 }

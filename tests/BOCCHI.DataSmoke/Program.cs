@@ -49,6 +49,14 @@ static void RunCeCrowdsourceTests()
            && legacyConfig.Version == Config.CurrentVersion
            && !legacyConfig.CeCrowdsourceConfig.ShowOnlyActive,
         "The CE history default must migrate existing configurations away from active-only filtering.");
+
+    var crowdsourceSource = File.ReadAllText(Path.Combine(
+        "BOCCHI", "Modules", "CeCrowdsource", "CeCrowdsourceModule.cs"));
+    Assert(crowdsourceSource.Contains("public override void OnTerritoryChanged(uint id)", StringComparison.Ordinal)
+           && crowdsourceSource.Contains("Interlocked.Increment(ref presenceRevision)", StringComparison.Ordinal)
+           && crowdsourceSource.Contains("CacheHeartbeatIdentity()", StringComparison.Ordinal)
+           && crowdsourceSource.Contains("presence.IsIsland ? stats.IslandOnline : 0", StringComparison.Ordinal),
+        "Island companion presence must clear on territory changes, preserve player identity during loading, and reject stale island responses.");
 }
 
 static void RunCurrencyTrackerTests()
@@ -389,6 +397,75 @@ static void RunUiShellTests()
     }
 }
 
+static void RunSpiritPotPredictionTests()
+{
+    var directionNames = new[] { "正北", "东北", "正东", "东南", "正南", "西南", "正西", "西北" };
+    for (var index = 0; index < directionNames.Length; index++)
+    {
+        Assert(SpiritPotTreasurePredictor.TryParseHint(
+                   $"财宝好像是在{directionNames[index]}方向很近的地方！",
+                   Vector3.Zero,
+                   out var parsed)
+               && parsed.Direction == (SpiritPotDirection)index,
+            $"Spirit-pot direction {directionNames[index]} must map to the correct world X/Z sector.");
+    }
+
+    var distanceCases = new[]
+    {
+        (Text: "很近", Band: SpiritPotDistanceBand.VeryNear, Min: 0f, Max: 20f),
+        (Text: "不远", Band: SpiritPotDistanceBand.Near, Min: 20f, Max: 100f),
+        (Text: "稍远", Band: SpiritPotDistanceBand.Far, Min: 100f, Max: 200f),
+        (Text: "很远", Band: SpiritPotDistanceBand.VeryFar, Min: 200f, Max: float.PositiveInfinity),
+    };
+    foreach (var distanceCase in distanceCases)
+    {
+        Assert(SpiritPotTreasurePredictor.TryParseHint(
+                   $"财宝好像是在正北方向{distanceCase.Text}的地方！",
+                   Vector3.Zero,
+                   out var parsed)
+               && parsed.DistanceBand == distanceCase.Band
+               && parsed.MinimumDistance == distanceCase.Min
+               && parsed.MaximumDistance == distanceCase.Max,
+            $"Spirit-pot distance band {distanceCase.Text} must preserve its calibrated bounds.");
+    }
+
+    var predictor = new SpiritPotTreasurePredictor();
+    var northCandidate = new Vector3(0f, 12f, -50f);
+    var candidates = new[]
+    {
+        northCandidate,
+        new Vector3(50f, 12f, 0f),
+        new Vector3(0f, 12f, -150f),
+        new Vector3(0f, 12f, -250f),
+    };
+    Assert(predictor.TryApplyHint(
+               "财宝好像是在正北方向不远的地方！",
+               Vector3.Zero,
+               candidates)
+           && predictor.Candidates.SequenceEqual(new[] { northCandidate }),
+        "A spirit-pot hint must filter the 68-point universe by direction and distance.");
+    Assert(predictor.TryApplyHint(
+               "财宝好像是在正西方向不远的地方！",
+               new Vector3(50f, 0f, -50f),
+               candidates)
+           && predictor.Candidates.SequenceEqual(new[] { northCandidate })
+           && predictor.Hints.Count == 2,
+        "Multiple spirit-pot hints must intersect instead of replacing the earlier search area.");
+    Assert(predictor.TryApplyHint(
+               "财宝好像是在正南方向很近的地方！",
+               Vector3.Zero,
+               candidates)
+           && predictor.HasConflict
+           && predictor.Candidates.SequenceEqual(new[] { northCandidate })
+           && predictor.Hints.Count == 2,
+        "A conflicting hint must retain the last valid candidate set.");
+    Assert(SpiritPotTreasurePredictor.ShouldResetForMessage("发现了财宝！！")
+           && SpiritPotTreasurePredictor.ShouldResetForMessage("时间过了太久，已经发现的财宝消失了。")
+           && SpiritPotTreasurePredictor.ShouldResetForMessage("似乎能够告知第二处财宝所在地！")
+           && !SpiritPotTreasurePredictor.ShouldResetForMessage("很想要圣灵药。"),
+        "Spirit-pot prediction lifecycle messages must clear stale areas without treating a potion request as completion.");
+}
+
 static void RunTreasureRoutePolicyTests()
 {
     var route = NorthHornTreasureRoute.NodeIds;
@@ -412,16 +489,18 @@ static void RunTreasureRoutePolicyTests()
            == "581C7ABBA05C632FE064B8F50E223A57B6CD446A1F480463CCD901C90F50F9A6",
         "The 1-68 image checkpoint order must match the reviewed route snapshot.");
 
-    var packagedPositions = new[]
-    {
-        new Vector3(0f, 7f, 0f),
-        new Vector3(1000f, 23f, 1000f),
-    };
+    var packagedPositions = Enumerable.Range(0, NorthHornTreasureRoute.RouteCount)
+        .Select(index => new Vector3(index * 23f - 700f, index % 9, index * 17f - 500f))
+        .ToArray();
     var allPositions = NorthHornTreasureRoute.BuildWaypointPositions(packagedPositions);
-    var firstWorldPoint = allPositions[route[0]];
-    Assert(firstWorldPoint == packagedPositions[1]
+    Assert(allPositions.Count == NorthHornTreasureRoute.RouteCount
+           && allPositions.Values.Distinct().Count() == NorthHornTreasureRoute.RouteCount
            && allPositions.Values.All(packagedPositions.Contains),
-        "Every route checkpoint must snap to a real packaged treasure position instead of an off-mesh image coordinate.");
+        "Every route checkpoint must own one unique real packaged treasure position.");
+    var incompletePositions = NorthHornTreasureRoute.BuildWaypointPositions(packagedPositions.Take(2));
+    Assert(incompletePositions.Count == 2
+           && incompletePositions.Values.Distinct().Count() == 2,
+        "An incomplete layout must leave checkpoints missing instead of reusing or fabricating coordinates.");
 
     var northBaseMapPoint = NorthHornTreasureRoute.WorldToMapPoint(
         ZoneData.Aetherytes[ZoneData.NORTHHORN]);
@@ -436,6 +515,23 @@ static void RunTreasureRoutePolicyTests()
         68);
     Assert(manual.Count == 68 && manual[0] == route[67] && manual[1] == route[0],
         "Manual route 68 must wrap to route 1 without losing a node.");
+    Assert(NorthHornTreasureRoute.OrderNodes(
+               Vector3.Zero,
+               route,
+               allPositions,
+               TreasureRouteStartMode.Manual,
+               5)
+           .Take(4)
+           .SequenceEqual(route.Skip(4).Take(4))
+           && NorthHornTreasureRoute.OrderNodes(
+                   Vector3.Zero,
+                   route,
+                   allPositions,
+                   TreasureRouteStartMode.Manual,
+                   54)
+               .Take(3)
+               .SequenceEqual(route.Skip(53).Take(3)),
+        "North Horn numbered travel must preserve 5-6-7-8 and 54-55-56 without future-node promotion.");
 
     var sparse = new[] { route[0], route[2], route[4] };
     Assert(NorthHornTreasureRoute.OrderNodes(
@@ -457,34 +553,15 @@ static void RunTreasureRoutePolicyTests()
                1)[0] == route[10],
         "Nearest start mode must rotate the loop at the closest valid node.");
 
-    Assert(LiveTreasurePriorityPolicy.Select(
+    Assert(NorthHornCurrentTreasurePolicy.IsMatch(
                Vector3.Zero,
-               route[0],
-               new[]
-               {
-                   new LiveTreasureCandidate(1791, new Vector3(20, 0, 0)),
-                   new LiveTreasureCandidate(1790, new Vector3(10, 0, 0)),
-               },
-               100f) == 1790,
-        "The nearest targetable live treasure must be selected independently of patrol IDs.");
-    Assert(LiveTreasurePriorityPolicy.Select(
+               new Vector3(12f, 0f, 0f),
+               12f)
+           && !NorthHornCurrentTreasurePolicy.IsMatch(
                Vector3.Zero,
-               1790,
-               new[] { new LiveTreasureCandidate(1790, new Vector3(10, 0, 0)) },
-               100f) == null,
-        "The current planned node must not repeatedly divert to itself.");
-    Assert(LiveTreasurePriorityPolicy.Select(
-               Vector3.Zero,
-               route[0],
-               new[] { new LiveTreasureCandidate(999999, new Vector3(11, 0, 0)) },
-               100f) == 999999,
-        "A transient live BaseId must remain an insertable runtime target.");
-    Assert(LiveTreasurePriorityPolicy.Select(
-               Vector3.Zero,
-               route[0],
-               new[] { new LiveTreasureCandidate(1790, new Vector3(101, 0, 0)) },
-               100f) == null,
-        "Live diversion must remain bounded by its scan radius.");
+               new Vector3(12.01f, 0f, 0f),
+               12f),
+        "Real-time North Horn detection must only satisfy the current checkpoint within 12 yalms.");
     Assert(TreasureLevelPolicy.IsEligible(
                isNorthHorn: true,
                verifiedLevel: null,
@@ -525,30 +602,6 @@ static void RunTreasureRoutePolicyTests()
            .SequenceEqual(new[] { route[6], route[7], route[53], route[54] }),
         "Opening a live treasure must resume at the interrupted route number without rotating to the nearest remaining point.");
 
-    var plannedSteps = route.Take(3).Select(PathfinderStep.WalkToDestination).ToList();
-    Assert(HuntRoutePriorityPolicy.PromoteOrInsert(plannedSteps, 0, 1790)
-           && plannedSteps.Select(step => step.NodeId)
-               .SequenceEqual(new[] { 1790u, route[0], route[1], route[2] }),
-        "A live treasure absent from the patrol route must be inserted before the current waypoint.");
-    Assert(HuntRoutePriorityPolicy.PromoteOrInsert(plannedSteps, 1, route[2])
-           && plannedSteps.Select(step => step.NodeId)
-               .SequenceEqual(new[] { 1790u, route[2], route[0], route[1] }),
-        "A future planned node must still be promoted without duplication.");
-
-    var disappearedSteps = route.Take(3).Select(PathfinderStep.WalkToDestination).ToList();
-    HuntRoutePriorityPolicy.PromoteOrInsert(disappearedSteps, 0, 1790);
-    Assert(HuntRoutePriorityPolicy.TryRemoveCurrentDiversion(
-               disappearedSteps,
-               0,
-               1790)
-           && disappearedSteps.Select(step => step.NodeId).SequenceEqual(route.Take(3)),
-        "A live diversion that disappears before interaction must be removed before route rejoin.");
-    Assert(!HuntRoutePriorityPolicy.TryRemoveCurrentDiversion(
-               disappearedSteps,
-               0,
-               1790),
-        "A normal patrol waypoint must not be removed as a stale diversion.");
-
     Assert(!TreasureObjectMatchPolicy.IsMatch(
                isNorthHorn: false,
                nodeId: 1789,
@@ -580,7 +633,8 @@ static void RunTreasureRoutePolicyTests()
         "North Horn position fallback must not bypass MaxLevel eligibility.");
 
     Assert(typeof(TreasureConfig).GetProperty("NorthHornRouteStartMode") != null
-           && typeof(TreasureConfig).GetProperty("SouthHornRouteStartMode") == null,
+           && typeof(TreasureConfig).GetProperty("SouthHornRouteStartMode") == null
+           && typeof(TreasureConfig).GetProperty("ShowSpiritPotPrediction") != null,
         "The numbered route controls must be persisted as North Horn settings.");
     var treasureHuntSource = File.ReadAllText(Path.Combine(
         "BOCCHI", "Modules", "Treasure", "TreasureHunt.cs"));
@@ -597,8 +651,13 @@ static void RunTreasureRoutePolicyTests()
         "Treasure hunt must separate one-time startup transit from forced runtime recovery.");
     Assert(treasureHuntSource.Contains(
                "NorthHornRouteRejoinPolicy.PreservePlannedOrder(remainingNodeIds)",
+               StringComparison.Ordinal)
+           && !treasureHuntSource.Contains(
+               "LiveTreasurePriorityPolicy.Select",
                StringComparison.Ordinal),
-        "Treasure hunt must preserve the numbered route after a live-coffer diversion.");
+        "Treasure hunt must preserve numbered order and never promote a future live coffer.");
+
+    RunSpiritPotPredictionTests();
 
     var hunterSource = File.ReadAllText(Path.Combine("BOCCHI", "Pathfinding", "Hunter.cs"));
     var resetHunterStart = hunterSource.IndexOf(
@@ -664,7 +723,7 @@ if (args.Contains("--ui-shell", StringComparer.OrdinalIgnoreCase))
 if (args.Contains("--treasure-route", StringComparer.OrdinalIgnoreCase))
 {
     RunTreasureRoutePolicyTests();
-    Console.WriteLine("BOCCHI North Horn numbered route and live treasure priority tests passed.");
+    Console.WriteLine("BOCCHI North Horn strict numbered route and current-treasure matching tests passed.");
     return;
 }
 
@@ -1256,6 +1315,9 @@ Assert(!FateNavigationPolicy.ShouldRepath(navigationActive: true, targetMovement
 Assert(FateNavigationPolicy.ShouldRepath(navigationActive: false, targetMovement: 6f)
        && !FateNavigationPolicy.ShouldRepath(navigationActive: false, targetMovement: 5f),
     "FATE target repathing must wait for navigation to stop and enforce its movement threshold.");
+Assert(FateNavigationPolicy.ShouldTakeOverInitialTargetRoute(hasSubmittedTargetRoute: false)
+       && !FateNavigationPolicy.ShouldTakeOverInitialTargetRoute(hasSubmittedTargetRoute: true),
+    "The first visible FATE enemy must take over the center route exactly once.");
 Assert(FateNavigationPolicy.IsTargetlessArrival(distanceToCenter: 4.9f, fateRadius: 100f)
        && !FateNavigationPolicy.IsTargetlessArrival(distanceToCenter: 5.1f, fateRadius: 100f),
     "A broad FATE radius must not end travel until the player reaches the center approach.");
