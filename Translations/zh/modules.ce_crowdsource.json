@@ -2,7 +2,7 @@
   "modules": {
     "ce_crowdsource": {
       "config": {
-        "title": "众包 CE 数据",
+        "title": "众包岛上事件",
         "server_url": {
           "label": "服务器地址",
           "tooltip": "众包 CE 服务器地址（默认 http://8.138.201.201:8080）"
@@ -13,7 +13,7 @@
         },
         "upload_observations": {
           "label": "上传观测数据",
-          "tooltip": "将本岛 CE 状态上传到众包服务器用于修正数据"
+          "tooltip": "将本岛 CE 与魔法罐状态上传到众包服务器"
         },
         "send_heartbeat": {
           "label": "上报在线状态",
@@ -21,11 +21,11 @@
         },
         "show_only_active": {
           "label": "只显示活跃事件",
-          "tooltip": "列表中仅显示当前活跃的 CE"
+          "tooltip": "列表中仅显示当前活跃的 CE 与魔法罐"
         }
       },
       "panel": {
-        "title": "众包 CE 记录",
+        "title": "众包岛上事件记录",
         "online": "在线人数",
         "island_online": "岛内同伴",
         "current_instance": "副本 ID",
@@ -40,9 +40,10 @@
         "last_error": "错误",
         "disabled_title": "众包功能未启用",
         "disabled_detail": "在设置 → 显示与通知中开启众包 CE 数据。",
-        "no_data": "暂无 CE 记录",
-        "no_data_detail": "等待服务器推送岛上 CE 状态……",
+        "no_data": "暂无岛上事件记录",
+        "no_data_detail": "等待服务器推送岛上 CE 与魔法罐状态……",
         "ce": "CE",
+        "pot": "魔法罐",
         "spawned_at": "最近出现",
         "instance_id": "副本",
         "source": "数据来源",
@@ -60,4 +61,3 @@
     }
   }
 }
-

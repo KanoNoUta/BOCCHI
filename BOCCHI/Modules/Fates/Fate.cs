@@ -3,6 +3,7 @@ using BOCCHI.Enums;
 using Dalamud.Game.ClientState.Fates;
 using ECommons;
 using Ocelot.Modules;
+using System;
 using System.Numerics;
 
 namespace BOCCHI.Modules.Fates;
@@ -25,9 +26,12 @@ public class Fate
 
     public long TimeRemaining { get; private set; }
 
+    public long SpawnedAt { get; }
+
     public Fate(IFate fate)
     {
         Id = fate.FateId;
+        SpawnedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         Data = EventData.GetFate(Id, ECommons.DalamudServices.Svc.ClientState.TerritoryType);
         Refresh(fate);
     }

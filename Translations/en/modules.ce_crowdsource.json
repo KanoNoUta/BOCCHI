@@ -2,7 +2,7 @@
   "modules": {
     "ce_crowdsource": {
       "config": {
-        "title": "Crowdsourced CE Data",
+        "title": "Crowdsourced Island Events",
         "server_url": {
           "label": "Server URL",
           "tooltip": "Crowdsource CE server URL (default http://8.138.201.201:8080)"
@@ -13,7 +13,7 @@
         },
         "upload_observations": {
           "label": "Upload observations",
-          "tooltip": "Upload island CE states to the crowdsource server to correct data"
+          "tooltip": "Upload island CE and magic-pot states to the crowdsource server"
         },
         "send_heartbeat": {
           "label": "Send heartbeat",
@@ -21,11 +21,11 @@
         },
         "show_only_active": {
           "label": "Show active events only",
-          "tooltip": "Only show currently active CE in the list"
+          "tooltip": "Only show currently active CE and magic pots in the list"
         }
       },
       "panel": {
-        "title": "Crowdsourced CE Records",
+        "title": "Crowdsourced Island Events",
         "online": "Online",
         "island_online": "Island",
         "current_instance": "Instance ID",
@@ -40,9 +40,10 @@
         "last_error": "Error",
         "disabled_title": "Crowdsource disabled",
         "disabled_detail": "Enable crowdsourced CE data in Settings → Display & Notifications.",
-        "no_data": "No CE records",
-        "no_data_detail": "Waiting for island CE states from the server...",
+        "no_data": "No island event records",
+        "no_data_detail": "Waiting for island CE and magic-pot states from the server...",
         "ce": "CE",
+        "pot": "Magic pot",
         "spawned_at": "Last spawned",
         "instance_id": "Instance",
         "source": "Source",
@@ -60,4 +61,3 @@
     }
   }
 }
-

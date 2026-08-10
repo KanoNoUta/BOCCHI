@@ -35,7 +35,6 @@ public class Panel
 
         // 服务端已按当前岛（区服+副本ID）和保留时长过滤，这里不再重复筛选实例。
         var records = module.Records
-            .Where(r => r.EventType == "CE")
             .Where(CeCrowdsourceDisplayPolicy.ShouldDisplayRecord)
             .Where(r => !module.Config.ShowOnlyActive || module.IsEffectivelyActive(r))
             .ToArray();
@@ -102,7 +101,9 @@ public class Panel
     private static void DrawRecord(CeRecord record, CeCrowdsourceModule module)
     {
         var name = ResolveName(record, module);
-        var localState = module.GetLocalCeState(record.EventID, record.TerritoryID);
+        var localState = string.Equals(record.EventType, "CE", StringComparison.OrdinalIgnoreCase)
+            ? module.GetLocalCeState(record.EventID, record.TerritoryID)
+            : null;
         var effectiveState = CeCrowdsourceDisplayPolicy.ResolveState(
             record.ObservedState,
             localState?.ToString(),
@@ -127,8 +128,16 @@ public class Panel
             return record.Name;
         }
 
+        if (string.Equals(record.EventType, "FATE", StringComparison.OrdinalIgnoreCase))
+        {
+            var fate = EventData.GetFate(record.EventID, record.TerritoryID);
+            return fate.InternalName.StartsWith("FATE", StringComparison.Ordinal)
+                ? $"{module.T("panel.pot")} {record.EventID}"
+                : fate.InternalName;
+        }
+
         var data = EventData.GetCriticalEncounter(record.EventID, record.TerritoryID);
-        if (!data.InternalName.StartsWith("Critical Encounter"))
+        if (!data.InternalName.StartsWith("Critical Encounter", StringComparison.Ordinal))
         {
             return data.InternalName;
         }

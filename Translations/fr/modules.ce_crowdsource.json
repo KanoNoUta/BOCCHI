@@ -43,6 +43,7 @@
         "no_data": "Aucun registre CE",
         "no_data_detail": "En attente des états CE de l'île depuis le serveur...",
         "ce": "CE",
+        "pot": "Pot magique",
         "spawned_at": "Dernière apparition",
         "instance_id": "Instance",
         "source": "Source",
@@ -60,4 +61,3 @@
     }
   }
 }
-

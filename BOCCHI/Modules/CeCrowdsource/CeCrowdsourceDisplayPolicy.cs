@@ -7,7 +7,21 @@ public static class CeCrowdsourceDisplayPolicy
 {
     public static bool ShouldDisplayRecord(CeRecord record)
     {
-        return ZoneData.IsOccultCrescentTerritory(record.TerritoryID);
+        if (!ZoneData.IsOccultCrescentTerritory(record.TerritoryID))
+        {
+            return false;
+        }
+
+        if (string.Equals(record.EventType, "CE", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        // The bridge stores all observations in the same generic event table.
+        // Only the two North Horn magic-pot FATEs belong in this panel; do not
+        // accidentally turn the regular FATE tracker into a second event feed.
+        return string.Equals(record.EventType, "FATE", StringComparison.OrdinalIgnoreCase)
+               && EventData.GetFate(record.EventID, record.TerritoryID).IsPot;
     }
 
     /// <summary>

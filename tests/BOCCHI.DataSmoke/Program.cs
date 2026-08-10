@@ -58,6 +58,12 @@ static void RunCeCrowdsourceTests()
            && crowdsourceSource.Contains("CeCrowdsourcePresencePolicy.CanPublishIslandPresence", StringComparison.Ordinal)
            && !crowdsourceSource.Contains("presence.IsIsland && presence.InstanceId == 0", StringComparison.Ordinal),
         "Island companion presence must clear on territory changes, preserve player identity during loading, and reject stale island responses.");
+    Assert(crowdsourceSource.Contains("OnFateSpawned += OnLocalPotSpawned", StringComparison.Ordinal)
+           && crowdsourceSource.Contains("OnFateDespawned += OnLocalPotDespawned", StringComparison.Ordinal)
+           && crowdsourceSource.Contains("UploadPotObservation(fate, \"Running\")", StringComparison.Ordinal)
+           && crowdsourceSource.Contains("UploadPotObservation(fate, \"Inactive\")", StringComparison.Ordinal)
+           && crowdsourceSource.Contains("ConcurrentDictionary<string, string>", StringComparison.Ordinal),
+        "Magic-pot crowdsource observations must publish both active and ended states and remain retry-safe across async uploads.");
 
     Assert(CeCrowdsourcePresencePolicy.CanPublishIslandPresence(isIsland: true, zoneServerId: 3538944)
            && !CeCrowdsourcePresencePolicy.CanPublishIslandPresence(isIsland: true, zoneServerId: 0)
@@ -70,6 +76,28 @@ static void RunCeCrowdsourceTests()
     Assert(CeCrowdsourceDisplayPolicy.ShouldDisplayRecord(islandRecord)
            && !CeCrowdsourceDisplayPolicy.ShouldDisplayRecord(bozjaRecord),
         "CE history must exclude legacy non-Occult Crescent territories.");
+
+    var potRecord = islandRecord with
+    {
+        EventType = "FATE",
+        EventID = 2072,
+        Name = "被欺负的魔法罐",
+        ObservedState = "Running",
+    };
+    var nonPotFateRecord = potRecord with { EventID = 2084, Name = "高傲的雷兽——新月女王" };
+    Assert(CeCrowdsourceDisplayPolicy.ShouldDisplayRecord(potRecord)
+           && !CeCrowdsourceDisplayPolicy.ShouldDisplayRecord(nonPotFateRecord),
+        "Crowdsource must display North Horn pot FATE records while excluding unrelated FATE records.");
+
+    var crowdsourcePanelSource = File.ReadAllText(Path.Combine(
+        "BOCCHI", "Modules", "CeCrowdsource", "Panel.cs"));
+    Assert(!crowdsourcePanelSource.Contains("Where(r => r.EventType == \"CE\")", StringComparison.Ordinal)
+           && crowdsourcePanelSource.Contains("EventData.GetFate", StringComparison.Ordinal),
+        "The crowdsource panel must include magic-pot FATE history instead of filtering every non-CE record out.");
+
+    Assert(EventData.CriticalEncounters[53].NavigationPositionOverride == new Vector3(-672f, 90f, 150f)
+           && EventData.CriticalEncounters[57].NavigationPositionOverride == new Vector3(244f, 52f, -860f),
+        "Red Dragon and Phantom Necromancer must use reachable side navigation anchors instead of their obstructed arena centers.");
 }
 
 static void RunCurrencyTrackerTests()

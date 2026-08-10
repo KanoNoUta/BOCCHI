@@ -625,6 +625,10 @@ public struct EventData
                 InternalName = "暗红尸骸——赤龙",
                 Note = MonsterNote.RedDragon,
                 StartPosition = new Vector3(-688f, 90f, 150f),
+                // The arena marker is behind the central crystal when
+                // approaching from Floating Ruins. Stop on the open east side
+                // instead of asking vnavmesh to drive through the obstacle.
+                NavigationPositionOverride = new Vector3(-672f, 90f, 150f),
             }
         },
         {
@@ -672,6 +676,9 @@ public struct EventData
                 InternalName = "天道好轮回——魔亡灵法师",
                 Note = MonsterNote.PhantomNecromancer,
                 StartPosition = new Vector3(224f, 52f, -860f),
+                // The left-side entrance produces an incomplete route around
+                // the square boundary. Use the verified open east approach.
+                NavigationPositionOverride = new Vector3(244f, 52f, -860f),
             }
         },
         {

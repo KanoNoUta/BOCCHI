@@ -43,6 +43,7 @@
         "no_data": "CE 記録なし",
         "no_data_detail": "サーバーからの島 CE 状態を待機中...",
         "ce": "CE",
+        "pot": "魔法の壺",
         "spawned_at": "最終出現",
         "instance_id": "インスタンス",
         "source": "データソース",
@@ -60,4 +61,3 @@
     }
   }
 }
-

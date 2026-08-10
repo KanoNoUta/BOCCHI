@@ -1,11 +1,13 @@
 using BOCCHI.Data;
 using BOCCHI.Modules.CriticalEncounters;
+using BOCCHI.Modules.Fates;
 using Dalamud.Plugin.Services;
 using ECommons.DalamudServices;
 using FFXIVClientStructs.FFXIV.Client.Game.InstanceContent;
 using Ocelot.Modules;
 using Ocelot.Windows;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -97,7 +99,7 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
 
     public int UploadCount => Volatile.Read(ref uploadCountField);
 
-    private readonly Dictionary<string, string> lastUploadedStates = new();
+    private readonly ConcurrentDictionary<string, string> lastUploadedStates = new();
 
     // Server-driven pacing: the heartbeat reply carries the cadence, so load
     // can be shed centrally without shipping a new plugin build.
@@ -119,6 +121,12 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
         if (TryGetModule<CriticalEncountersModule>(out var ceModule) && ceModule != null)
         {
             ceModule.Tracker.OnInactiveState += OnLocalCeInactive;
+        }
+
+        if (TryGetModule<FatesModule>(out var fatesModule) && fatesModule != null)
+        {
+            fatesModule.tracker.OnFateSpawned += OnLocalPotSpawned;
+            fatesModule.tracker.OnFateDespawned += OnLocalPotDespawned;
         }
     }
 
@@ -145,6 +153,11 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
 
     public bool IsEffectivelyActive(CeRecord record)
     {
+        if (!string.Equals(record.EventType, "CE", StringComparison.OrdinalIgnoreCase))
+        {
+            return record.IsActive;
+        }
+
         var local = GetLocalCeState(record.EventID, record.TerritoryID);
         return local.HasValue ? local.Value != DynamicEventState.Inactive : record.IsActive;
     }
@@ -211,6 +224,7 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
         nextPollAt = DateTime.UtcNow;
         ceETag = null;
         ceETagScope = null;
+        lastUploadedStates.Clear();
 
         lock (sync)
         {
@@ -225,6 +239,12 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
         if (TryGetModule<CriticalEncountersModule>(out var ceModule) && ceModule != null)
         {
             ceModule.Tracker.OnInactiveState -= OnLocalCeInactive;
+        }
+
+        if (TryGetModule<FatesModule>(out var fatesModule) && fatesModule != null)
+        {
+            fatesModule.tracker.OnFateSpawned -= OnLocalPotSpawned;
+            fatesModule.tracker.OnFateDespawned -= OnLocalPotDespawned;
         }
 
         if (frameworkTickRegistered)
@@ -254,7 +274,61 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
         var territoryId = Svc.ClientState.TerritoryType;
         var key = $"{territoryId}:CE:{ev.DynamicEventId}";
         lastUploadedStates[key] = "Inactive";
-        _ = UploadObservationAsync(territoryId, ev.DynamicEventId, DynamicEventState.Inactive, ev.StartTimestamp, ev.Name);
+        _ = UploadObservationAsync(territoryId, ev.DynamicEventId, "Inactive", ev.StartTimestamp, ev.Name, "CE");
+    }
+
+    private void OnLocalPotSpawned(Fate fate)
+    {
+        if (!fate.IsPotFate())
+        {
+            return;
+        }
+
+        UploadPotObservation(fate, "Running");
+    }
+
+    private void OnLocalPotDespawned(Fate fate)
+    {
+        if (!fate.IsPotFate())
+        {
+            return;
+        }
+
+        UploadPotObservation(fate, "Inactive");
+    }
+
+    private void TryUploadPotObservations()
+    {
+        if (!TryGetModule<FatesModule>(out var fatesModule) || fatesModule == null)
+        {
+            return;
+        }
+
+        foreach (var fate in fatesModule.fates.Values.ToArray())
+        {
+            if (fate.IsPotFate())
+            {
+                UploadPotObservation(fate, "Running");
+            }
+        }
+    }
+
+    private void UploadPotObservation(Fate fate, string state)
+    {
+        if (!IsEnabled || !IsUploader || !Config.UploadObservations || !ZoneData.IsInOccultCrescent())
+        {
+            return;
+        }
+
+        var territoryId = Svc.ClientState.TerritoryType;
+        var key = $"{territoryId}:FATE:{fate.Id}";
+        if (lastUploadedStates.TryGetValue(key, out var last) && last == state)
+        {
+            return;
+        }
+
+        lastUploadedStates[key] = state;
+        _ = UploadObservationAsync(territoryId, fate.Id, state, (int)Math.Min(fate.SpawnedAt, int.MaxValue), fate.Name, "FATE");
     }
 
     private async Task SendHeartbeatAsync()
@@ -576,8 +650,10 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
                 }
 
                 lastUploadedStates[key] = stateName;
-                _ = UploadObservationAsync(territoryId, ev.DynamicEventId, ev.State, ev.StartTimestamp, ev.Name);
+                _ = UploadObservationAsync(territoryId, ev.DynamicEventId, stateName, ev.StartTimestamp, ev.Name, "CE");
             }
+
+            TryUploadPotObservations();
         }
         catch (Exception ex)
         {
@@ -585,8 +661,15 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
         }
     }
 
-    private async Task UploadObservationAsync(uint territoryId, uint eventId, DynamicEventState state, int startTimestamp, string name)
+    private async Task UploadObservationAsync(
+        uint territoryId,
+        uint eventId,
+        string state,
+        int startTimestamp,
+        string name,
+        string eventType)
     {
+        var observationKey = $"{territoryId}:{eventType}:{eventId}";
         try
         {
             var nowSec = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
@@ -599,11 +682,11 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
                 dataCenterID = DataCenterID,
                 zoneServerID = CeZoneServerId.Current,
                 territoryID = territoryId,
-                eventType = "CE",
+                eventType,
                 eventID = eventId,
                 name,
                 lastSpawnedAt = spawnedAt,
-                observedState = state.ToString(),
+                observedState = state,
                 instanceID = GetInstanceIdString(),
                 playerName = Svc.Objects.LocalPlayer?.Name.TextValue ?? "unknown",
             };
@@ -629,20 +712,22 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
 
                     // Forget the state we just recorded so the observation is
                     // re-sent if this client later regains a slot.
-                    lastUploadedStates.Remove($"{territoryId}:CE:{eventId}");
+                    lastUploadedStates.TryRemove(observationKey, out _);
                     return;
                 }
 
                 Interlocked.Increment(ref uploadCountField);
-                Svc.Log.Info($"[CeCrowdsource] uploaded CE {eventId} state {state}");
+                Svc.Log.Info($"[CeCrowdsource] uploaded {eventType} {eventId} state {state}");
             }
             else
             {
+                lastUploadedStates.TryRemove(observationKey, out _);
                 Svc.Log.Debug($"[CeCrowdsource] upload failed: {response.StatusCode}");
             }
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException)
         {
+            lastUploadedStates.TryRemove(observationKey, out _);
             Svc.Log.Debug($"[CeCrowdsource] upload error: {ex.Message}");
         }
     }

@@ -211,18 +211,9 @@ public class CriticalEncounter : Activity
 
             if (finalDestination == null)
             {
-                var rand = module.GetModule<AutomatorModule>().random;
-                var angle = (float)(rand.NextDouble() * MathF.PI * 2);
-                var distance = CriticalEncounterNavigationPolicy.MinFinalOffset
-                               + (float)rand.NextDouble()
-                               * (CriticalEncounterNavigationPolicy.MaxFinalOffset
-                                  - CriticalEncounterNavigationPolicy.MinFinalOffset);
-                var candidate = CriticalEncounterNavigationPolicy.CreateFinalTarget(
-                    GetPosition(),
-                    angle,
-                    distance);
+                var candidate = data.NavigationPositionOverride ?? CreateRandomFinalTarget();
                 finalDestination = vnav.FindPointOnFloor(candidate, false, 0.5f) ?? candidate;
-                module.Debug($"Selected CE final random point: {finalDestination.Value}");
+                module.Debug($"Selected CE final approach point: {finalDestination.Value}");
             }
 
             if (CriticalEncounterNavigationPolicy.CanSubmitFinalApproach(
@@ -282,6 +273,17 @@ public class CriticalEncounter : Activity
 
             return false;
         }, new TaskManagerConfiguration { TimeLimitMS = 180000, ShowError = false });
+    }
+
+    private Vector3 CreateRandomFinalTarget()
+    {
+        var rand = module.GetModule<AutomatorModule>().random;
+        var angle = (float)(rand.NextDouble() * MathF.PI * 2);
+        var distance = CriticalEncounterNavigationPolicy.MinFinalOffset
+                       + (float)rand.NextDouble()
+                       * (CriticalEncounterNavigationPolicy.MaxFinalOffset
+                          - CriticalEncounterNavigationPolicy.MinFinalOffset);
+        return CriticalEncounterNavigationPolicy.CreateFinalTarget(GetPosition(), angle, distance);
     }
 
     protected override bool ShouldContinueNavigation(StateManagerModule states)
