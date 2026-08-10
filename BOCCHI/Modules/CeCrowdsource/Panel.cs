@@ -36,6 +36,7 @@ public class Panel
         // 服务端已按当前岛（区服+副本ID）和保留时长过滤，这里不再重复筛选实例。
         var records = module.Records
             .Where(r => r.EventType == "CE")
+            .Where(CeCrowdsourceDisplayPolicy.ShouldDisplayRecord)
             .Where(r => !module.Config.ShowOnlyActive || module.IsEffectivelyActive(r))
             .ToArray();
 

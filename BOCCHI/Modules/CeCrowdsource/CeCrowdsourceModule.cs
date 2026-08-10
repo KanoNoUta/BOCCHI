@@ -261,14 +261,6 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
     {
         var revision = Volatile.Read(ref presenceRevision);
         var presence = CapturePresenceScope();
-        if (presence.IsIsland && presence.InstanceId == 0)
-        {
-            // PublicInstance can lag briefly during island entry. Retrying is
-            // safer than publishing a blank instance and moving this player
-            // in and out of the island count during a loading screen.
-            nextHeartbeatAt = DateTime.UtcNow.AddSeconds(2);
-            return;
-        }
 
         try
         {
@@ -303,10 +295,16 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
                         }
 
                         OnlineCount = stats.Online;
-                        IslandOnlineCount = presence.IsIsland ? stats.IslandOnline : 0;
+                        if (CeCrowdsourcePresencePolicy.CanPublishIslandPresence(
+                                presence.IsIsland, presence.ZoneServerId))
+                        {
+                            IslandOnlineCount = stats.IslandOnline;
+                        }
                         // The heartbeat renews the upload lease, so this flag
                         // is what gates uploading until the next beat.
-                        IsUploader = presence.IsIsland && stats.IsUploader;
+                        IsUploader = CeCrowdsourcePresencePolicy.CanPublishIslandPresence(
+                                         presence.IsIsland, presence.ZoneServerId)
+                                     && stats.IsUploader;
                         if (stats.UploaderSlots > 0)
                         {
                             UploaderSlots = stats.UploaderSlots;
@@ -340,11 +338,6 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
     {
         var revision = Volatile.Read(ref presenceRevision);
         var presence = CapturePresenceScope();
-        if (presence.IsIsland && presence.InstanceId == 0)
-        {
-            nextPollAt = DateTime.UtcNow.AddSeconds(2);
-            return;
-        }
 
         try
         {
@@ -424,6 +417,7 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
 
                 Records = (ceList.Events ?? [])
                     .Where(r => r.DataCenterID == DataCenterID)
+                    .Where(CeCrowdsourceDisplayPolicy.ShouldDisplayRecord)
                     .OrderBy(r => r.TerritoryID)
                     .ThenBy(r => r.EventID)
                     .ToList();
@@ -461,7 +455,7 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
             }
 
             OnlineCount = stats.Online;
-            IslandOnlineCount = isIslandScope ? stats.IslandOnline : 0;
+            IslandOnlineCount = stats.IslandOnline;
             InstanceCount = isIslandScope ? stats.Instances : 0;
             if (stats.RetentionMinutes > 0)
             {

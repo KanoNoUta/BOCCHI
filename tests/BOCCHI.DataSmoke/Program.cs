@@ -55,8 +55,21 @@ static void RunCeCrowdsourceTests()
     Assert(crowdsourceSource.Contains("public override void OnTerritoryChanged(uint id)", StringComparison.Ordinal)
            && crowdsourceSource.Contains("Interlocked.Increment(ref presenceRevision)", StringComparison.Ordinal)
            && crowdsourceSource.Contains("CacheHeartbeatIdentity()", StringComparison.Ordinal)
-           && crowdsourceSource.Contains("presence.IsIsland ? stats.IslandOnline : 0", StringComparison.Ordinal),
+           && crowdsourceSource.Contains("CeCrowdsourcePresencePolicy.CanPublishIslandPresence", StringComparison.Ordinal)
+           && !crowdsourceSource.Contains("presence.IsIsland && presence.InstanceId == 0", StringComparison.Ordinal),
         "Island companion presence must clear on territory changes, preserve player identity during loading, and reject stale island responses.");
+
+    Assert(CeCrowdsourcePresencePolicy.CanPublishIslandPresence(isIsland: true, zoneServerId: 3538944)
+           && !CeCrowdsourcePresencePolicy.CanPublishIslandPresence(isIsland: true, zoneServerId: 0)
+           && !CeCrowdsourcePresencePolicy.CanPublishIslandPresence(isIsland: false, zoneServerId: 3538944),
+        "Island presence must use the zone server ID and must not require PublicInstance.");
+
+    var islandRecord = new CeRecord("island", 101, 3538944, ZoneData.NORTHHORN, "CE", 56,
+        null, 0, "Battle", 1, "upstream", 0, "", true);
+    var bozjaRecord = islandRecord with { TerritoryID = 920 };
+    Assert(CeCrowdsourceDisplayPolicy.ShouldDisplayRecord(islandRecord)
+           && !CeCrowdsourceDisplayPolicy.ShouldDisplayRecord(bozjaRecord),
+        "CE history must exclude legacy non-Occult Crescent territories.");
 }
 
 static void RunCurrencyTrackerTests()

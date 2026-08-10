@@ -1,9 +1,15 @@
+using BOCCHI.Data;
 using System;
 
 namespace BOCCHI.Modules.CeCrowdsource;
 
 public static class CeCrowdsourceDisplayPolicy
 {
+    public static bool ShouldDisplayRecord(CeRecord record)
+    {
+        return ZoneData.IsOccultCrescentTerritory(record.TerritoryID);
+    }
+
     /// <summary>
     /// Resolves an observation to the state that should be shown in the panel.
     /// A server record which is no longer active is history, even when its last
