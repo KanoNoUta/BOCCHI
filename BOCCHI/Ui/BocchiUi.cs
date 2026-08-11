@@ -143,14 +143,15 @@ public static class BocchiUiPolicy
         bool inForkedTower,
         bool inNorthHorn)
     {
-        var pages = new List<MainWindowPage>
+        var pages = new List<MainWindowPage> { MainWindowPage.Overview };
+        if (inOccultCrescent)
         {
-            MainWindowPage.Overview,
-            MainWindowPage.Events,
-            MainWindowPage.Explore,
-            MainWindowPage.Farming,
-            MainWindowPage.Statistics,
-        };
+            pages.Add(MainWindowPage.Events);
+            pages.Add(MainWindowPage.Explore);
+            pages.Add(MainWindowPage.Farming);
+        }
+
+        pages.Add(MainWindowPage.Statistics);
 
         if (inForkedTower)
         {

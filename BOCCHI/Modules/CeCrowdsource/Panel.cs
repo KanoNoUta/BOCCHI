@@ -14,6 +14,11 @@ public class Panel
 {
     public void Draw(CeCrowdsourceModule module)
     {
+        if (!ZoneData.IsInOccultCrescent())
+        {
+            return;
+        }
+
         BocchiUi.SectionHeading(module.T("panel.title"));
         DrawHeader(module);
 

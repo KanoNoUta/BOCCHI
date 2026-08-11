@@ -115,7 +115,6 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
     {
         base.PostInitialize();
         presenceTerritoryId = Svc.ClientState.TerritoryType;
-        CacheHeartbeatIdentity();
         Svc.Framework.Update += OnFrameworkTick;
         frameworkTickRegistered = true;
         if (TryGetModule<CriticalEncountersModule>(out var ceModule) && ceModule != null)
@@ -231,6 +230,9 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
             IslandOnlineCount = 0;
             InstanceCount = 0;
             IsUploader = false;
+            Records = [];
+            Connected = false;
+            LastSyncAt = null;
         }
     }
 
@@ -335,6 +337,14 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
     {
         var revision = Volatile.Read(ref presenceRevision);
         var presence = CapturePresenceScope();
+        if (presence.IsIsland && presence.ZoneServerId == 0)
+        {
+            // A zero zone ID cannot identify the current island. Sending it
+            // would make the server classify this client as outside and a
+            // stats request with zone=0 would return the all-island aggregate.
+            nextHeartbeatAt = DateTime.UtcNow.AddSeconds(2);
+            return;
+        }
 
         try
         {
@@ -412,6 +422,36 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
     {
         var revision = Volatile.Read(ref presenceRevision);
         var presence = CapturePresenceScope();
+        if (!presence.IsIsland)
+        {
+            // Island event history is scoped data. Do not query /api/ce with
+            // zone=0 from outside the island, which would return every record.
+            lock (sync)
+            {
+                if (revision != Volatile.Read(ref presenceRevision))
+                {
+                    return;
+                }
+
+                Records = [];
+                IslandOnlineCount = 0;
+                InstanceCount = 0;
+                Connected = false;
+                LastSyncAt = null;
+            }
+
+            nextPollAt = DateTime.UtcNow.AddSeconds(5);
+            return;
+        }
+
+        if (presence.IsIsland && presence.ZoneServerId == 0)
+        {
+            // Wait until the zone server identity is available before making
+            // an island-scoped request. zone=0 is an aggregate query on the
+            // bridge server, not a valid current-island scope.
+            nextPollAt = DateTime.UtcNow.AddSeconds(2);
+            return;
+        }
 
         try
         {
@@ -529,7 +569,7 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
             }
 
             OnlineCount = stats.Online;
-            IslandOnlineCount = stats.IslandOnline;
+            IslandOnlineCount = isIslandScope ? stats.IslandOnline : 0;
             InstanceCount = isIslandScope ? stats.Instances : 0;
             if (stats.RetentionMinutes > 0)
             {
@@ -567,20 +607,46 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
 
     private (string Name, string World) CacheHeartbeatIdentity()
     {
-        var player = Svc.Objects.LocalPlayer;
-        if (player != null)
+        try
         {
-            var name = player.Name.TextValue;
-            if (!string.IsNullOrWhiteSpace(name))
+            var player = Svc.Objects?.LocalPlayer;
+            if (player == null)
             {
-                lastHeartbeatPlayerName = name;
+                return (lastHeartbeatPlayerName, lastHeartbeatWorld);
             }
 
-            var world = player.HomeWorld.Value.Name.ToString();
-            if (!string.IsNullOrWhiteSpace(world))
+            try
             {
-                lastHeartbeatWorld = world;
+                var name = player.Name.TextValue;
+                if (!string.IsNullOrWhiteSpace(name))
+                {
+                    lastHeartbeatPlayerName = name;
+                }
             }
+            catch (Exception ex)
+            {
+                Svc.Log.Debug($"[CeCrowdsource] player identity not ready: {ex.Message}");
+            }
+
+            try
+            {
+                var world = player.HomeWorld.Value.Name.ToString();
+                if (!string.IsNullOrWhiteSpace(world))
+                {
+                    lastHeartbeatWorld = world;
+                }
+            }
+            catch (Exception ex)
+            {
+                Svc.Log.Debug($"[CeCrowdsource] player world not ready: {ex.Message}");
+            }
+        }
+        catch (Exception ex)
+        {
+            // ObjectTable itself can be unavailable while Dalamud is still
+            // constructing the plugin. Identity is optional; loading BOCCHI is
+            // not, so keep the defaults and retry on the next heartbeat.
+            Svc.Log.Debug($"[CeCrowdsource] identity cache failed: {ex.Message}");
         }
 
         return (lastHeartbeatPlayerName, lastHeartbeatWorld);
@@ -688,7 +754,7 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
                 lastSpawnedAt = spawnedAt,
                 observedState = state,
                 instanceID = GetInstanceIdString(),
-                playerName = Svc.Objects.LocalPlayer?.Name.TextValue ?? "unknown",
+                playerName = CacheHeartbeatIdentity().Name,
             };
             var json = JsonSerializer.Serialize(payload);
             using var content = new StringContent(json, Encoding.UTF8, "application/json");

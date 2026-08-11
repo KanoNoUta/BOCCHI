@@ -65,10 +65,34 @@ static void RunCeCrowdsourceTests()
            && crowdsourceSource.Contains("ConcurrentDictionary<string, string>", StringComparison.Ordinal),
         "Magic-pot crowdsource observations must publish both active and ended states and remain retry-safe across async uploads.");
 
+    var postInitializeStart = crowdsourceSource.IndexOf(
+        "public override void PostInitialize()",
+        StringComparison.Ordinal);
+    var postInitializeEnd = crowdsourceSource.IndexOf(
+        "public DynamicEventState? GetLocalCeState",
+        postInitializeStart,
+        StringComparison.Ordinal);
+    Assert(postInitializeStart >= 0
+           && postInitializeEnd > postInitializeStart
+           && !crowdsourceSource[postInitializeStart..postInitializeEnd]
+               .Contains("CacheHeartbeatIdentity()", StringComparison.Ordinal)
+           && crowdsourceSource.Contains("Svc.Objects?.LocalPlayer", StringComparison.Ordinal)
+           && crowdsourceSource.Contains("identity cache failed", StringComparison.Ordinal),
+        "Crowdsource identity caching must wait until the framework is ready and tolerate unavailable object/world data during plugin construction.");
+
     Assert(CeCrowdsourcePresencePolicy.CanPublishIslandPresence(isIsland: true, zoneServerId: 3538944)
            && !CeCrowdsourcePresencePolicy.CanPublishIslandPresence(isIsland: true, zoneServerId: 0)
            && !CeCrowdsourcePresencePolicy.CanPublishIslandPresence(isIsland: false, zoneServerId: 3538944),
         "Island presence must use the zone server ID and must not require PublicInstance.");
+
+    Assert(Regex.Matches(
+               crowdsourceSource,
+               @"presence\.IsIsland\s*&&\s*presence\.ZoneServerId\s*==\s*0").Count >= 2
+           && crowdsourceSource.Contains(
+               "IslandOnlineCount = isIslandScope ? stats.IslandOnline : 0",
+               StringComparison.Ordinal)
+           && crowdsourceSource.Contains("if (!presence.IsIsland)", StringComparison.Ordinal),
+        "Crowdsource polling and heartbeats must defer an unresolved zone-server scope, and island counts must clear outside the island instead of accepting global aggregate stats.");
 
     var islandRecord = new CeRecord("island", 101, 3538944, ZoneData.NORTHHORN, "CE", 56,
         null, 0, "Battle", 1, "upstream", 0, "", true);
@@ -94,6 +118,22 @@ static void RunCeCrowdsourceTests()
     Assert(!crowdsourcePanelSource.Contains("Where(r => r.EventType == \"CE\")", StringComparison.Ordinal)
            && crowdsourcePanelSource.Contains("EventData.GetFate", StringComparison.Ordinal),
         "The crowdsource panel must include magic-pot FATE history instead of filtering every non-CE record out.");
+
+    var mainWindowSource = File.ReadAllText(Path.Combine("BOCCHI", "Windows", "MainWindow.cs"));
+    var eventsPageStart = mainWindowSource.IndexOf("private void DrawEventsPage", StringComparison.Ordinal);
+    var eventsPageEnd = mainWindowSource.IndexOf(
+        "private void DrawExplorePage",
+        eventsPageStart,
+        StringComparison.Ordinal);
+    var eventsPageSource = mainWindowSource[eventsPageStart..eventsPageEnd];
+    var outsideGuard = eventsPageSource.IndexOf("if (!ZoneData.IsInOccultCrescent())", StringComparison.Ordinal);
+    var outsideReturn = eventsPageSource.IndexOf("return;", outsideGuard, StringComparison.Ordinal);
+    var crowdsourceDraw = eventsPageSource.IndexOf("CeCrowdsourceModule", StringComparison.Ordinal);
+    Assert(outsideGuard >= 0
+           && outsideReturn > outsideGuard
+           && crowdsourceDraw > outsideReturn
+           && crowdsourcePanelSource.Contains("if (!ZoneData.IsInOccultCrescent())", StringComparison.Ordinal),
+        "Island event and crowdsource UI must return before drawing any island-only data while the player is outside Occult Crescent.");
 
     Assert(EventData.CriticalEncounters[53].NavigationPositionOverride == new Vector3(-672f, 90f, 150f)
            && EventData.CriticalEncounters[57].NavigationPositionOverride == new Vector3(244f, 52f, -860f),
@@ -195,12 +235,9 @@ static void RunUiShellTests()
     Assert(outsidePages.SequenceEqual(new[]
            {
                MainWindowPage.Overview,
-               MainWindowPage.Events,
-               MainWindowPage.Explore,
-               MainWindowPage.Farming,
                MainWindowPage.Statistics,
            }),
-        "The redesigned shell must keep its primary navigation stable outside the island.");
+        "Island-only event, exploration, and farming pages must stay hidden outside Occult Crescent.");
 
     var northPages = BocchiUiPolicy.GetVisiblePages(true, false, true);
     Assert(northPages.Contains(MainWindowPage.Events)

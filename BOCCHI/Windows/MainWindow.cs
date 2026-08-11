@@ -558,24 +558,23 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
     private void DrawEventsPage(RenderContext context)
     {
         BocchiUi.PageHeading(T("pages.events.title"), T("pages.events.subtitle"));
-        if (ZoneData.IsInOccultCrescent())
-        {
-            var columns = BocchiUiPolicy.GetWorkspaceColumns(LuminTheme.ToDesign(ImGui.GetContentRegionAvail().X));
-            if (ImGui.BeginTable(
-                    "##EventWorkspace",
-                    columns,
-                    ImGuiTableFlags.SizingStretchSame | (columns > 1 ? ImGuiTableFlags.BordersInnerV : ImGuiTableFlags.None)))
-            {
-                ImGui.TableNextColumn();
-                Plugin.Modules.GetModule<FatesModule>().RenderMainUi(context);
-                ImGui.TableNextColumn();
-                Plugin.Modules.GetModule<CriticalEncountersModule>().RenderMainUi(context);
-                ImGui.EndTable();
-            }
-        }
-        else
+        if (!ZoneData.IsInOccultCrescent())
         {
             BocchiUi.EmptyState(T("pages.events.empty_title"), T("pages.events.empty_detail"));
+            return;
+        }
+
+        var columns = BocchiUiPolicy.GetWorkspaceColumns(LuminTheme.ToDesign(ImGui.GetContentRegionAvail().X));
+        if (ImGui.BeginTable(
+                "##EventWorkspace",
+                columns,
+                ImGuiTableFlags.SizingStretchSame | (columns > 1 ? ImGuiTableFlags.BordersInnerV : ImGuiTableFlags.None)))
+        {
+            ImGui.TableNextColumn();
+            Plugin.Modules.GetModule<FatesModule>().RenderMainUi(context);
+            ImGui.TableNextColumn();
+            Plugin.Modules.GetModule<CriticalEncountersModule>().RenderMainUi(context);
+            ImGui.EndTable();
         }
 
         ImGui.Spacing();
