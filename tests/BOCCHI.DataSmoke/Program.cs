@@ -33,6 +33,21 @@ static void Assert(bool condition, string message)
 
 static void RunCeCrowdsourceTests()
 {
+    Assert(CeCrowdsourceObservationPolicy.ShouldUploadCriticalEncounter(
+               ZoneData.NORTHHORN, eventType: 3, eventId: 56)
+           && CeCrowdsourceObservationPolicy.ShouldUploadCriticalEncounter(
+               ZoneData.NORTHHORN, eventType: 4, eventId: 64)
+           && CeCrowdsourceObservationPolicy.ShouldUploadCriticalEncounter(
+               ZoneData.NORTHHORN, eventType: 4, eventId: 65)
+           && CeCrowdsourceObservationPolicy.ShouldUploadCriticalEncounter(
+               ZoneData.SOUTHHORN, eventType: 4, eventId: 48),
+        "Crowdsource must upload ordinary CEs and every known Forked Tower event.");
+    Assert(!CeCrowdsourceObservationPolicy.ShouldUploadCriticalEncounter(
+               ZoneData.SOUTHHORN, eventType: 4, eventId: 64)
+           && !CeCrowdsourceObservationPolicy.ShouldUploadCriticalEncounter(
+               ZoneData.NORTHHORN, eventType: 4, eventId: 9999),
+        "Crowdsource must reject tower IDs from the wrong territory and unknown high-type dynamic events.");
+
     Assert(CeCrowdsourceDisplayPolicy.ResolveState("Battle", null, isActive: false) == "Inactive"
            && CeCrowdsourceDisplayPolicy.ResolveState("Battle", "Inactive", isActive: true) == "Inactive"
            && CeCrowdsourceDisplayPolicy.ResolveState("Battle", null, isActive: true) == "Battle"
@@ -52,6 +67,11 @@ static void RunCeCrowdsourceTests()
 
     var crowdsourceSource = File.ReadAllText(Path.Combine(
         "BOCCHI", "Modules", "CeCrowdsource", "CeCrowdsourceModule.cs"));
+    Assert(Regex.Matches(
+               crowdsourceSource,
+               @"CeCrowdsourceObservationPolicy\.ShouldUploadCriticalEncounter\(").Count == 2
+           && !crowdsourceSource.Contains("ev.EventType >= 4", StringComparison.Ordinal),
+        "Crowdsource active and ended observation paths must both use the tower-aware upload policy.");
     Assert(crowdsourceSource.Contains("public override void OnTerritoryChanged(uint id)", StringComparison.Ordinal)
            && crowdsourceSource.Contains("Interlocked.Increment(ref presenceRevision)", StringComparison.Ordinal)
            && crowdsourceSource.Contains("CacheHeartbeatIdentity()", StringComparison.Ordinal)

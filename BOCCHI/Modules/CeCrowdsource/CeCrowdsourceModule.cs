@@ -268,12 +268,15 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
             return;
         }
 
-        if (ev.EventType >= 4)
+        var territoryId = Svc.ClientState.TerritoryType;
+        if (!CeCrowdsourceObservationPolicy.ShouldUploadCriticalEncounter(
+                territoryId,
+                ev.EventType,
+                ev.DynamicEventId))
         {
             return;
         }
 
-        var territoryId = Svc.ClientState.TerritoryType;
         var key = $"{territoryId}:CE:{ev.DynamicEventId}";
         lastUploadedStates[key] = "Inactive";
         _ = UploadObservationAsync(territoryId, ev.DynamicEventId, "Inactive", ev.StartTimestamp, ev.Name, "CE");
@@ -701,9 +704,12 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
                     continue;
                 }
 
-                // 只上报 CE；塔等事件的 EventType >= 4，且其 StartTimestamp 是
-                // 未来的开始时间，误当出现时间上传会显示成"凌晨出现"。
-                if (ev.EventType >= 4)
+                // Ordinary CEs and known Forked Tower events share the CE
+                // history feed. Other high-type dynamic events stay excluded.
+                if (!CeCrowdsourceObservationPolicy.ShouldUploadCriticalEncounter(
+                        territoryId,
+                        ev.EventType,
+                        ev.DynamicEventId))
                 {
                     continue;
                 }
