@@ -1788,11 +1788,11 @@ Assert(northTowerDefinitions.All(definition => !definition.HasPlatformGeometry),
 
 var grandMagicTrapGroups = TrapData.GetGroups(TowerHelper.TowerType.GrandMagic);
 var grandMagicTraps = grandMagicTrapGroups.SelectMany(group => group.Traps).ToArray();
-Assert(grandMagicTrapGroups.Count == 141
-       && grandMagicTraps.Count(trap => trap.Type == OccultObjectType.Trap) == 96
-       && grandMagicTraps.Count(trap => trap.Type == OccultObjectType.BigTrap) == 45
-       && grandMagicTraps.Select(trap => trap.GetKey()).Distinct().Count() == 141,
-    "Grand Magic Tower must expose the 141 unique ARR/map/screenshot-extracted potential trap positions.");
+    Assert(grandMagicTrapGroups.Count == 188
+       && grandMagicTraps.Count(trap => trap.Type == OccultObjectType.Trap) == 126
+       && grandMagicTraps.Count(trap => trap.Type == OccultObjectType.BigTrap) == 62
+       && grandMagicTraps.Select(trap => trap.GetKey()).Distinct().Count() == 188,
+    "Grand Magic Tower must expose the 188 unique ARR/map/replay-confirmed potential trap positions.");
 Assert(!grandMagicTraps.SelectMany((left, index) => grandMagicTraps.Skip(index + 1)
            .Where(right => right.Type == left.Type)
            .Select(right => Vector3.Distance(left.Position, right.Position)))
@@ -1811,6 +1811,10 @@ Assert(grandMagicTraps.Any(trap => trap.GetKey() == "2014584:638.50,-700.00,922.
        && grandMagicTraps.Any(trap => trap.GetKey() == "2014585:723.50,-680.00,787.50")
        && grandMagicTraps.Any(trap => trap.GetKey() == "2014585:800.00,-699.94,782.00")
        && grandMagicTraps.Any(trap => trap.GetKey() == "2014585:807.00,-700.00,792.00")
+       && grandMagicTraps.Any(trap => trap.GetKey() == "2014584:36.00,-716.00,-403.00")
+       && grandMagicTraps.Any(trap => trap.GetKey() == "2014584:560.00,-700.00,120.50")
+       && grandMagicTraps.Any(trap => trap.GetKey() == "2014585:386.00,-700.00,772.00")
+       && grandMagicTraps.Any(trap => trap.GetKey() == "2014585:642.50,-700.00,124.00")
        && TrapData.GetGroups(TowerHelper.TowerType.Magic).Count == 0,
     "Grand Magic known anchors must remain mapped without leaking its layout into normal Magic Tower.");
 
