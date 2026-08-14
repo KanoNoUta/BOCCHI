@@ -105,6 +105,14 @@ static void RunCeCrowdsourceTests()
            && !CeCrowdsourcePresencePolicy.CanPublishIslandPresence(isIsland: false, zoneServerId: 3538944),
         "Island presence must use the zone server ID and must not require PublicInstance.");
 
+    var outsideScope = new CeCrowdsourcePresenceScope(false, 129, 0, 0);
+    var unresolvedIslandScope = new CeCrowdsourcePresenceScope(true, ZoneData.NORTHHORN, 0, 0);
+    var resolvedIslandScope = new CeCrowdsourcePresenceScope(true, ZoneData.NORTHHORN, 3538944, 1);
+    Assert(CeCrowdsourcePresencePolicy.ShouldRestartConnection(outsideScope, unresolvedIslandScope)
+           && CeCrowdsourcePresencePolicy.ShouldRestartConnection(unresolvedIslandScope, resolvedIslandScope)
+           && !CeCrowdsourcePresencePolicy.ShouldRestartConnection(resolvedIslandScope, resolvedIslandScope),
+        "Entering an island with a temporarily unresolved zone server must reconnect automatically as soon as the scope resolves.");
+
     Assert(Regex.Matches(
                crowdsourceSource,
                @"presence\.IsIsland\s*&&\s*presence\.ZoneServerId\s*==\s*0").Count >= 2
@@ -113,6 +121,14 @@ static void RunCeCrowdsourceTests()
                StringComparison.Ordinal)
            && crowdsourceSource.Contains("if (!presence.IsIsland)", StringComparison.Ordinal),
         "Crowdsource polling and heartbeats must defer an unresolved zone-server scope, and island counts must clear outside the island instead of accepting global aggregate stats.");
+    Assert(crowdsourceSource.Contains("RefreshPresenceScope(now)", StringComparison.Ordinal)
+           && crowdsourceSource.Contains("activeHeartbeat = null", StringComparison.Ordinal)
+           && crowdsourceSource.Contains("activeFetch = null", StringComparison.Ordinal)
+           && crowdsourceSource.Contains("TrySetError(revision", StringComparison.Ordinal)
+           && File.ReadAllText(Path.Combine(
+                   "BOCCHI", "Modules", "CeCrowdsource", "CeZoneServerId.cs"))
+               .Contains("signature resolve failed; retrying", StringComparison.Ordinal),
+        "Crowdsource must release stale request slots and retry zone-server signature resolution without a plugin reload.");
 
     var islandRecord = new CeRecord("island", 101, 3538944, ZoneData.NORTHHORN, "CE", 56,
         null, 0, "Battle", 1, "upstream", 0, "", true);

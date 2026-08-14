@@ -52,6 +52,8 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
     private bool frameworkTickRegistered;
     private long presenceRevision;
     private uint presenceTerritoryId;
+    private CeCrowdsourcePresenceScope lastPresenceScope;
+    private bool hasPresenceScope;
     private string lastHeartbeatPlayerName = "unknown";
     private string lastHeartbeatWorld = string.Empty;
 
@@ -182,6 +184,7 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
         }
 
         var now = DateTime.UtcNow;
+        RefreshPresenceScope(now);
 
         if (Config.SendHeartbeat && now >= nextHeartbeatAt)
         {
@@ -214,26 +217,7 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
     public override void OnTerritoryChanged(uint id)
     {
         Volatile.Write(ref presenceTerritoryId, id);
-        Interlocked.Increment(ref presenceRevision);
-
-        // Do not wait for the next regular cadence to retire the previous
-        // island presence. The cached player identity lets the heartbeat
-        // overwrite the old server entry even while LocalPlayer is unloaded.
-        nextHeartbeatAt = DateTime.UtcNow;
-        nextPollAt = DateTime.UtcNow;
-        ceETag = null;
-        ceETagScope = null;
-        lastUploadedStates.Clear();
-
-        lock (sync)
-        {
-            IslandOnlineCount = 0;
-            InstanceCount = 0;
-            IsUploader = false;
-            Records = [];
-            Connected = false;
-            LastSyncAt = null;
-        }
+        RestartConnection(DateTime.UtcNow);
     }
 
     public override void Dispose()
@@ -417,7 +401,10 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException)
         {
-            SetError(ex.Message);
+            if (TrySetError(revision, ex.Message))
+            {
+                nextHeartbeatAt = DateTime.UtcNow.AddSeconds(5);
+            }
         }
     }
 
@@ -498,7 +485,10 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
 
             if (!ceResponse.IsSuccessStatusCode)
             {
-                SetError($"CE 接口 {ceResponse.StatusCode}");
+                if (TrySetError(revision, $"CE 接口 {ceResponse.StatusCode}"))
+                {
+                    nextPollAt = DateTime.UtcNow.AddSeconds(5);
+                }
                 return;
             }
 
@@ -506,7 +496,10 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
             var ceList = JsonSerializer.Deserialize<CeListResponse>(ceBody, JsonOptions);
             if (ceList == null)
             {
-                SetError("CE 响应解析失败");
+                if (TrySetError(revision, "CE 响应解析失败"))
+                {
+                    nextPollAt = DateTime.UtcNow.AddSeconds(5);
+                }
                 return;
             }
 
@@ -545,7 +538,10 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException)
         {
-            SetError(ex.Message);
+            if (TrySetError(revision, ex.Message))
+            {
+                nextPollAt = DateTime.UtcNow.AddSeconds(5);
+            }
         }
     }
 
@@ -591,21 +587,68 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
         return id > 0 ? id.ToString() : string.Empty;
     }
 
-    private PresenceScope CapturePresenceScope()
+    private CeCrowdsourcePresenceScope CapturePresenceScope()
     {
         var territoryId = Volatile.Read(ref presenceTerritoryId);
         if (!ZoneData.IsOccultCrescentTerritory(territoryId))
         {
-            return new PresenceScope(false, territoryId, 0, 0);
+            return new CeCrowdsourcePresenceScope(false, territoryId, 0, 0);
         }
 
         // Territory membership is authoritative. Nearby player objects are
         // streamed and may disappear briefly; they must never clear presence.
-        return new PresenceScope(
+        return new CeCrowdsourcePresenceScope(
             true,
             territoryId,
             CeZoneServerId.Current,
             GetCurrentInstanceId());
+    }
+
+    private void RefreshPresenceScope(DateTime now)
+    {
+        var current = CapturePresenceScope();
+        if (!hasPresenceScope)
+        {
+            lastPresenceScope = current;
+            hasPresenceScope = true;
+            return;
+        }
+
+        if (!CeCrowdsourcePresencePolicy.ShouldRestartConnection(lastPresenceScope, current))
+        {
+            return;
+        }
+
+        lastPresenceScope = current;
+        RestartConnection(now);
+    }
+
+    private void RestartConnection(DateTime now)
+    {
+        Interlocked.Increment(ref presenceRevision);
+
+        // Old requests are revision-guarded, so release their scheduling slots
+        // immediately. This lets a newly resolved island scope connect without
+        // waiting for the previous request's timeout or regular cadence.
+        activeHeartbeat = null;
+        activeFetch = null;
+        nextHeartbeatAt = now;
+        nextPollAt = now;
+        nextUploadAt = now;
+        ceETag = null;
+        ceETagScope = null;
+        lastUploadedStates.Clear();
+
+        lock (sync)
+        {
+            IslandOnlineCount = 0;
+            InstanceCount = 0;
+            IsUploader = false;
+            Records = [];
+            Connected = false;
+            LastSyncAt = null;
+            LastError = null;
+        }
     }
 
     private (string Name, string World) CacheHeartbeatIdentity()
@@ -667,12 +710,18 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
             return 0;
         }
     }
-    private void SetError(string message)
+    private bool TrySetError(long revision, string message)
     {
         lock (sync)
         {
+            if (revision != Volatile.Read(ref presenceRevision))
+            {
+                return false;
+            }
+
             Connected = false;
             LastError = message;
+            return true;
         }
     }
 
@@ -810,11 +859,6 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
         PropertyNameCaseInsensitive = true,
     };
 
-    private readonly record struct PresenceScope(
-        bool IsIsland,
-        uint TerritoryId,
-        uint ZoneServerId,
-        uint InstanceId);
 }
 
 
