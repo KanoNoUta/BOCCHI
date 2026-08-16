@@ -28,9 +28,17 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
 
     private static HttpClient CreateClient()
     {
-        var handler = new HttpClientHandler
+        // The bridge can be restarted independently of Dalamud. Do not keep a
+        // dead keep-alive socket forever: recreating the plugin used to be the
+        // only thing that flushed this pool after a server restart or a NAT
+        // idle timeout.
+        var handler = new SocketsHttpHandler
         {
             AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate,
+            ConnectTimeout = TimeSpan.FromSeconds(8),
+            PooledConnectionLifetime = TimeSpan.FromSeconds(45),
+            PooledConnectionIdleTimeout = TimeSpan.FromSeconds(20),
+            MaxConnectionsPerServer = 4,
         };
         var http = new HttpClient(handler)
         {
@@ -403,6 +411,7 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
         {
             if (TrySetError(revision, ex.Message))
             {
+                Svc.Log.Debug($"[CeCrowdsource] heartbeat failed; retrying: {ex.Message}");
                 nextHeartbeatAt = DateTime.UtcNow.AddSeconds(5);
             }
         }
@@ -540,6 +549,7 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
         {
             if (TrySetError(revision, ex.Message))
             {
+                Svc.Log.Debug($"[CeCrowdsource] fetch failed; retrying: {ex.Message}");
                 nextPollAt = DateTime.UtcNow.AddSeconds(5);
             }
         }

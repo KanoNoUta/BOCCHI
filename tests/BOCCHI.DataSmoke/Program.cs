@@ -125,6 +125,8 @@ static void RunCeCrowdsourceTests()
            && crowdsourceSource.Contains("activeHeartbeat = null", StringComparison.Ordinal)
            && crowdsourceSource.Contains("activeFetch = null", StringComparison.Ordinal)
            && crowdsourceSource.Contains("TrySetError(revision", StringComparison.Ordinal)
+           && crowdsourceSource.Contains("PooledConnectionLifetime = TimeSpan.FromSeconds(45)", StringComparison.Ordinal)
+           && crowdsourceSource.Contains("PooledConnectionIdleTimeout = TimeSpan.FromSeconds(20)", StringComparison.Ordinal)
            && File.ReadAllText(Path.Combine(
                    "BOCCHI", "Modules", "CeCrowdsource", "CeZoneServerId.cs"))
                .Contains("signature resolve failed; retrying", StringComparison.Ordinal),
