@@ -1104,10 +1104,87 @@ Assert(CombatAutomationPolicy.ShouldAcquireTarget(false, false)
        && CombatAutomationPolicy.ShouldAcquireTarget(true, true)
        && !CombatAutomationPolicy.ShouldAcquireTarget(false, true),
     "FATE arrival must acquire an initial target even when continuous force-target is disabled.");
+Assert(!CombatAutomationPolicy.ShouldAcquireTarget(
+           forceTarget: true,
+           hasValidActivityTarget: true,
+           AiType.BMR,
+           MonsterNote.LittleMage)
+       && CombatAutomationPolicy.ShouldAcquireTarget(
+           forceTarget: true,
+           hasValidActivityTarget: false,
+           AiType.BMR,
+           MonsterNote.LittleMage)
+       && CombatAutomationPolicy.ShouldAcquireTarget(
+           forceTarget: true,
+           hasValidActivityTarget: true,
+           AiType.VBM,
+           MonsterNote.LittleMage)
+       && CombatAutomationPolicy.ShouldAcquireTarget(
+           forceTarget: true,
+           hasValidActivityTarget: true,
+           AiType.BMR,
+           MonsterNote.Algol),
+    "BOCCHI must preserve BMR's valid Tiny Terror mechanic target without changing target behavior elsewhere.");
 Assert(CombatAutomationPolicy.ShouldRetryPromeRotation(true, false)
        && !CombatAutomationPolicy.ShouldRetryPromeRotation(false, false)
        && !CombatAutomationPolicy.ShouldRetryPromeRotation(true, true),
     "FATE combat maintenance must retry a loaded but stopped PromeRotation instance only.");
+
+var deathReturn = new DeathReturnTracker();
+Assert(deathReturn.Update(eligible: true, isDead: true, nowMs: 1_000, timeoutMs: 600_000, retryMs: 10_000)
+           == DeathReturnDecision.Wait
+       && deathReturn.Update(eligible: true, isDead: true, nowMs: 600_999, timeoutMs: 600_000, retryMs: 10_000)
+           == DeathReturnDecision.Wait
+       && deathReturn.Update(eligible: true, isDead: true, nowMs: 601_000, timeoutMs: 600_000, retryMs: 10_000)
+           == DeathReturnDecision.Trigger
+       && deathReturn.Update(eligible: true, isDead: true, nowMs: 610_999, timeoutMs: 600_000, retryMs: 10_000)
+           == DeathReturnDecision.Wait
+       && deathReturn.Update(eligible: true, isDead: true, nowMs: 611_000, timeoutMs: 600_000, retryMs: 10_000)
+           == DeathReturnDecision.Trigger,
+    "Death return must trigger at the configured timeout and retry at a bounded interval rather than every frame.");
+Assert(deathReturn.Update(eligible: true, isDead: false, nowMs: 612_000, timeoutMs: 600_000, retryMs: 10_000)
+           == DeathReturnDecision.Reset
+       && deathReturn.Update(eligible: true, isDead: true, nowMs: 700_000, timeoutMs: 600_000, retryMs: 10_000)
+           == DeathReturnDecision.Wait
+       && deathReturn.Update(eligible: false, isDead: true, nowMs: 700_001, timeoutMs: 600_000, retryMs: 10_000)
+           == DeathReturnDecision.Reset
+       && deathReturn.Update(eligible: true, isDead: true, nowMs: 1_400_000, timeoutMs: 600_000, retryMs: 10_000)
+           == DeathReturnDecision.Wait,
+    "Resurrection, automation stop, and leaving the island must reset death timing before a later death can return.");
+var deathReturnConfig = new AutomatorConfig();
+Assert(deathReturnConfig.AutoReturnAfterDeath
+       && deathReturnConfig.DeathReturnMinutes == 10,
+    "Automatic death return must be enabled by default with a 10-minute timeout.");
+Assert(DeathReturnPolicy.GetTimeoutMs(0) == 60_000
+       && DeathReturnPolicy.GetTimeoutMs(10) == 600_000
+       && DeathReturnPolicy.GetTimeoutMs(120) == 3_600_000,
+    "Death return must enforce the configured 1-60 minute range at runtime, not only in the settings UI.");
+var deathAutomatorModuleSource = File.ReadAllText(Path.Combine(
+    "BOCCHI", "Modules", "Automator", "AutomatorModule.cs"));
+var deathConfigWindowSource = File.ReadAllText(Path.Combine("BOCCHI", "Windows", "ConfigWindow.cs"));
+Assert(deathAutomatorModuleSource.Contains("HandleDeathReturn()", StringComparison.Ordinal)
+       && deathAutomatorModuleSource.Contains("StopLocalAutomationForDeath", StringComparison.Ordinal)
+       && deathAutomatorModuleSource.Contains("BocchiActions.Return.Cast()", StringComparison.Ordinal)
+       && deathAutomatorModuleSource.Contains("deathReturnPending && Player.IsDead", StringComparison.Ordinal)
+       && deathAutomatorModuleSource.Contains("OnDeathReturnSelectYesnoPostSetup", StringComparison.Ordinal)
+       && deathAutomatorModuleSource.Contains(
+           "AutomatorStopPolicy.ShouldRetry(deathMovementProvidersStopped, deathStopDrainAttempts)",
+           StringComparison.Ordinal)
+       && deathAutomatorModuleSource.Contains(
+           "TryStopMovementProviders(deathStopDrainAttempts)",
+           StringComparison.Ordinal),
+    "The automator must stop local work, invoke Return, and confirm only its own pending dead-player dialog.");
+Assert(deathConfigWindowSource.Contains("nameof(cfg.AutoReturnAfterDeath)", StringComparison.Ordinal)
+       && deathConfigWindowSource.Contains("nameof(cfg.DeathReturnMinutes)", StringComparison.Ordinal),
+    "Automation settings must expose the death-return switch and timeout.");
+foreach (var locale in new[] { "zh", "en", "jp", "fr" })
+{
+    var automatorTranslations = File.ReadAllText(Path.Combine(
+        "Translations", locale, "modules.automator.json"));
+    Assert(automatorTranslations.Contains("\"auto_return_after_death\"", StringComparison.Ordinal)
+           && automatorTranslations.Contains("\"death_return_minutes\"", StringComparison.Ordinal),
+        $"The {locale} automation translations must describe death return settings.");
+}
 Assert(TreasureInteractionPolicy.CanAttempt(true, false, false)
        && TreasureInteractionPolicy.CanAttempt(false, false, false)
        && !TreasureInteractionPolicy.CanAttempt(true, true, false)

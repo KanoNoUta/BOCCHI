@@ -6,6 +6,14 @@
           "label": "Plugin d'IA",
           "tooltip": "Le plugin que vous utilisez pour gérer les combats."
         },
+        "auto_return_after_death": {
+          "label": "Retour après délai de mort",
+          "tooltip": "Pendant l'automatisation, retourne à la base si personne ne vous ressuscite avant le délai configuré"
+        },
+        "death_return_minutes": {
+          "label": "Attente après la mort (minutes)",
+          "tooltip": "Durée d'attente d'une résurrection avant le retour automatique à la base"
+        },
         "delay_critical_encounters": {
           "label": "Délai avant de se diriger vers une confrontation critique",
           "tooltip": "Ajoute un délai aléatoire configuré séparément avant une confrontation critique"

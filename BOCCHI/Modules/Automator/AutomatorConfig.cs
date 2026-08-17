@@ -48,6 +48,18 @@ public class AutomatorConfig : ModuleConfig
 
     [FloatRange(5f, 30f)] public float EngagementRange { get; set; } = 5f;
 
+    [Checkbox] public bool AutoReturnAfterDeath { get; set; } = true;
+
+    public bool ShouldAutoReturnAfterDeath
+    {
+        get => IsPropertyEnabled(nameof(AutoReturnAfterDeath));
+    }
+
+    [IntRange(1, 60)]
+    [DependsOn(nameof(AutoReturnAfterDeath))]
+    [Indent]
+    public int DeathReturnMinutes { get; set; } = 10;
+
     [Enum(typeof(InstanceEntryArea), nameof(InstanceEntryAreaProvider))]
     public InstanceEntryArea InitialInstanceArea { get; set; } = InstanceEntryArea.NorthHorn;
 

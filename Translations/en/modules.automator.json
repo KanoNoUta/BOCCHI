@@ -26,6 +26,14 @@
           "label": "Engagement Range",
           "tooltip": "The range to be at from a fate monster before dismounting and letting your rotation/ai plugin take over"
         },
+        "auto_return_after_death": {
+          "label": "Return after death timeout",
+          "tooltip": "While automation is running, return to base if no one revives you before the configured timeout"
+        },
+        "death_return_minutes": {
+          "label": "Death wait time (minutes)",
+          "tooltip": "How long to wait for a revive before automatically returning to base"
+        },
         "initial_instance_area": {
           "label": "Area to enter from outside",
           "tooltip": "When Illegal Mode is started outside the Occult Crescent, request entry to this area through DailyRoutines",

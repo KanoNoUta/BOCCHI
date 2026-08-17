@@ -414,7 +414,9 @@ public abstract class Activity : IDisposable
                     if (target != null
                         && CombatAutomationPolicy.ShouldAcquireTarget(
                             module.Config.ShouldForceTarget,
-                            HasValidActivityTarget()))
+                            HasValidActivityTarget(),
+                            module.Config.AiProvider,
+                            data.Note))
                     {
                         Svc.Targets.Target = target;
                     }
@@ -447,7 +449,12 @@ public abstract class Activity : IDisposable
                     }
 
                     var target = SelectPreferredTarget();
-                    if (target != null && (module.Config.ShouldForceTarget || !HasValidActivityTarget()))
+                    if (target != null
+                        && CombatAutomationPolicy.ShouldAcquireTarget(
+                            module.Config.ShouldForceTarget,
+                            HasValidActivityTarget(),
+                            module.Config.AiProvider,
+                            data.Note))
                     {
                         Svc.Targets.Target = target;
                     }
@@ -622,8 +629,19 @@ public enum CombatStartupDecision
 
 public static class CombatAutomationPolicy
 {
-    public static bool ShouldAcquireTarget(bool forceTarget, bool hasValidActivityTarget)
+    public static bool ShouldAcquireTarget(
+        bool forceTarget,
+        bool hasValidActivityTarget,
+        AiType aiProvider = AiType.VBM,
+        MonsterNote? encounterNote = null)
     {
+        if (aiProvider == AiType.BMR
+            && encounterNote == MonsterNote.LittleMage
+            && hasValidActivityTarget)
+        {
+            return false;
+        }
+
         return forceTarget || !hasValidActivityTarget;
     }
 

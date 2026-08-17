@@ -30,6 +30,14 @@
           "label": "接战距离",
           "tooltip": "距离FATE怪物多远时下坐骑并启动循环/AI插件"
         },
+        "auto_return_after_death": {
+          "label": "死亡超时自动返回",
+          "tooltip": "自动模式运行时，死亡并等待指定时间仍未被救援则返回基地"
+        },
+        "death_return_minutes": {
+          "label": "死亡等待时间（分钟）",
+          "tooltip": "死亡后等待救援的时间，超时后自动返回基地"
+        },
         "initial_instance_area": {
           "label": "岛外启动进入区域",
           "tooltip": "在蜃景岛外开启自动模式时，通过DailyRoutines申请进入所选区域",

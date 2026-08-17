@@ -339,6 +339,8 @@ public class ConfigWindow(Plugin primaryPlugin, Config config) : OcelotConfigWin
         DrawFloat(module, cfg, nameof(cfg.EngagementRange), 5f, 30f, "%.1f");
 
         DrawSectionTitle(T("editors.automation.event_behavior"));
+        DrawBoolean(module, cfg, nameof(cfg.AutoReturnAfterDeath));
+        DrawInt(module, cfg, nameof(cfg.DeathReturnMinutes), 1, 60, !cfg.AutoReturnAfterDeath);
         DrawBoolean(module, cfg, nameof(cfg.StanceOnBeforeDoFates), !cfg.DoFates);
         DrawBoolean(module, cfg, nameof(cfg.DelayFates), !cfg.DoFates);
         DrawFloat(module, cfg, nameof(cfg.MinFateDelay), 0f, 30f, T("units.seconds_1"), !cfg.DelayFates);

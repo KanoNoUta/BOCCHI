@@ -6,8 +6,10 @@ using BOCCHI.Modules.Treasure;
 using Dalamud.Game.Addon.Lifecycle;
 using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
 using ECommons.DalamudServices;
+using ECommons.GameHelpers;
 using BOCCHI.Pathfinding;
 using FFXIVClientStructs.FFXIV.Client.UI;
+using FFXIVClientStructs.FFXIV.Component.GUI;
 using Ocelot;
 using Ocelot.Chain;
 using Ocelot.IPC;
@@ -16,12 +18,16 @@ using Ocelot.Windows;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using BocchiActions = BOCCHI.ActionHelpers.Actions;
 
 namespace BOCCHI.Modules.Automator;
 
 [OcelotModule(int.MaxValue - 1)]
 public class AutomatorModule : Module
 {
+    private const long DeathReturnRetryMs = 10_000;
+    private const long DeathReturnConfirmationWindowMs = 3_000;
+
     private bool vnavmeshFailureReported;
 
     private readonly AutomatorRunStateMachine runState = new();
@@ -33,6 +39,18 @@ public class AutomatorModule : Module
     private int stopDrainAttempts;
 
     private bool movementProvidersStopped;
+
+    private readonly DeathReturnTracker deathReturnTracker = new();
+
+    private bool deathAutomationStopped;
+
+    private int deathStopDrainAttempts;
+
+    private bool deathMovementProvidersStopped;
+
+    private bool deathReturnPending;
+
+    private long deathReturnConfirmationDeadlineMs;
 
     public override AutomatorConfig Config
     {
@@ -82,6 +100,10 @@ public class AutomatorModule : Module
             AddonEvent.PostDraw,
             "ContentsFinderConfirm",
             OnContentsFinderConfirmPostDraw);
+        Svc.AddonLifecycle.RegisterListener(
+            AddonEvent.PostSetup,
+            "SelectYesno",
+            OnDeathReturnSelectYesnoPostSetup);
     }
 
     public override void Dispose()
@@ -90,11 +112,20 @@ public class AutomatorModule : Module
             AddonEvent.PostDraw,
             "ContentsFinderConfirm",
             OnContentsFinderConfirmPostDraw);
+        Svc.AddonLifecycle.UnregisterListener(
+            AddonEvent.PostSetup,
+            "SelectYesno",
+            OnDeathReturnSelectYesnoPostSetup);
     }
 
 
     public override void PostUpdate(UpdateContext context)
     {
+        if (HandleDeathReturn())
+        {
+            return;
+        }
+
         if (!Config.Enabled)
         {
             return;
@@ -139,6 +170,7 @@ public class AutomatorModule : Module
 
     public override void OnTerritoryChanged(uint id)
     {
+        ResetDeathReturn();
         // Navigation and submitted activity chains are territory-bound. Always
         // terminate them before refreshing, including South Horn <-> North Horn.
         Plugin.Chain.Abort();
@@ -303,6 +335,7 @@ public class AutomatorModule : Module
 
     private void BeginStopRequest()
     {
+        ResetDeathReturn();
         disableAiProviderOnStop = Config.ShouldToggleAiProvider;
         Config.Enabled = false;
         startSideEffectsPrepared = false;
@@ -343,12 +376,101 @@ public class AutomatorModule : Module
         TryStopStep(() => Svc.Targets.Target = null, "clear the current target");
     }
 
+    private bool HandleDeathReturn()
+    {
+        var nowMs = Environment.TickCount64;
+        if (deathReturnPending && nowMs > deathReturnConfirmationDeadlineMs)
+        {
+            deathReturnPending = false;
+        }
+
+        var eligible = Config.Enabled
+                       && runState.CanRunWork
+                       && Config.ShouldAutoReturnAfterDeath
+                       && BOCCHI.Data.ZoneData.IsInOccultCrescent();
+        var decision = deathReturnTracker.Update(
+            eligible,
+            Player.IsDead,
+            nowMs,
+            DeathReturnPolicy.GetTimeoutMs(Config.DeathReturnMinutes),
+            DeathReturnRetryMs);
+
+        if (decision == DeathReturnDecision.Reset)
+        {
+            ResetDeathReturn();
+            return false;
+        }
+
+        if (!deathAutomationStopped)
+        {
+            StopLocalAutomationForDeath();
+            deathAutomationStopped = true;
+        }
+        else
+        {
+            DrainMovementProvidersForDeath();
+        }
+
+        if (decision == DeathReturnDecision.Trigger)
+        {
+            deathReturnPending = true;
+            deathReturnConfirmationDeadlineMs = nowMs + DeathReturnConfirmationWindowMs;
+            try
+            {
+                BocchiActions.Return.Cast();
+                Svc.Log.Info(
+                    $"Player remained dead for {Config.DeathReturnMinutes} minute(s); requesting Return.");
+            }
+            catch (Exception exception)
+            {
+                deathReturnPending = false;
+                Svc.Log.Warning(exception, "Could not request Return for the dead player; the request will retry.");
+            }
+        }
+
+        return true;
+    }
+
+    private void StopLocalAutomationForDeath()
+    {
+        Svc.Log.Info("Player is dead; suspending local automation while waiting for resurrection or timed Return.");
+        StopLocalAutomation();
+        TryStopStep(() => SetAiProviderEnabled(false), "release the AI provider while dead");
+        DrainMovementProvidersForDeath();
+    }
+
+    private void DrainMovementProvidersForDeath()
+    {
+        if (!AutomatorStopPolicy.ShouldRetry(deathMovementProvidersStopped, deathStopDrainAttempts))
+        {
+            return;
+        }
+
+        deathStopDrainAttempts++;
+        deathMovementProvidersStopped = TryStopMovementProviders(deathStopDrainAttempts);
+        if (!deathMovementProvidersStopped && deathStopDrainAttempts == AutomatorStopPolicy.MaxAttempts)
+        {
+            Svc.Log.Warning(
+                "Death recovery exhausted movement-provider drain attempts; local tasks remain cancelled.");
+        }
+    }
+
+    private void ResetDeathReturn()
+    {
+        deathReturnTracker.Reset();
+        deathAutomationStopped = false;
+        deathStopDrainAttempts = 0;
+        deathMovementProvidersStopped = false;
+        deathReturnPending = false;
+        deathReturnConfirmationDeadlineMs = 0;
+    }
+
     private void CompleteStopRequest()
     {
         if (!movementProvidersStopped)
         {
             stopDrainAttempts++;
-            movementProvidersStopped = TryStopMovementProviders();
+            movementProvidersStopped = TryStopMovementProviders(stopDrainAttempts);
             if (AutomatorStopPolicy.ShouldRetry(movementProvidersStopped, stopDrainAttempts))
             {
                 _ = Svc.Framework.RunOnTick(CompleteStopRequest);
@@ -410,7 +532,7 @@ public class AutomatorModule : Module
         _ = TryStopMovementProviders();
     }
 
-    private bool TryStopMovementProviders()
+    private bool TryStopMovementProviders(int completedAttempts = 0)
     {
         var navigationStopped = !IsPluginLoaded(VnavmeshAvailabilityPolicy.PluginInternalName);
         if (!navigationStopped)
@@ -425,7 +547,7 @@ public class AutomatorModule : Module
             }
             catch (Exception exception)
             {
-                LogStopDrainFailure(exception, "vnavmesh");
+                LogStopDrainFailure(exception, "vnavmesh", completedAttempts);
             }
         }
 
@@ -442,16 +564,16 @@ public class AutomatorModule : Module
             }
             catch (Exception exception)
             {
-                LogStopDrainFailure(exception, "Lifestream");
+                LogStopDrainFailure(exception, "Lifestream", completedAttempts);
             }
         }
 
         return navigationStopped && lifestreamStopped;
     }
 
-    private void LogStopDrainFailure(Exception exception, string provider)
+    private static void LogStopDrainFailure(Exception exception, string provider, int completedAttempts)
     {
-        if (stopDrainAttempts is 0 or 1 || stopDrainAttempts == AutomatorStopPolicy.MaxAttempts)
+        if (completedAttempts is 0 or 1 || completedAttempts == AutomatorStopPolicy.MaxAttempts)
         {
             Svc.Log.Warning(exception, $"Automation stop is waiting for {provider} IPC to become available.");
         }
@@ -557,5 +679,28 @@ public class AutomatorModule : Module
 
         addon->AtkUnitBase.FireCallbackInt(8);
         instanceRotation.RecordEntryConfirmationClick();
+    }
+
+    private unsafe void OnDeathReturnSelectYesnoPostSetup(AddonEvent type, AddonArgs args)
+    {
+        var nowMs = Environment.TickCount64;
+        if (!(deathReturnPending && Player.IsDead)
+            || nowMs > deathReturnConfirmationDeadlineMs
+            || !Config.Enabled
+            || !Config.ShouldAutoReturnAfterDeath
+            || !BOCCHI.Data.ZoneData.IsInOccultCrescent())
+        {
+            return;
+        }
+
+        var addon = (AtkUnitBase*)args.Addon.Address;
+        if (addon == null || !addon->IsVisible)
+        {
+            return;
+        }
+
+        addon->FireCallbackInt(0);
+        deathReturnPending = false;
+        Svc.Log.Info("Confirmed the timed dead-player Return request.");
     }
 }
