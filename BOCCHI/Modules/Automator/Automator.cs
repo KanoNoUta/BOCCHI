@@ -130,8 +130,10 @@ public class Automator
             var endedActivityType = Activity.data.Type;
             var shouldReturn = PostActivityReturnPolicy.ShouldQueue(
                 Activity.data.Type,
+                module.PluginConfig.TeleporterConfig.ReturnAfterFate,
+                module.PluginConfig.TeleporterConfig.ReturnAfterCriticalEncounter,
                 module.IsIndependentNavigationRunning);
-            var returnReason = $"FATE {Activity.data.Id} ended";
+            var returnReason = $"{endedActivityType} {Activity.data.Id} ended";
             Plugin.Chain.Abort();
             vnav.Stop();
             // A teleport may already have been accepted by Lifestream before
@@ -176,8 +178,10 @@ public class Automator
                 var endedActivityType = Activity.data.Type;
                 var shouldReturn = PostActivityReturnPolicy.ShouldQueue(
                     Activity.data.Type,
+                    module.PluginConfig.TeleporterConfig.ReturnAfterFate,
+                    module.PluginConfig.TeleporterConfig.ReturnAfterCriticalEncounter,
                     module.IsIndependentNavigationRunning);
-                var returnReason = $"FATE {Activity.data.Id} completed";
+                var returnReason = $"{endedActivityType} {Activity.data.Id} completed";
                 module.SetAiProviderEnabled(false);
                 PromeRotationController.Stop();
                 ClearActivity();
@@ -531,9 +535,23 @@ public static class AutomatorChainPolicy
 
 public static class PostActivityReturnPolicy
 {
-    public static bool ShouldQueue(EventType eventType, bool independentNavigationRunning = false)
+    public static bool ShouldQueue(
+        EventType eventType,
+        bool returnAfterFate,
+        bool returnAfterCriticalEncounter,
+        bool independentNavigationRunning = false)
     {
-        return !independentNavigationRunning && eventType == EventType.Fate;
+        if (independentNavigationRunning)
+        {
+            return false;
+        }
+
+        return eventType switch
+        {
+            EventType.Fate => returnAfterFate,
+            EventType.CriticalEncounter => returnAfterCriticalEncounter,
+            _ => false,
+        };
     }
 }
 

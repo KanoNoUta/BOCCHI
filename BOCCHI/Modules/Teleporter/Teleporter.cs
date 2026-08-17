@@ -163,13 +163,17 @@ public class Teleporter(TeleporterModule module)
 
         if (automator.IsEnabled)
         {
-            // Automatic mode has its own deterministic post-FATE policy: get
-            // back to base camp before selecting the next activity. Do not
-            // inherit the manual teleporter toggle here, otherwise the route
-            // planner can walk to a nearby shard and chain-teleport instead.
-            automator.automator.QueuePostActivityReturn(
-                "FATE completion",
-                automator.IsIndependentNavigationRunning);
+            if (PostActivityReturnPolicy.ShouldQueue(
+                    EventType.Fate,
+                    module.Config.ReturnAfterFate,
+                    module.Config.ReturnAfterCriticalEncounter,
+                    automator.IsIndependentNavigationRunning))
+            {
+                automator.automator.QueuePostActivityReturn(
+                    "FATE completion",
+                    automator.IsIndependentNavigationRunning);
+            }
+
             return;
         }
 
@@ -193,7 +197,11 @@ public class Teleporter(TeleporterModule module)
 
         if (automator.IsEnabled)
         {
-            if (module.Config.ReturnAfterCriticalEncounter)
+            if (PostActivityReturnPolicy.ShouldQueue(
+                    EventType.CriticalEncounter,
+                    module.Config.ReturnAfterFate,
+                    module.Config.ReturnAfterCriticalEncounter,
+                    automator.IsIndependentNavigationRunning))
             {
                 automator.automator.QueuePostActivityReturn(
                     "critical encounter completion",

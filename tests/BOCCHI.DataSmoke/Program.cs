@@ -845,9 +845,27 @@ if (args.Contains("--treasure-route", StringComparer.OrdinalIgnoreCase))
 
 if (args.Contains("--automator-run-state", StringComparer.OrdinalIgnoreCase))
 {
-    Assert(PostActivityReturnPolicy.ShouldQueue(EventType.Fate, independentNavigationRunning: false)
-           && !PostActivityReturnPolicy.ShouldQueue(EventType.Fate, independentNavigationRunning: true),
-        "Independent navigation must suppress the automatic post-FATE return without changing normal FATE behavior.");
+    Assert(PostActivityReturnPolicy.ShouldQueue(
+               EventType.Fate,
+               returnAfterFate: true,
+               returnAfterCriticalEncounter: false,
+               independentNavigationRunning: false)
+           && PostActivityReturnPolicy.ShouldQueue(
+               EventType.CriticalEncounter,
+               returnAfterFate: false,
+               returnAfterCriticalEncounter: true,
+               independentNavigationRunning: false)
+           && !PostActivityReturnPolicy.ShouldQueue(
+               EventType.Fate,
+               returnAfterFate: true,
+               returnAfterCriticalEncounter: true,
+               independentNavigationRunning: true)
+           && !PostActivityReturnPolicy.ShouldQueue(
+               EventType.CriticalEncounter,
+               returnAfterFate: true,
+               returnAfterCriticalEncounter: true,
+               independentNavigationRunning: true),
+        "Matching FATE/CE return switches must queue their event unless independent navigation owns movement.");
 
     var runState = new AutomatorRunStateMachine();
     Assert(runState.State == AutomatorRunState.Stopped,
@@ -994,12 +1012,27 @@ if (args.Contains("--automator-run-state", StringComparer.OrdinalIgnoreCase))
     var fateEndStart = teleporterSource.IndexOf("public void OnFateEnd", StringComparison.Ordinal);
     var criticalEndStart = teleporterSource.IndexOf("public void OnCriticalEncounterEnd", StringComparison.Ordinal);
     var fateEndSource = teleporterSource[fateEndStart..criticalEndStart];
+    var automaticFateStart = fateEndSource.IndexOf("if (automator.IsEnabled)", StringComparison.Ordinal);
+    var manualFateStart = fateEndSource.IndexOf("if (!module.Config.ReturnAfterFate)", StringComparison.Ordinal);
+    var automaticFateSource = fateEndSource[automaticFateStart..manualFateStart];
     Assert(fateEndSource.Contains("automator.IsIndependentNavigationRunning", StringComparison.Ordinal)
            && fateEndSource.IndexOf("automator.IsIndependentNavigationRunning", StringComparison.Ordinal)
            < fateEndSource.IndexOf("automator.IsEnabled", StringComparison.Ordinal)
            && fateEndSource.IndexOf("automator.IsIndependentNavigationRunning", StringComparison.Ordinal)
            < fateEndSource.IndexOf("Return();", StringComparison.Ordinal),
         "FATE exit handling must suppress both automatic and manual returns while treasure navigation owns movement.");
+    Assert(automaticFateSource.Contains("module.Config.ReturnAfterFate", StringComparison.Ordinal),
+        "Automatic-mode FATE exit handling must honor the configured FATE return switch.");
+
+    var automatorSource = File.ReadAllText(Path.Combine(
+        "BOCCHI", "Modules", "Automator", "Automator.cs"));
+    Assert(Regex.Matches(
+               automatorSource,
+               "module\\.PluginConfig\\.TeleporterConfig\\.ReturnAfterFate").Count >= 2
+           && Regex.Matches(
+               automatorSource,
+               "module\\.PluginConfig\\.TeleporterConfig\\.ReturnAfterCriticalEncounter").Count >= 2,
+        "Both Automator lifecycle completion paths must use the saved FATE and CE return switches.");
 
     Console.WriteLine("BOCCHI automator run-state smoke tests passed.");
     return;
@@ -1082,11 +1115,38 @@ Assert(AggroAvoidancePlanner.TryAvoid(
        && AggroAvoidancePlanner.IsPathClear(insideEscapePath, [aggroZone], 6f),
     "A route starting inside and initially travelling deeper must first escape outward, then detour without deadlock.");
 
-Assert(PostActivityReturnPolicy.ShouldQueue(EventType.Fate, independentNavigationRunning: false)
-       && !PostActivityReturnPolicy.ShouldQueue(EventType.CriticalEncounter, independentNavigationRunning: false),
-    "Completed FATEs must lock the automator into a base-camp return before selecting another activity.");
-Assert(!PostActivityReturnPolicy.ShouldQueue(EventType.Fate, independentNavigationRunning: true),
-    "An independent treasure hunt must own navigation and suppress the post-FATE base-camp return.");
+Assert(PostActivityReturnPolicy.ShouldQueue(
+           EventType.Fate,
+           returnAfterFate: true,
+           returnAfterCriticalEncounter: false,
+           independentNavigationRunning: false)
+       && !PostActivityReturnPolicy.ShouldQueue(
+           EventType.Fate,
+           returnAfterFate: false,
+           returnAfterCriticalEncounter: true,
+           independentNavigationRunning: false)
+       && PostActivityReturnPolicy.ShouldQueue(
+           EventType.CriticalEncounter,
+           returnAfterFate: false,
+           returnAfterCriticalEncounter: true,
+           independentNavigationRunning: false)
+       && !PostActivityReturnPolicy.ShouldQueue(
+           EventType.CriticalEncounter,
+           returnAfterFate: true,
+           returnAfterCriticalEncounter: false,
+           independentNavigationRunning: false),
+    "Completed FATEs and CEs must honor their matching return switch.");
+Assert(!PostActivityReturnPolicy.ShouldQueue(
+           EventType.Fate,
+           returnAfterFate: true,
+           returnAfterCriticalEncounter: true,
+           independentNavigationRunning: true)
+       && !PostActivityReturnPolicy.ShouldQueue(
+           EventType.CriticalEncounter,
+           returnAfterFate: true,
+           returnAfterCriticalEncounter: true,
+           independentNavigationRunning: true),
+    "An independent treasure hunt must own navigation and suppress every post-activity base-camp return.");
 Assert(ActivitySelectionPolicy.GetOrder(preferFate: false)
            .SequenceEqual([EventType.CriticalEncounter, EventType.Fate])
        && ActivitySelectionPolicy.GetOrder(preferFate: true)
