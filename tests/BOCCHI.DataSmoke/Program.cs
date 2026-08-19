@@ -125,6 +125,18 @@ static void RunCeCrowdsourceTests()
            && crowdsourceSource.Contains("activeHeartbeat = null", StringComparison.Ordinal)
            && crowdsourceSource.Contains("activeFetch = null", StringComparison.Ordinal)
            && crowdsourceSource.Contains("TrySetError(revision", StringComparison.Ordinal)
+           && crowdsourceSource.Contains(
+               "private readonly HttpClient client = CreateClient()",
+               StringComparison.Ordinal)
+           && !crowdsourceSource.Contains(
+               "private static readonly HttpClient client",
+               StringComparison.Ordinal)
+           && crowdsourceSource.Contains("CancelConnectionRequests()", StringComparison.Ordinal)
+           && crowdsourceSource.Contains("SendWithRetryAsync", StringComparison.Ordinal)
+           && crowdsourceSource.Contains("DescribeException", StringComparison.Ordinal)
+           && crowdsourceSource.Contains("uploadGate.WaitAsync", StringComparison.Ordinal)
+           && crowdsourceSource.Contains("CE data retained", StringComparison.Ordinal)
+           && crowdsourceSource.Contains("if (!wasEnabled)", StringComparison.Ordinal)
            && crowdsourceSource.Contains("PooledConnectionLifetime = TimeSpan.FromSeconds(45)", StringComparison.Ordinal)
            && crowdsourceSource.Contains("PooledConnectionIdleTimeout = TimeSpan.FromSeconds(20)", StringComparison.Ordinal)
            && File.ReadAllText(Path.Combine(

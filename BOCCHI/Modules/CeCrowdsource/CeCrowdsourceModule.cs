@@ -9,9 +9,11 @@ using Ocelot.Windows;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -23,8 +25,11 @@ namespace BOCCHI.Modules.CeCrowdsource;
 public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(plugin, config)
 {
     private const int DataCenterID = 101;
+    private const int RetiredConnectionScopeLimit = 32;
 
-    private static readonly HttpClient client = CreateClient();
+    // Keep the pool scoped to the module instance.  A static client used to be
+    // disposed when the plugin was reloaded, leaving every later instance
+    // with an already-disposed HttpClient and no way to reconnect.
 
     private static HttpClient CreateClient()
     {
@@ -50,7 +55,12 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
 
     private readonly Panel panel = new();
     private readonly object sync = new();
+    private readonly object requestSync = new();
     private readonly CancellationTokenSource cts = new();
+    private readonly HttpClient client = CreateClient();
+    private readonly SemaphoreSlim uploadGate = new(1, 1);
+    private CancellationTokenSource connectionCts = new();
+    private readonly List<CancellationTokenSource> retiredConnectionCts = [];
 
     private DateTime nextHeartbeatAt = DateTime.UtcNow;
     private DateTime nextPollAt = DateTime.UtcNow;
@@ -58,6 +68,7 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
     private Task? activeFetch;
     private Task? activeHeartbeat;
     private bool frameworkTickRegistered;
+    private bool wasEnabled;
     private long presenceRevision;
     private uint presenceTerritoryId;
     private CeCrowdsourcePresenceScope lastPresenceScope;
@@ -124,6 +135,7 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
     public override void PostInitialize()
     {
         base.PostInitialize();
+        wasEnabled = IsEnabled;
         presenceTerritoryId = Svc.ClientState.TerritoryType;
         Svc.Framework.Update += OnFrameworkTick;
         frameworkTickRegistered = true;
@@ -188,10 +200,38 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
     {
         if (!IsEnabled)
         {
+            if (wasEnabled)
+            {
+                wasEnabled = false;
+                Interlocked.Increment(ref presenceRevision);
+                CancelConnectionRequests();
+                activeHeartbeat = null;
+                activeFetch = null;
+                ceETag = null;
+                ceETagScope = null;
+                lastUploadedStates.Clear();
+                lock (sync)
+                {
+                    Records = [];
+                    IslandOnlineCount = 0;
+                    InstanceCount = 0;
+                    IsUploader = false;
+                    Connected = false;
+                    LastSyncAt = null;
+                    LastError = null;
+                }
+            }
+
             return;
         }
 
         var now = DateTime.UtcNow;
+        if (!wasEnabled)
+        {
+            wasEnabled = true;
+            RestartConnection(now);
+        }
+
         RefreshPresenceScope(now);
 
         if (Config.SendHeartbeat && now >= nextHeartbeatAt)
@@ -248,8 +288,9 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
         }
 
         cts.Cancel();
-        cts.Dispose();
+        CancelAndDisposeRequestScopes();
         client.Dispose();
+        cts.Dispose();
         base.Dispose();
     }
 
@@ -331,13 +372,17 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
     private async Task SendHeartbeatAsync()
     {
         var revision = Volatile.Read(ref presenceRevision);
+        var requestToken = CaptureRequestToken();
         var presence = CapturePresenceScope();
         if (presence.IsIsland && presence.ZoneServerId == 0)
         {
             // A zero zone ID cannot identify the current island. Sending it
             // would make the server classify this client as outside and a
             // stats request with zone=0 would return the all-island aggregate.
-            nextHeartbeatAt = DateTime.UtcNow.AddSeconds(2);
+            if (revision == Volatile.Read(ref presenceRevision))
+            {
+                nextHeartbeatAt = DateTime.UtcNow.AddSeconds(2);
+            }
             return;
         }
 
@@ -354,72 +399,110 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
                 instanceID = FormatInstanceId(presence.InstanceId),
             };
             var json = JsonSerializer.Serialize(payload);
-            using var content = new StringContent(json, Encoding.UTF8, "application/json");
-            if (!string.IsNullOrWhiteSpace(Config.ApiToken))
-            {
-                content.Headers.TryAddWithoutValidation("X-Auth-Token", Config.ApiToken);
-            }
-            using var response = await client.PostAsync($"{Config.ServerUrl}/api/heartbeat", content, cts.Token);
-            if (response.IsSuccessStatusCode)
-            {
-                var body = await response.Content.ReadAsStringAsync(cts.Token);
-                var stats = JsonSerializer.Deserialize<CeHeartbeatResponse>(body, JsonOptions);
-                if (stats != null)
+            var baseUrl = Config.ServerUrl.Trim().TrimEnd('/');
+            using var response = await SendWithRetryAsync(
+                async token =>
                 {
-                    lock (sync)
+                    using var content = new StringContent(json, Encoding.UTF8, "application/json");
+                    if (!string.IsNullOrWhiteSpace(Config.ApiToken))
                     {
-                        if (revision != Volatile.Read(ref presenceRevision))
-                        {
-                            return;
-                        }
-
-                        OnlineCount = stats.Online;
-                        if (CeCrowdsourcePresencePolicy.CanPublishIslandPresence(
-                                presence.IsIsland, presence.ZoneServerId))
-                        {
-                            IslandOnlineCount = stats.IslandOnline;
-                        }
-                        // The heartbeat renews the upload lease, so this flag
-                        // is what gates uploading until the next beat.
-                        IsUploader = CeCrowdsourcePresencePolicy.CanPublishIslandPresence(
-                                         presence.IsIsland, presence.ZoneServerId)
-                                     && stats.IsUploader;
-                        if (stats.UploaderSlots > 0)
-                        {
-                            UploaderSlots = stats.UploaderSlots;
-                        }
-
-                        if (stats.RetentionMinutes > 0)
-                        {
-                            RetentionMinutes = stats.RetentionMinutes;
-                        }
-
-                        if (stats.PollIntervalSeconds > 0)
-                        {
-                            serverPollIntervalSeconds = stats.PollIntervalSeconds;
-                        }
-
-                        if (stats.HeartbeatIntervalSeconds > 0)
-                        {
-                            serverHeartbeatIntervalSeconds = stats.HeartbeatIntervalSeconds;
-                        }
+                        content.Headers.TryAddWithoutValidation("X-Auth-Token", Config.ApiToken);
                     }
+
+                    return await client.PostAsync($"{baseUrl}/api/heartbeat", content, token);
+                },
+                requestToken,
+                "heartbeat");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                HandleHttpFailure(
+                    revision,
+                    "heartbeat",
+                    response.StatusCode,
+                    isHeartbeat: true,
+                    requestToken: requestToken);
+                return;
+            }
+
+            var body = await response.Content.ReadAsStringAsync(requestToken);
+            var stats = JsonSerializer.Deserialize<CeHeartbeatResponse>(body, JsonOptions);
+            if (stats == null)
+            {
+                HandleRequestFailure(
+                    revision,
+                    "heartbeat",
+                    new JsonException("心跳响应为空"),
+                    isHeartbeat: true,
+                    requestToken: requestToken);
+                return;
+            }
+
+            lock (sync)
+            {
+                if (revision != Volatile.Read(ref presenceRevision))
+                {
+                    return;
                 }
+
+                OnlineCount = stats.Online;
+                if (CeCrowdsourcePresencePolicy.CanPublishIslandPresence(
+                        presence.IsIsland, presence.ZoneServerId))
+                {
+                    IslandOnlineCount = stats.IslandOnline;
+                }
+                // The heartbeat renews the upload lease, so this flag is what
+                // gates uploading until the next beat.
+                IsUploader = CeCrowdsourcePresencePolicy.CanPublishIslandPresence(
+                                 presence.IsIsland, presence.ZoneServerId)
+                             && stats.IsUploader;
+                if (stats.UploaderSlots > 0)
+                {
+                    UploaderSlots = stats.UploaderSlots;
+                }
+
+                if (stats.RetentionMinutes > 0)
+                {
+                    RetentionMinutes = stats.RetentionMinutes;
+                }
+
+                if (stats.PollIntervalSeconds > 0)
+                {
+                    serverPollIntervalSeconds = stats.PollIntervalSeconds;
+                }
+
+                if (stats.HeartbeatIntervalSeconds > 0)
+                {
+                    serverHeartbeatIntervalSeconds = stats.HeartbeatIntervalSeconds;
+                }
+
+                // A successful heartbeat is a valid server connection even
+                // while the event list is waiting for its next poll.
+                Connected = true;
+                LastError = null;
             }
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException)
+        catch (OperationCanceledException) when (
+            requestToken.IsCancellationRequested || cts.IsCancellationRequested)
         {
-            if (TrySetError(revision, ex.Message))
-            {
-                Svc.Log.Debug($"[CeCrowdsource] heartbeat failed; retrying: {ex.Message}");
-                nextHeartbeatAt = DateTime.UtcNow.AddSeconds(5);
-            }
+            // Scope changes and plugin disposal deliberately cancel old
+            // requests. They are not connection failures for the new scope.
+        }
+        catch (Exception ex)
+        {
+            HandleRequestFailure(
+                revision,
+                "heartbeat",
+                ex,
+                isHeartbeat: true,
+                requestToken: requestToken);
         }
     }
 
     private async Task FetchAsync()
     {
         var revision = Volatile.Read(ref presenceRevision);
+        var requestToken = CaptureRequestToken();
         var presence = CapturePresenceScope();
         if (!presence.IsIsland)
         {
@@ -439,7 +522,10 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
                 LastSyncAt = null;
             }
 
-            nextPollAt = DateTime.UtcNow.AddSeconds(5);
+            if (revision == Volatile.Read(ref presenceRevision))
+            {
+                nextPollAt = DateTime.UtcNow.AddSeconds(5);
+            }
             return;
         }
 
@@ -448,13 +534,16 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
             // Wait until the zone server identity is available before making
             // an island-scoped request. zone=0 is an aggregate query on the
             // bridge server, not a valid current-island scope.
-            nextPollAt = DateTime.UtcNow.AddSeconds(2);
+            if (revision == Volatile.Read(ref presenceRevision))
+            {
+                nextPollAt = DateTime.UtcNow.AddSeconds(2);
+            }
             return;
         }
 
         try
         {
-            var baseUrl = Config.ServerUrl.TrimEnd('/');
+            var baseUrl = Config.ServerUrl.Trim().TrimEnd('/');
             var territory = presence.IsIsland ? presence.TerritoryId : 0;
             var zone = presence.IsIsland ? presence.ZoneServerId : 0;
             var instance = presence.IsIsland ? FormatInstanceId(presence.InstanceId) : string.Empty;
@@ -465,14 +554,21 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
             var ceUrl = $"{baseUrl}/api/ce?dc={DataCenterID}&zone={zone}&instance={instance}&territory={territory}";
             var statsUrl = $"{baseUrl}/api/stats?dc={DataCenterID}&zone={zone}&instance={instance}";
 
-            using var ceRequest = new HttpRequestMessage(HttpMethod.Get, ceUrl);
-            // A cached ETag only applies to the island it was issued for.
-            if (ceETag != null && ceETagScope == scope)
-            {
-                ceRequest.Headers.TryAddWithoutValidation("If-None-Match", ceETag);
-            }
+            using var ceResponse = await SendWithRetryAsync(
+                async token =>
+                {
+                    // A retry needs a fresh HttpRequestMessage; HttpClient
+                    // does not allow sending the same request instance twice.
+                    using var request = new HttpRequestMessage(HttpMethod.Get, ceUrl);
+                    if (ceETag != null && ceETagScope == scope)
+                    {
+                        request.Headers.TryAddWithoutValidation("If-None-Match", ceETag);
+                    }
 
-            using var ceResponse = await client.SendAsync(ceRequest, cts.Token);
+                    return await client.SendAsync(request, token);
+                },
+                requestToken,
+                "CE");
 
             if (ceResponse.StatusCode == HttpStatusCode.NotModified)
             {
@@ -488,27 +584,31 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
                     Connected = true;
                     LastError = null;
                 }
-                await FetchStatsAsync(statsUrl, revision, presence.IsIsland);
+                await FetchStatsAsync(statsUrl, revision, presence.IsIsland, requestToken);
                 return;
             }
 
             if (!ceResponse.IsSuccessStatusCode)
             {
-                if (TrySetError(revision, $"CE 接口 {ceResponse.StatusCode}"))
-                {
-                    nextPollAt = DateTime.UtcNow.AddSeconds(5);
-                }
+                HandleHttpFailure(
+                    revision,
+                    "CE",
+                    ceResponse.StatusCode,
+                    isHeartbeat: false,
+                    requestToken: requestToken);
                 return;
             }
 
-            var ceBody = await ceResponse.Content.ReadAsStringAsync(cts.Token);
+            var ceBody = await ceResponse.Content.ReadAsStringAsync(requestToken);
             var ceList = JsonSerializer.Deserialize<CeListResponse>(ceBody, JsonOptions);
             if (ceList == null)
             {
-                if (TrySetError(revision, "CE 响应解析失败"))
-                {
-                    nextPollAt = DateTime.UtcNow.AddSeconds(5);
-                }
+                HandleRequestFailure(
+                    revision,
+                    "CE",
+                    new JsonException("CE 响应解析失败"),
+                    isHeartbeat: false,
+                    requestToken: requestToken);
                 return;
             }
 
@@ -520,7 +620,7 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
             ceETag = ceResponse.Headers.ETag?.Tag;
             ceETagScope = scope;
 
-            await FetchStatsAsync(statsUrl, revision, presence.IsIsland);
+            await FetchStatsAsync(statsUrl, revision, presence.IsIsland, requestToken);
 
             lock (sync)
             {
@@ -545,45 +645,76 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
                 LastError = null;
             }
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException)
+        catch (OperationCanceledException) when (
+            requestToken.IsCancellationRequested || cts.IsCancellationRequested)
         {
-            if (TrySetError(revision, ex.Message))
-            {
-                Svc.Log.Debug($"[CeCrowdsource] fetch failed; retrying: {ex.Message}");
-                nextPollAt = DateTime.UtcNow.AddSeconds(5);
-            }
+            // Scope changes and plugin disposal deliberately cancel old
+            // requests. They are not connection failures for the new scope.
+        }
+        catch (Exception ex)
+        {
+            HandleRequestFailure(
+                revision,
+                "CE",
+                ex,
+                isHeartbeat: false,
+                requestToken: requestToken);
         }
     }
 
-    private async Task FetchStatsAsync(string statsUrl, long revision, bool isIslandScope)
+    private async Task FetchStatsAsync(
+        string statsUrl,
+        long revision,
+        bool isIslandScope,
+        CancellationToken requestToken)
     {
-        using var statsResponse = await client.GetAsync(statsUrl, cts.Token);
-        if (!statsResponse.IsSuccessStatusCode)
+        try
         {
-            return;
-        }
-
-        var statsBody = await statsResponse.Content.ReadAsStringAsync(cts.Token);
-        var stats = JsonSerializer.Deserialize<CeStatsResponse>(statsBody, JsonOptions);
-        if (stats == null)
-        {
-            return;
-        }
-
-        lock (sync)
-        {
-            if (revision != Volatile.Read(ref presenceRevision))
+            using var statsResponse = await SendWithRetryAsync(
+                token => client.GetAsync(statsUrl, token),
+                requestToken,
+                "stats");
+            if (!statsResponse.IsSuccessStatusCode)
             {
+                Svc.Log.Debug($"[CeCrowdsource] stats failed: {statsResponse.StatusCode}");
                 return;
             }
 
-            OnlineCount = stats.Online;
-            IslandOnlineCount = isIslandScope ? stats.IslandOnline : 0;
-            InstanceCount = isIslandScope ? stats.Instances : 0;
-            if (stats.RetentionMinutes > 0)
+            var statsBody = await statsResponse.Content.ReadAsStringAsync(requestToken);
+            var stats = JsonSerializer.Deserialize<CeStatsResponse>(statsBody, JsonOptions);
+            if (stats == null)
             {
-                RetentionMinutes = stats.RetentionMinutes;
+                Svc.Log.Debug("[CeCrowdsource] stats response was empty");
+                return;
             }
+
+            lock (sync)
+            {
+                if (revision != Volatile.Read(ref presenceRevision))
+                {
+                    return;
+                }
+
+                OnlineCount = stats.Online;
+                IslandOnlineCount = isIslandScope ? stats.IslandOnline : 0;
+                InstanceCount = isIslandScope ? stats.Instances : 0;
+                if (stats.RetentionMinutes > 0)
+                {
+                    RetentionMinutes = stats.RetentionMinutes;
+                }
+            }
+        }
+        catch (OperationCanceledException) when (
+            requestToken.IsCancellationRequested || cts.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // Stats are auxiliary telemetry. A transient stats failure must
+            // not discard an otherwise valid CE response or turn the panel
+            // into a disconnected/empty state.
+            Svc.Log.Debug($"[CeCrowdsource] stats error (CE data retained): {DescribeException(ex)}");
         }
     }
 
@@ -637,6 +768,13 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
     {
         Interlocked.Increment(ref presenceRevision);
 
+        // A scope change (entering/leaving the island or resolving a new
+        // zone/instance) must actively retire in-flight requests.  Merely
+        // dropping their Task references allowed old requests to occupy the
+        // four connection-pool slots until the eight-second timeout, while a
+        // new request was started for the new scope.
+        CancelConnectionRequests();
+
         // Old requests are revision-guarded, so release their scheduling slots
         // immediately. This lets a newly resolved island scope connect without
         // waiting for the previous request's timeout or regular cadence.
@@ -658,6 +796,68 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
             Connected = false;
             LastSyncAt = null;
             LastError = null;
+        }
+    }
+
+    private CancellationToken CaptureRequestToken()
+    {
+        lock (requestSync)
+        {
+            return connectionCts.Token;
+        }
+    }
+
+    private void CancelConnectionRequests()
+    {
+        CancellationTokenSource previous;
+        lock (requestSync)
+        {
+            previous = connectionCts;
+            connectionCts = new CancellationTokenSource();
+            // Keep the cancelled source alive until module disposal. An
+            // in-flight HttpClient operation may still be unwinding and can
+            // legally inspect its token after cancellation.
+            retiredConnectionCts.Add(previous);
+            if (retiredConnectionCts.Count > RetiredConnectionScopeLimit)
+            {
+                // Do not dispose an evicted source while a late task might
+                // still be inspecting its token. Dropping our reference lets
+                // it be collected once that task finishes.
+                retiredConnectionCts.RemoveAt(0);
+            }
+        }
+
+        try
+        {
+            previous.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // A concurrent dispose already retired this source.
+        }
+    }
+
+    private void CancelAndDisposeRequestScopes()
+    {
+        CancellationTokenSource[] scopes;
+        lock (requestSync)
+        {
+            scopes = [connectionCts, .. retiredConnectionCts];
+            retiredConnectionCts.Clear();
+        }
+
+        foreach (var scope in scopes)
+        {
+            try
+            {
+                scope.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // Nothing else is required during teardown.
+            }
+
+            scope.Dispose();
         }
     }
 
@@ -720,6 +920,157 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
             return 0;
         }
     }
+
+    private async Task<HttpResponseMessage> SendWithRetryAsync(
+        Func<CancellationToken, Task<HttpResponseMessage>> send,
+        CancellationToken requestToken,
+        string operation)
+    {
+        Exception? lastException = null;
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            try
+            {
+                var response = await send(requestToken);
+                if (attempt == 0 && IsTransientStatus(response.StatusCode))
+                {
+                    response.Dispose();
+                    Svc.Log.Debug($"[CeCrowdsource] {operation} returned {response.StatusCode}; retrying once");
+                    await Task.Delay(TimeSpan.FromMilliseconds(250), requestToken);
+                    continue;
+                }
+
+                return response;
+            }
+            catch (Exception ex) when (
+                IsTransientTransportException(ex)
+                && !requestToken.IsCancellationRequested
+                && !cts.IsCancellationRequested)
+            {
+                lastException = ex;
+                if (attempt == 0)
+                {
+                    Svc.Log.Debug(
+                        $"[CeCrowdsource] {operation} transport failed; retrying once: {DescribeException(ex)}");
+                    await Task.Delay(TimeSpan.FromMilliseconds(250), requestToken);
+                }
+            }
+        }
+
+        if (lastException != null)
+        {
+            throw lastException;
+        }
+
+        throw new HttpRequestException($"{operation} 请求失败");
+    }
+
+    private static bool IsTransientStatus(HttpStatusCode statusCode)
+    {
+        var status = (int)statusCode;
+        return status is >= 500 and <= 599;
+    }
+
+    private static bool IsTransientTransportException(Exception exception)
+    {
+        return exception is HttpRequestException
+            or IOException
+            or SocketException
+            or OperationCanceledException;
+    }
+
+    private void HandleHttpFailure(
+        long revision,
+        string operation,
+        HttpStatusCode statusCode,
+        bool isHeartbeat,
+        CancellationToken requestToken)
+    {
+        if (requestToken.IsCancellationRequested || cts.IsCancellationRequested)
+        {
+            return;
+        }
+
+        var message = $"{operation} 接口 {statusCode}";
+        if (statusCode == HttpStatusCode.Unauthorized)
+        {
+            message += "（鉴权失败，请检查服务端令牌）";
+        }
+        else if (statusCode == HttpStatusCode.TooManyRequests)
+        {
+            message += "（请求频率受限，稍后自动重试）";
+        }
+
+        if (!TrySetError(revision, message))
+        {
+            return;
+        }
+
+        var retrySeconds = statusCode == HttpStatusCode.TooManyRequests ? 15 : 5;
+        if (isHeartbeat)
+        {
+            nextHeartbeatAt = DateTime.UtcNow.AddSeconds(retrySeconds);
+        }
+        else
+        {
+            nextPollAt = DateTime.UtcNow.AddSeconds(retrySeconds);
+        }
+
+        Svc.Log.Debug($"[CeCrowdsource] {operation} failed; retrying: {message}");
+    }
+
+    private void HandleRequestFailure(
+        long revision,
+        string operation,
+        Exception exception,
+        bool isHeartbeat,
+        CancellationToken requestToken)
+    {
+        if (requestToken.IsCancellationRequested || cts.IsCancellationRequested)
+        {
+            return;
+        }
+
+        var message = DescribeException(exception);
+        if (!TrySetError(revision, message))
+        {
+            return;
+        }
+
+        if (isHeartbeat)
+        {
+            nextHeartbeatAt = DateTime.UtcNow.AddSeconds(5);
+        }
+        else
+        {
+            nextPollAt = DateTime.UtcNow.AddSeconds(5);
+        }
+
+        Svc.Log.Debug($"[CeCrowdsource] {operation} failed; retrying: {message}");
+    }
+
+    private static string DescribeException(Exception exception)
+    {
+        var messages = new List<string>();
+        var current = exception;
+        for (var depth = 0; current != null && depth < 3; depth++, current = current.InnerException)
+        {
+            if (!string.IsNullOrWhiteSpace(current.Message)
+                && !messages.Contains(current.Message, StringComparer.Ordinal))
+            {
+                messages.Add(current.Message);
+            }
+        }
+
+        if (messages.Count == 0)
+        {
+            return exception.GetType().Name;
+        }
+
+        var text = string.Join(" / ", messages);
+        return text.Length <= 240 ? text : text[..240] + "…";
+    }
+
     private bool TrySetError(long revision, string message)
     {
         lock (sync)
@@ -801,8 +1152,16 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
         string eventType)
     {
         var observationKey = $"{territoryId}:{eventType}:{eventId}";
+        var requestToken = CaptureRequestToken();
+        var enteredUploadGate = false;
         try
         {
+            // Upload observations one at a time so a burst of locally visible
+            // events cannot consume every pooled connection and starve the
+            // heartbeat/event reader that keeps the panel connected.
+            await uploadGate.WaitAsync(requestToken);
+            enteredUploadGate = true;
+
             var nowSec = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             // Once a CE is in Battle, StartTimestamp holds the countdown
             // deadline rather than the spawn time, so it points into the
@@ -822,15 +1181,23 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
                 playerName = CacheHeartbeatIdentity().Name,
             };
             var json = JsonSerializer.Serialize(payload);
-            using var content = new StringContent(json, Encoding.UTF8, "application/json");
-            if (!string.IsNullOrWhiteSpace(Config.ApiToken))
-            {
-                content.Headers.TryAddWithoutValidation("X-Auth-Token", Config.ApiToken);
-            }
-            using var response = await client.PostAsync($"{Config.ServerUrl}/api/ce/observe", content, cts.Token);
+            var baseUrl = Config.ServerUrl.Trim().TrimEnd('/');
+            using var response = await SendWithRetryAsync(
+                async token =>
+                {
+                    using var content = new StringContent(json, Encoding.UTF8, "application/json");
+                    if (!string.IsNullOrWhiteSpace(Config.ApiToken))
+                    {
+                        content.Headers.TryAddWithoutValidation("X-Auth-Token", Config.ApiToken);
+                    }
+
+                    return await client.PostAsync($"{baseUrl}/api/ce/observe", content, token);
+                },
+                requestToken,
+                "upload");
             if (response.IsSuccessStatusCode)
             {
-                var body = await response.Content.ReadAsStringAsync(cts.Token);
+                var body = await response.Content.ReadAsStringAsync(requestToken);
                 var result = JsonSerializer.Deserialize<CeObserveResponse>(body, JsonOptions);
                 if (result is { IsUploader: false })
                 {
@@ -856,10 +1223,22 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
                 Svc.Log.Debug($"[CeCrowdsource] upload failed: {response.StatusCode}");
             }
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException)
+        catch (OperationCanceledException) when (
+            requestToken.IsCancellationRequested || cts.IsCancellationRequested)
         {
             lastUploadedStates.TryRemove(observationKey, out _);
-            Svc.Log.Debug($"[CeCrowdsource] upload error: {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            lastUploadedStates.TryRemove(observationKey, out _);
+            Svc.Log.Debug($"[CeCrowdsource] upload error: {DescribeException(ex)}");
+        }
+        finally
+        {
+            if (enteredUploadGate)
+            {
+                uploadGate.Release();
+            }
         }
     }
 
