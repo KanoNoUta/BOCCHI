@@ -1238,7 +1238,18 @@ Assert(deathAutomatorModuleSource.Contains("HandleDeathReturn()", StringComparis
        && deathAutomatorModuleSource.Contains("StopLocalAutomationForDeath", StringComparison.Ordinal)
        && deathAutomatorModuleSource.Contains("BocchiActions.Return.Cast()", StringComparison.Ordinal)
        && deathAutomatorModuleSource.Contains("deathReturnPending && Player.IsDead", StringComparison.Ordinal)
-       && deathAutomatorModuleSource.Contains("OnDeathReturnSelectYesnoPostSetup", StringComparison.Ordinal)
+       && deathAutomatorModuleSource.Contains("OnDeathReturnSelectYesnoPostDraw", StringComparison.Ordinal)
+       && deathAutomatorModuleSource.Contains("var addon = (AddonSelectYesno*)args.Addon.Address", StringComparison.Ordinal)
+       && deathAutomatorModuleSource.Contains("!addon->YesButton->IsEnabled", StringComparison.Ordinal)
+       && deathAutomatorModuleSource.Contains("!addon->YesButton->AtkResNode->IsVisible()", StringComparison.Ordinal)
+       && deathAutomatorModuleSource.Contains(
+           "deathReturnConfirmationDeadlineMs = nowMs + DeathReturnRetryMs",
+           StringComparison.Ordinal)
+       && deathAutomatorModuleSource.Contains(
+           "Environment.TickCount64 > deathReturnConfirmationDeadlineMs",
+           StringComparison.Ordinal)
+       && !deathAutomatorModuleSource.Contains("OnDeathReturnSelectYesnoPostSetup", StringComparison.Ordinal)
+       && !deathAutomatorModuleSource.Contains("DeathReturnConfirmationWindowMs", StringComparison.Ordinal)
        && deathAutomatorModuleSource.Contains(
            "AutomatorStopPolicy.ShouldRetry(deathMovementProvidersStopped, deathStopDrainAttempts)",
            StringComparison.Ordinal)

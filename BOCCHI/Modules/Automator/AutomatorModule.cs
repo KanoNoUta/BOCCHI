@@ -26,7 +26,6 @@ namespace BOCCHI.Modules.Automator;
 public class AutomatorModule : Module
 {
     private const long DeathReturnRetryMs = 10_000;
-    private const long DeathReturnConfirmationWindowMs = 3_000;
 
     private bool vnavmeshFailureReported;
 
@@ -101,9 +100,9 @@ public class AutomatorModule : Module
             "ContentsFinderConfirm",
             OnContentsFinderConfirmPostDraw);
         Svc.AddonLifecycle.RegisterListener(
-            AddonEvent.PostSetup,
+            AddonEvent.PostDraw,
             "SelectYesno",
-            OnDeathReturnSelectYesnoPostSetup);
+            OnDeathReturnSelectYesnoPostDraw);
     }
 
     public override void Dispose()
@@ -113,9 +112,9 @@ public class AutomatorModule : Module
             "ContentsFinderConfirm",
             OnContentsFinderConfirmPostDraw);
         Svc.AddonLifecycle.UnregisterListener(
-            AddonEvent.PostSetup,
+            AddonEvent.PostDraw,
             "SelectYesno",
-            OnDeathReturnSelectYesnoPostSetup);
+            OnDeathReturnSelectYesnoPostDraw);
     }
 
 
@@ -379,11 +378,6 @@ public class AutomatorModule : Module
     private bool HandleDeathReturn()
     {
         var nowMs = Environment.TickCount64;
-        if (deathReturnPending && nowMs > deathReturnConfirmationDeadlineMs)
-        {
-            deathReturnPending = false;
-        }
-
         var eligible = Config.Enabled
                        && runState.CanRunWork
                        && Config.ShouldAutoReturnAfterDeath
@@ -414,7 +408,7 @@ public class AutomatorModule : Module
         if (decision == DeathReturnDecision.Trigger)
         {
             deathReturnPending = true;
-            deathReturnConfirmationDeadlineMs = nowMs + DeathReturnConfirmationWindowMs;
+            deathReturnConfirmationDeadlineMs = nowMs + DeathReturnRetryMs;
             try
             {
                 BocchiActions.Return.Cast();
@@ -681,11 +675,10 @@ public class AutomatorModule : Module
         instanceRotation.RecordEntryConfirmationClick();
     }
 
-    private unsafe void OnDeathReturnSelectYesnoPostSetup(AddonEvent type, AddonArgs args)
+    private unsafe void OnDeathReturnSelectYesnoPostDraw(AddonEvent type, AddonArgs args)
     {
-        var nowMs = Environment.TickCount64;
         if (!(deathReturnPending && Player.IsDead)
-            || nowMs > deathReturnConfirmationDeadlineMs
+            || Environment.TickCount64 > deathReturnConfirmationDeadlineMs
             || !Config.Enabled
             || !Config.ShouldAutoReturnAfterDeath
             || !BOCCHI.Data.ZoneData.IsInOccultCrescent())
@@ -693,13 +686,18 @@ public class AutomatorModule : Module
             return;
         }
 
-        var addon = (AtkUnitBase*)args.Addon.Address;
-        if (addon == null || !addon->IsVisible)
+        var addon = (AddonSelectYesno*)args.Addon.Address;
+        if (addon == null
+            || !addon->AtkUnitBase.IsVisible
+            || addon->YesButton == null
+            || !addon->YesButton->IsEnabled
+            || addon->YesButton->AtkResNode == null
+            || !addon->YesButton->AtkResNode->IsVisible())
         {
             return;
         }
 
-        addon->FireCallbackInt(0);
+        addon->AtkUnitBase.FireCallbackInt(0);
         deathReturnPending = false;
         Svc.Log.Info("Confirmed the timed dead-player Return request.");
     }
