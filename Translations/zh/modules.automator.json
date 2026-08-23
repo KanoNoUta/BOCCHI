@@ -51,7 +51,7 @@
           "tooltip": "无人值守时自动退出当前蜃景岛，并重新进入刚才所在的南征或北征区域"
         },
         "test_instance_entry": "测试进入副本",
-        "test_instance_entry_help": "站在蜃景岛外对应 NPC 旁，点击按钮即可按上面选择的区域直接申请进入。需要在 DailyRoutines 开启“自动跳过对话”和“特殊场景探索进入指令”。",
+        "test_instance_entry_help": "站在蜃景岛外对应 NPC 旁，点击按钮即可按上面选择的区域直接申请进入。BOCCHI 会自动启用 DailyRoutines 的“自动跳过对话”“特殊场景探索进入指令”和“即刻退本”模块。",
         "instance_stay_minutes": {
           "label": "岛内停留时间（分钟）",
           "tooltip": "按任务情报Addon显示的实际副本倒计时计算；达到该停留时间后，等待无FATE、CE、战斗和自动化任务时开始轮换"
@@ -397,7 +397,7 @@
           "entry": "[BOCCHI] 副本轮换：正在申请重新进入之前的区域。",
           "initial_entry": "[BOCCHI] 自动模式：正在申请进入配置的蜃景岛区域。",
           "entry_unavailable": "[BOCCHI] 自动模式已开启，但无法申请入岛。请确认DailyRoutines已加载后，关闭并重新开启自动模式。",
-          "modules_enabling": "[BOCCHI] 正在自动启用pdr入岛命令所需的DailyRoutines模块。",
+          "modules_enabling": "[BOCCHI] 正在自动启用副本进入与退出所需的 DailyRoutines 模块。",
           "failed": "[BOCCHI] 副本轮换因超时或DailyRoutines命令不可用而停止。处理问题后请关闭并重新开启非法模式。"
         }
       }

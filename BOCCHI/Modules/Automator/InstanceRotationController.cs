@@ -42,8 +42,8 @@ public sealed class InstanceRotationController
     private readonly InstanceDutyTimerProvider dutyTimerProvider = new();
     private string? pendingEntryCommand;
     private string? pendingEntryMessageKey;
+    private bool pendingExitCommand;
     private bool dailyRoutinesEnableNoticeShown;
-    private bool dailyRoutinesModulesReady;
     private DateTimeOffset nextDailyRoutinesModuleCheck;
     private DateTimeOffset? entryCommandDispatchedAt;
     private DateTimeOffset nextEntryConfirmationAttemptAt;
@@ -79,6 +79,12 @@ public sealed class InstanceRotationController
             return shouldBlockCurrentFrame;
         }
 
+        var previousState = stateMachine.State;
+        if (pendingExitCommand)
+        {
+            TryDispatchPendingExit(module);
+        }
+
         if (pendingEntryCommand != null)
         {
             TryDispatchPendingEntry(module);
@@ -108,7 +114,6 @@ public sealed class InstanceRotationController
             module.Config.ShouldRotateWhenPopulationLow
             && populationProvider.IsConfirmedBelow(module.Config.MinimumInstancePopulation),
             dutyTimerProvider.CurrentRemaining);
-        var previousState = stateMachine.State;
         var action = stateMachine.Update(now, input);
 
         switch (action)
@@ -120,9 +125,8 @@ public sealed class InstanceRotationController
                     break;
                 }
 
-                PrepareForTransition(module);
-                Chat.ExecuteCommand(LeaveCommand);
-                Svc.Chat.Print(module.T("messages.rotation.exit"));
+                pendingExitCommand = true;
+                TryDispatchPendingExit(module);
                 break;
 
             case InstanceRotationAction.EnterSouthHorn:
@@ -136,6 +140,7 @@ public sealed class InstanceRotationController
 
         if (previousState != InstanceRotationState.Failed && stateMachine.State == InstanceRotationState.Failed)
         {
+            pendingExitCommand = false;
             pendingEntryCommand = null;
             pendingEntryMessageKey = null;
             ResetEntryConfirmation();
@@ -199,7 +204,6 @@ public sealed class InstanceRotationController
     public DailyRoutinesModuleStatus EnsureDailyRoutinesCommandModules(AutomatorModule module)
     {
         var status = DailyRoutinesModuleBridge.EnsureRequiredModules();
-        dailyRoutinesModulesReady = status == DailyRoutinesModuleStatus.Ready;
         if (status == DailyRoutinesModuleStatus.Enabling && !dailyRoutinesEnableNoticeShown)
         {
             dailyRoutinesEnableNoticeShown = true;
@@ -249,19 +253,22 @@ public sealed class InstanceRotationController
     {
         if (!module.Config.ShouldAutoRotateInstance
             && !stateMachine.IsBusy
+            && !pendingExitCommand
             && pendingEntryCommand == null)
         {
             return;
         }
 
         var now = DateTimeOffset.UtcNow;
-        if (dailyRoutinesModulesReady || now < nextDailyRoutinesModuleCheck)
+        if (now < nextDailyRoutinesModuleCheck)
         {
             return;
         }
 
-        nextDailyRoutinesModuleCheck = now + TimeSpan.FromMilliseconds(250);
-        EnsureDailyRoutinesCommandModules(module);
+        var status = EnsureDailyRoutinesCommandModules(module);
+        nextDailyRoutinesModuleCheck = now + (status == DailyRoutinesModuleStatus.Ready
+            ? TimeSpan.FromSeconds(5)
+            : TimeSpan.FromMilliseconds(250));
     }
 
     public void OnTerritoryChanged(uint territoryId)
@@ -288,6 +295,10 @@ public sealed class InstanceRotationController
             pendingEntryMessageKey = null;
             ResetEntryConfirmation();
         }
+        if (stateMachine.State != InstanceRotationState.WaitingForExit)
+        {
+            pendingExitCommand = false;
+        }
         IsTransitionActive = stateMachine.IsBusy;
     }
 
@@ -296,6 +307,7 @@ public sealed class InstanceRotationController
         stateMachine.Reset();
         populationProvider.Reset();
         dutyTimerProvider.Reset();
+        pendingExitCommand = false;
         pendingEntryCommand = null;
         pendingEntryMessageKey = null;
         ResetEntryConfirmation();
@@ -400,6 +412,33 @@ public sealed class InstanceRotationController
         pendingEntryCommand = command;
         pendingEntryMessageKey = messageKey;
         TryDispatchPendingEntry(module);
+    }
+
+    private bool TryDispatchPendingExit(AutomatorModule module)
+    {
+        if (!pendingExitCommand)
+        {
+            return true;
+        }
+
+        var status = EnsureDailyRoutinesCommandModules(module);
+        if (status == DailyRoutinesModuleStatus.Enabling)
+        {
+            return false;
+        }
+
+        if (status == DailyRoutinesModuleStatus.Unavailable)
+        {
+            pendingExitCommand = false;
+            stateMachine.Fail("daily_routines_unavailable");
+            return false;
+        }
+
+        pendingExitCommand = false;
+        PrepareForTransition(module);
+        Chat.ExecuteCommand(LeaveCommand);
+        Svc.Chat.Print(module.T("messages.rotation.exit"));
+        return true;
     }
 
     private bool TryDispatchPendingEntry(AutomatorModule module)

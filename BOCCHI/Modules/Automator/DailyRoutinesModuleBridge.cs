@@ -1,5 +1,6 @@
 using ECommons.DalamudServices;
 using Dalamud.Plugin.Ipc.Exceptions;
+using ECommons.Automation;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,8 +15,9 @@ public enum DailyRoutinesModuleStatus
 }
 
 /// <summary>
-/// Enables the DailyRoutines modules that own /pdrfe. The module names and IPC
-/// signatures are from DailyRoutines 2.1.4.2's public PluginIPC contract.
+/// Enables the DailyRoutines modules that own the instance entry and exit
+/// commands. The module names and IPC signatures are from DailyRoutines
+/// 2.1.7.0's public PluginIPC contract.
 /// </summary>
 public static class DailyRoutinesModuleBridge
 {
@@ -27,15 +29,31 @@ public static class DailyRoutinesModuleBridge
     public const string LoadModuleIpcName = "DailyRoutines.LoadModule";
     public const string AutoTalkSkipModuleName = "AutoTalkSkip";
     public const string FieldEntryCommandModuleName = "FieldEntryCommand";
+    public const string InstantLeaveDutyModuleName = "InstantLeaveDuty";
 
     // Load prerequisites first. FieldEntryCommand declares AutoTalkSkip as its
     // prerequisite, so it is not requested until AutoTalkSkip reports ready.
     public static IReadOnlyList<string> RequiredModuleNames { get; } =
-        new[] { AutoTalkSkipModuleName, FieldEntryCommandModuleName };
+        new[]
+        {
+            AutoTalkSkipModuleName,
+            FieldEntryCommandModuleName,
+            InstantLeaveDutyModuleName,
+        };
 
     public static bool IsLoaded => Svc.PluginInterface.InstalledPlugins.Any(plugin =>
         string.Equals(plugin.InternalName, PluginInternalName, StringComparison.OrdinalIgnoreCase)
         && plugin.IsLoaded);
+
+    public static string GetLoadCommand(string moduleName)
+    {
+        if (string.IsNullOrWhiteSpace(moduleName))
+        {
+            throw new ArgumentException("DailyRoutines module name cannot be empty.", nameof(moduleName));
+        }
+
+        return $"/pdr load {moduleName}";
+    }
 
     public static DailyRoutinesModuleStatus EnsureRequiredModules()
     {
@@ -72,13 +90,21 @@ public static class DailyRoutinesModuleBridge
                     || now - requestedAt >= RetryInterval)
                 {
                     loadRequestedAt[moduleName] = now;
-                    if (!loadModule.InvokeFunc(moduleName, true))
+                    var ipcAccepted = false;
+                    try
                     {
-                        Svc.Log.Verbose($"DailyRoutines has not accepted the module enable request yet: {moduleName}");
-                        return DailyRoutinesModuleStatus.Enabling;
+                        ipcAccepted = loadModule.InvokeFunc(moduleName, true);
+                    }
+                    catch (IpcNotReadyError)
+                    {
+                        // /pdr can be ready one frame before every public IPC
+                        // gate; the idempotent command below covers that gap.
                     }
 
-                    Svc.Log.Info($"Requested DailyRoutines module enable: {moduleName}");
+                    Chat.ExecuteCommand(GetLoadCommand(moduleName));
+                    Svc.Log.Info(
+                        $"Requested DailyRoutines module enable: {moduleName} "
+                        + $"(ipcAccepted={ipcAccepted}, commandFallback=true)");
                 }
 
                 return DailyRoutinesModuleStatus.Enabling;

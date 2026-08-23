@@ -67,7 +67,7 @@
           "tooltip": "Active/Désactive la participation à la confrontation critique 'Face de griffes'."
         },
         "test_instance_entry": "Tester l'entrée dans l'instance",
-        "test_instance_entry_help": "Placez-vous près du PNJ correspondant à l'extérieur du Croissant occulte et cliquez pour demander l'entrée dans la zone sélectionnée. DailyRoutines doit avoir AutoTalkSkip et FieldEntryCommand activés.",
+        "test_instance_entry_help": "Placez-vous près du PNJ correspondant à l'extérieur du Croissant occulte et cliquez pour demander l'entrée dans la zone sélectionnée. BOCCHI active automatiquement les modules AutoTalkSkip, FieldEntryCommand et InstantLeaveDuty de DailyRoutines.",
         "do_critical_encounters": {
           "label": "Faire les Confrontations Critiques",
           "tooltip": "Considère les confrontations critiques lors du choix d'une activité"
@@ -377,7 +377,7 @@
           "entry": "[BOCCHI] Changement d'instance : retour dans la zone précédente.",
           "initial_entry": "[BOCCHI] Mode illégal : demande d'entrée dans la zone configurée du Croissant occulte.",
           "entry_unavailable": "[BOCCHI] Le mode illégal est activé, mais l'entrée n'a pas pu être demandée. Vérifiez que DailyRoutines est chargé, puis désactivez et réactivez le mode illégal.",
-          "modules_enabling": "[BOCCHI] Activation des modules DailyRoutines requis par les commandes d'entrée pdr.",
+          "modules_enabling": "[BOCCHI] Activation des modules DailyRoutines requis pour entrer dans l'instance et en sortir.",
           "failed": "[BOCCHI] Changement d'instance arrêté après un délai dépassé ou une commande DailyRoutines indisponible."
         }
       }

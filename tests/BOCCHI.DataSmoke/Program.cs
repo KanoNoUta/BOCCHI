@@ -2476,8 +2476,37 @@ Assert(DailyRoutinesModuleBridge.PluginInternalName == "DailyRoutines"
        && DailyRoutinesModuleBridge.IsModuleEnabledIpcName == "DailyRoutines.IsModuleEnabled"
        && DailyRoutinesModuleBridge.LoadModuleIpcName == "DailyRoutines.LoadModule"
        && DailyRoutinesModuleBridge.RequiredModuleNames.SequenceEqual(
-           new[] { "AutoTalkSkip", "FieldEntryCommand" }),
-    "pdrfe startup must enable its verified DailyRoutines prerequisite before the command module.");
+           new[] { "AutoTalkSkip", "FieldEntryCommand", "InstantLeaveDuty" }),
+    "Instance rotation must enable the verified DailyRoutines modules for dialogue, entry, and instant exit.");
+var invalidDailyRoutinesModuleRejected = false;
+try
+{
+    DailyRoutinesModuleBridge.GetLoadCommand(" ");
+}
+catch (ArgumentException)
+{
+    invalidDailyRoutinesModuleRejected = true;
+}
+Assert(DailyRoutinesModuleBridge.GetLoadCommand("InstantLeaveDuty") == "/pdr load InstantLeaveDuty"
+       && invalidDailyRoutinesModuleRejected,
+    "DailyRoutines load commands must use /pdr load and reject an empty module name.");
+var dailyRoutinesBridgeSource = File.ReadAllText(Path.Combine(
+    "BOCCHI", "Modules", "Automator", "DailyRoutinesModuleBridge.cs"));
+Assert(dailyRoutinesBridgeSource.Contains(
+           "public static string GetLoadCommand(string moduleName)",
+           StringComparison.Ordinal)
+       && dailyRoutinesBridgeSource.Contains(
+           "Chat.ExecuteCommand(GetLoadCommand(moduleName))",
+           StringComparison.Ordinal),
+    "Disabled DailyRoutines modules must be enabled through the verified /pdr load command fallback.");
+var instanceRotationControllerSource = File.ReadAllText(Path.Combine(
+    "BOCCHI", "Modules", "Automator", "InstanceRotationController.cs"));
+Assert(instanceRotationControllerSource.Contains("pendingExitCommand", StringComparison.Ordinal)
+       && instanceRotationControllerSource.Contains("TryDispatchPendingExit", StringComparison.Ordinal)
+       && instanceRotationControllerSource.Contains(
+           "EnsureDailyRoutinesCommandModules(module)",
+           StringComparison.Ordinal),
+    "Instant exit must remain pending until every required DailyRoutines module reports ready.");
 Assert(!CriticalEncounterTracker.CanReadOccultCrescentEvents(false, true)
        && !CriticalEncounterTracker.CanReadOccultCrescentEvents(true, false)
        && CriticalEncounterTracker.CanReadOccultCrescentEvents(true, true),
