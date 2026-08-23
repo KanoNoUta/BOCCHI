@@ -62,6 +62,34 @@ public class ReturnChain(TeleporterModule module, ReturnChainConfig config) : Ch
             chain
                 .WaitToCast(timeout: 10000)
                 .WaitToCycleCondition(ConditionFlag.BetweenAreas, timeout: 60000);
+            // A Return can briefly report an intermediate territory while the
+            // game finishes the loading cycle. Do not validate that transient
+            // map as the landing point; wait for the return transition to land
+            // back in the source territory before checking the base-camp shard.
+            chain.Then(new TaskManagerTask(() =>
+            {
+                if (config.StopCheck?.Invoke() == true)
+                {
+                    return true;
+                }
+
+                return Svc.ClientState.TerritoryType == returnTerritory
+                       && !Svc.Condition[ConditionFlag.BetweenAreas]
+                       && !Svc.Condition[ConditionFlag.BetweenAreas51];
+            }, new TaskManagerConfiguration
+            {
+                TimeLimitMS = 60000,
+                AbortOnTimeout = true,
+                ShowError = false,
+                OnTaskTimeout = (TaskManagerTask _, ref long _) =>
+                {
+                    FailureReason =
+                        $"Waiting for the return transition to land back in the source territory "
+                        + $"timed out (expectedTerritory={returnTerritory}, "
+                        + $"currentTerritory={Svc.ClientState.TerritoryType}).";
+                },
+            }));
+            chain.BreakIf(() => config.StopCheck?.Invoke() == true);
             chain.Then(_ => VerifyReturnLanding(returnTerritory, lifestream));
         }
 

@@ -38,6 +38,8 @@ public class Automator
 
     public Activity? Activity { get; private set; } = null;
 
+    public bool IsPostActivityReturnPending => postActivityReturnPending;
+
     private int idleTime = 0;
 
     private bool postActivityReturnPending;

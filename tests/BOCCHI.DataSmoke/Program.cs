@@ -1046,6 +1046,23 @@ if (args.Contains("--automator-run-state", StringComparer.OrdinalIgnoreCase))
                "module\\.PluginConfig\\.TeleporterConfig\\.ReturnAfterCriticalEncounter").Count >= 2,
         "Both Automator lifecycle completion paths must use the saved FATE and CE return switches.");
 
+    var automatorTerritorySource = File.ReadAllText(Path.Combine(
+        "BOCCHI", "Modules", "Automator", "AutomatorModule.cs"));
+    Assert(automatorTerritorySource.Contains(
+               "automator.IsPostActivityReturnPending",
+               StringComparison.Ordinal)
+           && automatorTerritorySource.Contains(
+               "Preserving post-activity return across territory change",
+               StringComparison.Ordinal),
+        "A pending post-activity return must survive transient territory changes instead of aborting its chain.");
+    Assert(returnChainSource.Contains(
+               "Svc.ClientState.TerritoryType == returnTerritory",
+               StringComparison.Ordinal)
+           && returnChainSource.Contains(
+               "Waiting for the return transition to land back in the source territory",
+               StringComparison.Ordinal),
+        "Return must wait for the source territory after a BetweenAreas cycle before validating the landing.");
+
     Console.WriteLine("BOCCHI automator run-state smoke tests passed.");
     return;
 }

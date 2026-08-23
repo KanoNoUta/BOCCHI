@@ -170,6 +170,17 @@ public class AutomatorModule : Module
     public override void OnTerritoryChanged(uint id)
     {
         ResetDeathReturn();
+        var preservingPostActivityReturn = automator.IsPostActivityReturnPending;
+
+        if (preservingPostActivityReturn)
+        {
+            // Lifestream can expose an intermediate territory while Return is
+            // still resolving. Keep the nested return chain alive until it
+            // confirms the original Occult Crescent territory and landing.
+            Svc.Log.Info($"Preserving post-activity return across territory change to {id}.");
+            return;
+        }
+
         // Navigation and submitted activity chains are territory-bound. Always
         // terminate them before refreshing, including South Horn <-> North Horn.
         Plugin.Chain.Abort();
