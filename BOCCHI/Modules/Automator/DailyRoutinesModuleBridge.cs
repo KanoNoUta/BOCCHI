@@ -55,6 +55,8 @@ public static class DailyRoutinesModuleBridge
         return $"/pdr load {moduleName}";
     }
 
+    public static bool ShouldUseCommandFallback(bool ipcAccepted) => !ipcAccepted;
+
     public static DailyRoutinesModuleStatus EnsureRequiredModules()
     {
         if (!IsLoaded)
@@ -98,13 +100,19 @@ public static class DailyRoutinesModuleBridge
                     catch (IpcNotReadyError)
                     {
                         // /pdr can be ready one frame before every public IPC
-                        // gate; the idempotent command below covers that gap.
+                        // gate; the rate-limited command fallback covers that gap.
                     }
 
-                    Chat.ExecuteCommand(GetLoadCommand(moduleName));
+                    var commandFallback = false;
+                    if (ShouldUseCommandFallback(ipcAccepted))
+                    {
+                        Chat.ExecuteCommand(GetLoadCommand(moduleName));
+                        commandFallback = true;
+                    }
+
                     Svc.Log.Info(
                         $"Requested DailyRoutines module enable: {moduleName} "
-                        + $"(ipcAccepted={ipcAccepted}, commandFallback=true)");
+                        + $"(ipcAccepted={ipcAccepted}, commandFallback={commandFallback})");
                 }
 
                 return DailyRoutinesModuleStatus.Enabling;

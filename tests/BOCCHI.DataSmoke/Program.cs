@@ -2490,15 +2490,18 @@ catch (ArgumentException)
 Assert(DailyRoutinesModuleBridge.GetLoadCommand("InstantLeaveDuty") == "/pdr load InstantLeaveDuty"
        && invalidDailyRoutinesModuleRejected,
     "DailyRoutines load commands must use /pdr load and reject an empty module name.");
+Assert(!DailyRoutinesModuleBridge.ShouldUseCommandFallback(ipcAccepted: true)
+       && DailyRoutinesModuleBridge.ShouldUseCommandFallback(ipcAccepted: false),
+    "DailyRoutines command fallback must run only when the IPC load request was not accepted.");
 var dailyRoutinesBridgeSource = File.ReadAllText(Path.Combine(
     "BOCCHI", "Modules", "Automator", "DailyRoutinesModuleBridge.cs"));
 Assert(dailyRoutinesBridgeSource.Contains(
            "public static string GetLoadCommand(string moduleName)",
            StringComparison.Ordinal)
        && dailyRoutinesBridgeSource.Contains(
-           "Chat.ExecuteCommand(GetLoadCommand(moduleName))",
+           "if (ShouldUseCommandFallback(ipcAccepted))",
            StringComparison.Ordinal),
-    "Disabled DailyRoutines modules must be enabled through the verified /pdr load command fallback.");
+    "The verified /pdr load fallback must be conditional on a rejected or unavailable IPC request.");
 var instanceRotationControllerSource = File.ReadAllText(Path.Combine(
     "BOCCHI", "Modules", "Automator", "InstanceRotationController.cs"));
 Assert(instanceRotationControllerSource.Contains("pendingExitCommand", StringComparison.Ordinal)
