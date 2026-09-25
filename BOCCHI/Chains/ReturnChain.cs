@@ -23,7 +23,7 @@ using System.Numerics;
 
 namespace BOCCHI.Chains;
 
-public class ReturnChain(TeleporterModule module, ReturnChainConfig config) : ChainFactory
+public partial class ReturnChain(TeleporterModule module, ReturnChainConfig config) : ChainFactory
 {
     public bool Succeeded { get; private set; }
 
@@ -33,66 +33,48 @@ public class ReturnChain(TeleporterModule module, ReturnChainConfig config) : Ch
     {
         Succeeded = false;
         FailureReason = "Return chain did not reach the base-camp aethernet.";
+        if (!ZoneData.IsInOccultCrescent() || ZoneData.IsInForkedTower() || Player.IsDead)
+        {
+            FailureReason = "Return requires a living player in the Occult Crescent outside the Forked Tower.";
+            return chain;
+        }
+
         chain.BreakIf(() => Player.IsDead);
 
         var shouldReturn = config.ForceReturn || GetCostToReturn() < GetCostToWalk();
-        var returnTerritory = Svc.ClientState.TerritoryType;
-        var lifestream = module.GetIPCSubscriber<Lifestream>();
+        returnTerritory = Svc.ClientState.TerritoryType;
+        executionChain = chain;
+        returnTracker = null;
+        returnCompleted = false;
+        movementPrepared = false;
+        nextPreparationAtMs = 0;
+        chain.OnFinally(() =>
+        {
+            if (ReferenceEquals(module.ActiveReturn, this))
+                module.ActiveReturn = null;
+        });
 
         if (shouldReturn)
         {
-            // A stale delayed-CE teleport must not race Return and provide the
-            // BetweenAreas cycle that this chain is waiting for.
-            chain.Then(_ => lifestream.Abort());
-            // Residual vnavmesh movement or a mount interrupts the Return cast
-            // and leaves the player where they were, which later fails the
-            // landing verification and loops the CE back into reselection.
-            var vnav = module.GetIPCSubscriber<VNavmesh>();
-            chain.Then(_ => vnav.Stop());
-            chain.Then(_ => Actions.TryUnmount());
-            chain.Then(new TaskManagerTask(
-                () => config.StopCheck?.Invoke() == true
-                      || ActionManager.Instance()->GetActionStatus(ActionType.GeneralAction, 8) == 0,
-                new TaskManagerConfiguration
-                {
-                    TimeLimitMS = 30000,
-                    AbortOnTimeout = true,
-                }));
-            chain = Actions.Return.CastOnChain(chain);
-            chain
-                .WaitToCast(timeout: 10000)
-                .WaitToCycleCondition(ConditionFlag.BetweenAreas, timeout: 60000);
-            // A Return can briefly report an intermediate territory while the
-            // game finishes the loading cycle. Do not validate that transient
-            // map as the landing point; wait for the return transition to land
-            // back in the source territory before checking the base-camp shard.
-            chain.Then(new TaskManagerTask(() =>
+            // Observe confirmation, casting and both loading flags together;
+            // sequential waits can miss loading that overlaps the cast end.
+            chain.Then(new TaskManagerTask(PollReturn, new TaskManagerConfiguration
             {
-                if (config.StopCheck?.Invoke() == true)
-                {
-                    return true;
-                }
-
-                return Svc.ClientState.TerritoryType == returnTerritory
-                       && !Svc.Condition[ConditionFlag.BetweenAreas]
-                       && !Svc.Condition[ConditionFlag.BetweenAreas51];
-            }, new TaskManagerConfiguration
-            {
-                TimeLimitMS = 60000,
+                TimeLimitMS = ReturnCastTracker.TimeoutMs + 5_000,
                 AbortOnTimeout = true,
                 ShowError = false,
                 OnTaskTimeout = (TaskManagerTask _, ref long _) =>
                 {
-                    FailureReason =
-                        $"Waiting for the return transition to land back in the source territory "
-                        + $"timed out (expectedTerritory={returnTerritory}, "
-                        + $"currentTerritory={Svc.ClientState.TerritoryType}).";
+                    FailureReason = "Return execution timed out before a verified base-camp landing.";
+                    Svc.Log.Warning(FailureReason);
                 },
             }));
-            chain.BreakIf(() => config.StopCheck?.Invoke() == true);
-            chain.Then(_ => VerifyReturnLanding(returnTerritory, lifestream));
+            chain.BreakIf(() => !returnCompleted || config.StopCheck?.Invoke() == true);
+            chain.Then(_ => VerifyReturnLanding(returnTerritory));
         }
 
+        chain.BreakIf(() => config.StopCheck?.Invoke() == true || Player.IsDead
+            || Svc.ClientState.TerritoryType != returnTerritory || !ZoneData.IsInOccultCrescent());
         chain.Then(ChainHelper.TreasureSightChain());
         chain.Then(ApplyBuffs);
         chain.Then(ChangeLowLevelJob);
@@ -248,7 +230,7 @@ public class ReturnChain(TeleporterModule module, ReturnChainConfig config) : Ch
         return chain;
     }
 
-    private void VerifyReturnLanding(uint expectedTerritory, Lifestream lifestream)
+    private void VerifyReturnLanding(uint expectedTerritory)
     {
         var player = Svc.Objects.LocalPlayer;
         var currentTerritory = Svc.ClientState.TerritoryType;
@@ -277,7 +259,6 @@ public class ReturnChain(TeleporterModule module, ReturnChainConfig config) : Ch
             return;
         }
 
-        lifestream.Abort();
         var distance = player != null && hasStartingLocation
             ? Vector3.Distance(player.Position, startingLocation)
             : float.NaN;
@@ -364,7 +345,9 @@ public class ReturnChain(TeleporterModule module, ReturnChainConfig config) : Ch
 
     private Chain ApplyBuffs()
     {
-        var vnav = module.GetIPCSubscriber<VNavmesh>();
+        if (!module.TryGetIPCSubscriber<VNavmesh>(out var vnav) || vnav == null || !vnav.IsReady())
+            return Chain.Create();
+
         var buffs = module.GetModule<BuffModule>();
 
         var closestKnowledgeCrystal = ZoneData.GetNearbyKnowledgeCrystal(60f).FirstOrDefault();

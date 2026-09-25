@@ -3,6 +3,7 @@ using BOCCHI.Modules.Buff;
 using BOCCHI.Modules.Carrots;
 using BOCCHI.Modules.MobFarmer;
 using BOCCHI.Modules.Treasure;
+using BOCCHI.Modules.Teleporter;
 using Dalamud.Game.Addon.Lifecycle;
 using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
 using ECommons.DalamudServices;
@@ -170,14 +171,13 @@ public class AutomatorModule : Module
     public override void OnTerritoryChanged(uint id)
     {
         ResetDeathReturn();
-        var preservingPostActivityReturn = automator.IsPostActivityReturnPending;
+        var preservingReturn = GetModule<TeleporterModule>().ShouldPreserveReturn(id);
 
-        if (preservingPostActivityReturn)
+        if (preservingReturn)
         {
-            // Lifestream can expose an intermediate territory while Return is
-            // still resolving. Keep the nested return chain alive until it
-            // confirms the original Occult Crescent territory and landing.
-            Svc.Log.Info($"Preserving post-activity return across territory change to {id}.");
+            // Cover manual, idle and navigation returns as well as event-end
+            // returns. A merely queued return must not survive leaving the island.
+            Svc.Log.Info($"Preserving active Return across territory change to {id}.");
             return;
         }
 
@@ -422,9 +422,9 @@ public class AutomatorModule : Module
             deathReturnConfirmationDeadlineMs = nowMs + DeathReturnRetryMs;
             try
             {
-                BocchiActions.Return.Cast();
+                deathReturnPending = BocchiActions.Return.TryCast();
                 Svc.Log.Info(
-                    $"Player remained dead for {Config.DeathReturnMinutes} minute(s); requesting Return.");
+                    $"Player remained dead for {Config.DeathReturnMinutes} minute(s); Return accepted={deathReturnPending}.");
             }
             catch (Exception exception)
             {

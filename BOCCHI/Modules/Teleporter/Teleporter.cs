@@ -221,12 +221,16 @@ public class Teleporter(TeleporterModule module)
 
     public void Return()
     {
-        if (ZoneData.IsInForkedTower())
+        if (!ZoneData.IsInOccultCrescent() || ZoneData.IsInForkedTower())
         {
             return;
         }
 
-        Plugin.Chain.Submit(ChainHelper.ReturnChain());
+        Plugin.Chain.Submit(ChainHelper.ReturnChain(new ReturnChainConfig
+        {
+            ForceReturn = true,
+            ApproachAetheryte = module.Config.ApproachAetheryte,
+        }));
     }
 
     public bool IsReady()

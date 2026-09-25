@@ -25,7 +25,13 @@ public unsafe class Action(ActionType type, uint id)
 
     public void Cast()
     {
-        ActionManager.Instance()->UseAction(type, id);
+        TryCast();
+    }
+
+    public bool TryCast()
+    {
+        var manager = ActionManager.Instance();
+        return manager != null && manager->UseAction(type, id);
     }
 
     public void Cast(uint arg)

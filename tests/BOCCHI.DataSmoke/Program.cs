@@ -827,6 +827,12 @@ static void RunTreasureRoutePolicyTests()
         "Promoting a live treasure must stop the old route movement before resetting navigation for the coffer.");
 }
 
+ReturnSmoke.Run();
+if (args.Contains("--return", StringComparer.OrdinalIgnoreCase))
+{
+    return;
+}
+
 if (args.Contains("--ce-crowdsource", StringComparer.OrdinalIgnoreCase))
 {
     RunCeCrowdsourceTests();
@@ -1049,19 +1055,18 @@ if (args.Contains("--automator-run-state", StringComparer.OrdinalIgnoreCase))
     var automatorTerritorySource = File.ReadAllText(Path.Combine(
         "BOCCHI", "Modules", "Automator", "AutomatorModule.cs"));
     Assert(automatorTerritorySource.Contains(
-               "automator.IsPostActivityReturnPending",
+               "GetModule<TeleporterModule>().ShouldPreserveReturn(id)",
                StringComparison.Ordinal)
            && automatorTerritorySource.Contains(
-               "Preserving post-activity return across territory change",
+               "Preserving active Return across territory change",
                StringComparison.Ordinal),
-        "A pending post-activity return must survive transient territory changes instead of aborting its chain.");
-    Assert(returnChainSource.Contains(
-               "Svc.ClientState.TerritoryType == returnTerritory",
-               StringComparison.Ordinal)
-           && returnChainSource.Contains(
-               "Waiting for the return transition to land back in the source territory",
-               StringComparison.Ordinal),
-        "Return must wait for the source territory after a BetweenAreas cycle before validating the landing.");
+        "Every active Return must survive its own territory transition; a queued return alone must not bypass cleanup.");
+    var returnExecutionSource = File.ReadAllText(Path.Combine("BOCCHI", "Chains", "ReturnChain.Execution.cs"));
+    Assert(returnChainSource.Contains("TaskManagerTask(PollReturn", StringComparison.Ordinal)
+           && returnExecutionSource.Contains("Svc.ClientState.TerritoryType == returnTerritory", StringComparison.Ordinal)
+           && returnExecutionSource.Contains("ConditionFlag.BetweenAreas51", StringComparison.Ordinal)
+           && returnExecutionSource.Contains("IsAtReturnLanding(returnTerritory)", StringComparison.Ordinal),
+        "Return must observe casting/loading together and verify the source island and base-camp landing.");
 
     Console.WriteLine("BOCCHI automator run-state smoke tests passed.");
     return;
@@ -1253,7 +1258,7 @@ var deathAutomatorModuleSource = File.ReadAllText(Path.Combine(
 var deathConfigWindowSource = File.ReadAllText(Path.Combine("BOCCHI", "Windows", "ConfigWindow.cs"));
 Assert(deathAutomatorModuleSource.Contains("HandleDeathReturn()", StringComparison.Ordinal)
        && deathAutomatorModuleSource.Contains("StopLocalAutomationForDeath", StringComparison.Ordinal)
-       && deathAutomatorModuleSource.Contains("BocchiActions.Return.Cast()", StringComparison.Ordinal)
+       && deathAutomatorModuleSource.Contains("deathReturnPending = BocchiActions.Return.TryCast()", StringComparison.Ordinal)
        && deathAutomatorModuleSource.Contains("deathReturnPending && Player.IsDead", StringComparison.Ordinal)
        && deathAutomatorModuleSource.Contains("OnDeathReturnSelectYesnoPostDraw", StringComparison.Ordinal)
        && deathAutomatorModuleSource.Contains("var addon = (AddonSelectYesno*)args.Addon.Address", StringComparison.Ordinal)

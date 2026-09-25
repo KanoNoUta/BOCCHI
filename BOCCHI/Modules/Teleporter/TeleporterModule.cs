@@ -1,10 +1,5 @@
-﻿using BOCCHI.Data;
+﻿using BOCCHI.Chains;
 using BOCCHI.Modules.StateManager;
-using Dalamud.Game.Addon.Lifecycle;
-using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
-using ECommons.DalamudServices;
-using ECommons.GameHelpers;
-using FFXIVClientStructs.FFXIV.Component.GUI;
 using Ocelot.Modules;
 
 namespace BOCCHI.Modules.Teleporter;
@@ -24,12 +19,14 @@ public class TeleporterModule : Module
 
     public readonly Teleporter teleporter;
 
+    internal ReturnChain? ActiveReturn { get; set; }
+
+    public bool ShouldPreserveReturn(uint territory) => ActiveReturn?.ShouldPreserveTransition(territory) == true;
+
     public TeleporterModule(Plugin plugin, Config config)
         : base(plugin, config)
     {
         teleporter = new Teleporter(this);
-
-        Svc.AddonLifecycle.RegisterListener(AddonEvent.PostSetup, "SelectYesno", OnSelectYesnoPostSetup);
     }
 
     public override void Initialize()
@@ -45,33 +42,11 @@ public class TeleporterModule : Module
         states.OnExitInFate -= teleporter.OnFateEnd;
         states.OnExitInCriticalEncounter -= teleporter.OnCriticalEncounterEnd;
 
-        Svc.AddonLifecycle.UnregisterListener(AddonEvent.PostSetup, "SelectYesno", OnSelectYesnoPostSetup);
+        ActiveReturn = null;
     }
 
     public bool IsReady()
     {
         return teleporter.IsReady();
-    }
-
-    private unsafe void OnSelectYesnoPostSetup(AddonEvent type, AddonArgs args)
-    {
-        if (!ZoneData.IsInOccultCrescent() || ZoneData.IsInForkedTower() || Player.IsDead)
-        {
-            return;
-        }
-
-        var addon = (AtkUnitBase*)args.Addon.Address;
-        if (!addon->IsVisible)
-        {
-            return;
-        }
-
-        // This could be the dumbest thing I've ever written, but that bar is low
-        if (addon->AtkValues[7].Type != AtkValueType.Int || addon->AtkValues[7].Int != -1)
-        {
-            return;
-        }
-
-        addon->FireCallbackInt(0);
     }
 }
