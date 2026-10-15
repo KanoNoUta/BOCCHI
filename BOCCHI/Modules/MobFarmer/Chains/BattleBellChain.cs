@@ -1,4 +1,5 @@
-﻿using BOCCHI.ActionHelpers;
+﻿using BOCCHI.Chains;
+using BOCCHI.ActionHelpers;
 using BOCCHI.Data;
 using Dalamud.Game.ClientState.Conditions;
 using ECommons.DalamudServices;
@@ -7,7 +8,7 @@ using Ocelot.Chain.ChainEx;
 
 namespace BOCCHI.Modules.MobFarmer.Chains;
 
-public class BattleBellChain(MobFarmerModule module) : ChainFactory
+public class BattleBellChain(MobFarmerModule module) : OwnedChainFactory
 {
     protected override Chain Create(Chain chain)
     {

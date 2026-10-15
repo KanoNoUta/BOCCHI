@@ -6,7 +6,7 @@ using Ocelot.Chain.ChainEx;
 
 namespace BOCCHI.Modules.Buff.Chains;
 
-public class AllBuffsChain(BuffModule module) : ChainFactory
+public class AllBuffsChain(BuffModule module) : OwnedChainFactory
 {
     private readonly Job StartingJob = Job.Current;
 

@@ -17,11 +17,11 @@ internal static class ReturnSmoke
         Check(Tick(rejected, 0, ready: false) == ReturnCastDecision.Wait,
             "Return must wait for combat, movement, dismount and existing confirmations to settle.");
         Check(Tick(rejected, 0) == ReturnCastDecision.Request && !rejected.CanConfirm(0),
-            "Return must not authorize a confirmation before an accepted action.");
+            "Return must not authorize a confirmation before any request.");
         rejected.RecordRequest(0, false);
-        Check(!rejected.CanConfirm(1) && Tick(rejected, 1_499) == ReturnCastDecision.Wait
+        Check(rejected.CanConfirm(1) && Tick(rejected, 1_499) == ReturnCastDecision.Wait
               && Tick(rejected, 1_500) == ReturnCastDecision.Request,
-            "Rejected UseAction must retry with a delay, without confirming unrelated dialogs.");
+            "A confirmation that opens after a rejected UseAction still answers it, and the request retries.");
         rejected.RecordRequest(1_500, false);
         Check(Tick(rejected, 3_000) == ReturnCastDecision.Request, "A second rejection must remain retryable.");
         rejected.RecordRequest(3_000, false);
@@ -85,6 +85,81 @@ internal static class ReturnSmoke
         var unavailable = new ReturnCastTracker(0, false);
         Check(Tick(unavailable, ReturnCastTracker.TimeoutMs, ready: false) == ReturnCastDecision.Failed,
             "A permanently unavailable action must have a finite timeout.");
+
+        // In the Occult Crescent UseAction can report false while the game
+        // still opens the confirmation and casts. That must not be ignored.
+        var falseNegative = new ReturnCastTracker(0, false);
+        falseNegative.RecordRequest(0, false);
+        Check(Tick(falseNegative, 800, casting: true) == ReturnCastDecision.Wait
+              && falseNegative.HasAcceptedRequest && falseNegative.SawCast,
+            "A cast right after a rejected request is the game accepting it.");
+        Check(Tick(falseNegative, 6_000, loading: true) == ReturnCastDecision.Wait
+              && Tick(falseNegative, 9_000, landed: true) == ReturnCastDecision.Complete
+              && falseNegative.Attempts == 1,
+            "A Return the game accepted despite UseAction=false must complete without a second request.");
+        var confirmedAfterRejection = new ReturnCastTracker(0, false);
+        confirmedAfterRejection.RecordRequest(0, false);
+        confirmedAfterRejection.RecordConfirmation(500);
+        Check(confirmedAfterRejection.HasAcceptedRequest && Tick(confirmedAfterRejection, 12_499) == ReturnCastDecision.Wait,
+            "Clicking the confirmation must hold off another request while the cast starts.");
+
+        var inFlight = new ReturnCastTracker(0, false);
+        Check(Tick(inFlight, 100, casting: true, ready: false) == ReturnCastDecision.Wait
+              && Tick(inFlight, 5_000, loading: true, ready: false) == ReturnCastDecision.Wait
+              && Tick(inFlight, 8_000, landed: true) == ReturnCastDecision.Complete
+              && inFlight.Attempts == 0,
+            "A Return already in flight when the chain starts must complete without casting again.");
+
+        var foreign = new ReturnCastTracker(0, false);
+        foreign.RecordRequest(0, true);
+        Tick(foreign, 1_000, loading: true);
+        Check(Tick(foreign, 3_000) == ReturnCastDecision.Wait
+              && Tick(foreign, 3_000 + ReturnCastTracker.ForeignLandingTimeoutMs) == ReturnCastDecision.Failed,
+            "Loading that ends away from camp must fail quickly instead of waiting two minutes.");
+
+        ReturnRequestLedger.Reset();
+        Check(!ReturnRequestLedger.RequestedWithin(1_000, ReturnRequestLedger.StaleConfirmationWindowMs),
+            "A reset ledger must not claim any confirmation.");
+        ReturnRequestLedger.RecordRequest(10_000);
+        Check(ReturnRequestLedger.RequestedWithin(10_000 + ReturnRequestLedger.StaleConfirmationWindowMs,
+                  ReturnRequestLedger.StaleConfirmationWindowMs)
+              && !ReturnRequestLedger.RequestedWithin(10_001 + ReturnRequestLedger.StaleConfirmationWindowMs,
+                  ReturnRequestLedger.StaleConfirmationWindowMs),
+            "A Return confirmation left open by BOCCHI must stay recognisable only for a bounded window.");
+        ReturnRequestLedger.RecordConfirmation(20_000);
+        Check(ReturnRequestLedger.ConfirmedWithin(21_000, ReturnRequestLedger.ConfirmationCooldownMs)
+              && !ReturnRequestLedger.ConfirmedWithin(22_001, ReturnRequestLedger.ConfirmationCooldownMs),
+            "A confirmation must not be clicked twice while the dialog closes.");
+        ReturnRequestLedger.Reset();
+
+        var source = (params string[] path) => File.ReadAllText(Path.Combine(path));
+        var activitySource = source("BOCCHI", "Modules", "Automator", "Activity.cs");
+        Check(activitySource.Contains("return disposed || !module.IsEnabled;", StringComparison.Ordinal)
+              && activitySource.Contains("stopCheck: ShouldStopNestedWork", StringComparison.Ordinal)
+              && activitySource.Contains("StopCheck = ShouldStopNestedWork", StringComparison.Ordinal)
+              && activitySource.Contains("ChainHelper.MountChain(ShouldStopNestedWork)", StringComparison.Ordinal),
+            "An ended activity must stop its nested Return, teleport, mount and route chains.");
+        var teleportSource = source("BOCCHI", "Chains", "TeleportChain.cs");
+        Check(teleportSource.Contains("if (CancelIfStopped())", StringComparison.Ordinal)
+              && !teleportSource.Contains("WaitToCycleCondition", StringComparison.Ordinal),
+            "A stopped teleport must never submit a request and must not sit in an uninterruptible wait.");
+        var automatorSource = source("BOCCHI", "Modules", "Automator", "Automator.cs");
+        Check(automatorSource.Contains("PostActivityReturnSettleMs", StringComparison.Ordinal)
+              && automatorSource.Contains("GetPostActivityInFlightReason", StringComparison.Ordinal)
+              && automatorSource.Contains("PostActivityEventStateGraceMs", StringComparison.Ordinal)
+              && automatorSource.Contains("UpdatePostActivityCombatDefense(module);", StringComparison.Ordinal)
+              && automatorSource.Contains("StartWithoutAutoPull", StringComparison.Ordinal)
+              && automatorSource.Contains("var useAethernet = attempt == MaxPostActivityReturnAttempts;", StringComparison.Ordinal),
+            "The post-activity return must settle first, fight back in combat and fall back to the aethernet.");
+        var deathSource = source("BOCCHI", "Modules", "Automator", "AutomatorModule.cs");
+        Check(!deathSource.Contains("deathReturnPending = BocchiActions.Return.TryCast();", StringComparison.Ordinal)
+              && deathSource.Contains("ReturnRequestLedger.RecordRequest(nowMs);", StringComparison.Ordinal),
+            "The dead-player Return confirmation must stay armed even when UseAction reports false.");
+        var lifetimeSource = source("BOCCHI", "Chains", "ChainLifetime.cs");
+        Check(lifetimeSource.Contains("chain.OnFinally(chain.Dispose)", StringComparison.Ordinal)
+              && source("BOCCHI", "Chains", "ReturnChain.cs").Contains(": OwnedChainFactory", StringComparison.Ordinal)
+              && source("BOCCHI", "Modules", "Mount", "Chains", "MountChain.cs").Contains("DisposeWhenFinished", StringComparison.Ordinal),
+            "Nested chains must release their frame handlers when they finish.");
 
         var returnSource = File.ReadAllText(Path.Combine("BOCCHI", "Modules", "Teleporter", "Teleporter.cs"));
         var explicitReturn = returnSource[returnSource.IndexOf("public void Return()", StringComparison.Ordinal)..];

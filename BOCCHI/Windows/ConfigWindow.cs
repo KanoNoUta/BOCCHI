@@ -353,6 +353,8 @@ public class ConfigWindow(Plugin primaryPlugin, Config config) : OcelotConfigWin
         DrawSectionTitle(T("editors.automation.instance_rotation"));
         DrawInitialInstanceArea(module);
         DrawBoolean(module, cfg, nameof(cfg.AutoRotateInstance));
+        // Omni's 即刻退本 is enabled by the user, not by BOCCHI.
+        ImGui.TextWrapped(module.T("config.auto_rotate_instance_leave_help"));
         DrawInstanceEntryTest(module);
         DrawFloat(module, cfg, nameof(cfg.InstanceStayMinutes), 15f, 180f, T("units.minutes_0"), !cfg.AutoRotateInstance);
         DrawBoolean(module, cfg, nameof(cfg.RotateWhenPopulationLow), !cfg.AutoRotateInstance);

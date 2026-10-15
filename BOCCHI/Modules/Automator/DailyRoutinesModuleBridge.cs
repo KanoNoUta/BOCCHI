@@ -15,9 +15,10 @@ public enum DailyRoutinesModuleStatus
 }
 
 /// <summary>
-/// Enables the DailyRoutines modules that own the instance entry and exit
-/// commands. The module names and IPC signatures are from DailyRoutines
-/// 2.1.7.0's public PluginIPC contract.
+/// Enables the DailyRoutines modules that own the instance entry commands.
+/// Leaving the duty uses Omni's 即刻退本, which the user enables in Omni. The
+/// module names and IPC signatures are from DailyRoutines 2.1.7.0's public
+/// PluginIPC contract.
 /// </summary>
 public static class DailyRoutinesModuleBridge
 {
@@ -29,7 +30,6 @@ public static class DailyRoutinesModuleBridge
     public const string LoadModuleIpcName = "DailyRoutines.LoadModule";
     public const string AutoTalkSkipModuleName = "AutoTalkSkip";
     public const string FieldEntryCommandModuleName = "FieldEntryCommand";
-    public const string InstantLeaveDutyModuleName = "InstantLeaveDuty";
 
     // Load prerequisites first. FieldEntryCommand declares AutoTalkSkip as its
     // prerequisite, so it is not requested until AutoTalkSkip reports ready.
@@ -38,7 +38,6 @@ public static class DailyRoutinesModuleBridge
         {
             AutoTalkSkipModuleName,
             FieldEntryCommandModuleName,
-            InstantLeaveDutyModuleName,
         };
 
     public static bool IsLoaded => Svc.PluginInterface.InstalledPlugins.Any(plugin =>

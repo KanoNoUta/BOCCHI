@@ -79,6 +79,18 @@ public abstract class Activity : IDisposable
     }
 
 
+    /// <summary>
+    /// Ocelot keeps a nested chain running after its parent is aborted. When
+    /// an activity ends mid-route, its Return, teleport, mount and route
+    /// chains check this so none of them moves the player afterwards (a late
+    /// teleport used to leave the player at the event's shard instead of
+    /// letting the post-activity Return bring them home).
+    /// </summary>
+    private bool ShouldStopNestedWork()
+    {
+        return disposed || !module.IsEnabled;
+    }
+
     public Func<Chain>? GetChain(StateManagerModule states)
     {
         if (disposed || !IsValid())
@@ -157,7 +169,7 @@ public abstract class Activity : IDisposable
             var plan = preferBaseCampReturn
                 ? SmartNavigation.PreferBaseCampReturn(selectedPlan, baseCamp)
                 : selectedPlan;
-            var pathfinding = new PathfindingChain(vnav, destination, data);
+            var pathfinding = new PathfindingChain(vnav, destination, data, stopCheck: ShouldStopNestedWork);
 
             if (plan.Type != selectedPlan.Type)
             {
@@ -195,7 +207,8 @@ public abstract class Activity : IDisposable
                     {
                         ApproachAetheryte = true,
                         ForceReturn = true,
-                        StopCheck = () => !module.IsEnabled,
+                        SkipReturnAtLanding = true,
+                        StopCheck = ShouldStopNestedWork,
                     });
                     chain
                         .ConditionalThen(_ => ShouldContinueNavigation(states), returnChain)
@@ -212,12 +225,14 @@ public abstract class Activity : IDisposable
                     {
                         ApproachAetheryte = true,
                         ForceReturn = true,
-                        StopCheck = () => !module.IsEnabled,
+                        SkipReturnAtLanding = true,
+                        StopCheck = ShouldStopNestedWork,
                     });
                     var teleport = ChainHelper.TeleportChain(
                         plan.DestinationAethernet,
                         plan.SourceAethernet,
-                        mountAfterTeleport: false);
+                        mountAfterTeleport: false,
+                        stopCheck: ShouldStopNestedWork);
                     chain
                         .ConditionalThen(_ => ShouldContinueNavigation(states), returnChain)
                         .ConditionalThen(_ => ShouldContinueNavigation(states), _ => LogReturnFailure(returnChain, plan))
@@ -240,11 +255,12 @@ public abstract class Activity : IDisposable
                     var teleport = ChainHelper.TeleportChain(
                         plan.DestinationAethernet,
                         plan.SourceAethernet,
-                        mountAfterTeleport: false);
+                        mountAfterTeleport: false,
+                        stopCheck: ShouldStopNestedWork);
                     chain
                         .ConditionalThen(
                             _ => ShouldContinueNavigation(states) && ShouldMountToPathfindTo(sourcePosition),
-                            ChainHelper.MountChain())
+                            ChainHelper.MountChain(ShouldStopNestedWork))
                         .ConditionalThen(_ => ShouldContinueNavigation(states), teleport)
                         .ConditionalThen(_ => ShouldContinueNavigation(states), _ => LogTeleportFailure(teleport, plan))
                         .BreakIf(() => ShouldContinueNavigation(states) && !teleport.Succeeded)
@@ -307,7 +323,7 @@ public abstract class Activity : IDisposable
             // stop/start motion; teleport routes could previously do it twice.
             .ConditionalThen(
                 _ => ShouldContinueNavigation(states) && ShouldMountToPathfindTo(destination),
-                ChainHelper.MountChain())
+                ChainHelper.MountChain(ShouldStopNestedWork))
             .ConditionalThen(_ => ShouldContinueNavigation(states), pathfinding)
             .BreakIf(() => pathfinding.TransitAttempted && !pathfinding.TransitReachedEnd);
     }

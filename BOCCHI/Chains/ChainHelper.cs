@@ -70,20 +70,22 @@ public class ChainHelper
     public static TeleportChain TeleportChain(
         Aethernet aethernet,
         Aethernet? sourceAethernet = null,
-        bool mountAfterTeleport = true)
+        bool mountAfterTeleport = true,
+        Func<bool>? stopCheck = null)
     {
         return new TeleportChain(
             aethernet,
             IPC.GetSubscriber<Lifestream>(),
             Modules.GetModule<TeleporterModule>(),
             sourceAethernet,
-            mountAfterTeleport
+            mountAfterTeleport,
+            stopCheck
         );
     }
 
-    public static MountChain MountChain()
+    public static MountChain MountChain(Func<bool>? stopCheck = null)
     {
-        return new MountChain(Modules.GetModule<MountModule>().Config);
+        return new MountChain(Modules.GetModule<MountModule>().Config, stopCheck);
     }
 
     public static Func<Chain> PathfindToAndWait(Vector3 destination, float distance)

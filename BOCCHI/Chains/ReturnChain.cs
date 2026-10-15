@@ -23,7 +23,7 @@ using System.Numerics;
 
 namespace BOCCHI.Chains;
 
-public partial class ReturnChain(TeleporterModule module, ReturnChainConfig config) : ChainFactory
+public partial class ReturnChain(TeleporterModule module, ReturnChainConfig config) : OwnedChainFactory
 {
     public bool Succeeded { get; private set; }
 
@@ -41,7 +41,13 @@ public partial class ReturnChain(TeleporterModule module, ReturnChainConfig conf
 
         chain.BreakIf(() => Player.IsDead);
 
-        var shouldReturn = config.ForceReturn || GetCostToReturn() < GetCostToWalk();
+        var skipAtLanding = config.SkipReturnAtLanding && IsAtReturnLanding(Svc.ClientState.TerritoryType);
+        var shouldReturn = !skipAtLanding && (config.ForceReturn || GetCostToReturn() < GetCostToWalk());
+        if (skipAtLanding)
+        {
+            Svc.Log.Info("Already inside the base-camp Return landing area; walking to the aethernet instead of casting Return.");
+        }
+
         returnTerritory = Svc.ClientState.TerritoryType;
         executionChain = chain;
         returnTracker = null;
@@ -278,7 +284,7 @@ public partial class ReturnChain(TeleporterModule module, ReturnChainConfig conf
         var currentJob = Job.Current;
         var supportJobs = Svc.Data.GetExcelSheet<MKDSupportJob>();
         var currentJobData = supportJobs.GetRow(currentJob.ByteId);
-        var chain = Chain.Create();
+        var chain = Chain.Create("ChangeLowLevelJob").DisposeWhenFinished();
 
         if (!auto.Config.ShouldChangeLowLevelJob
             || SupportJobLevelingPolicy.ShouldKeepCurrent(
@@ -346,7 +352,7 @@ public partial class ReturnChain(TeleporterModule module, ReturnChainConfig conf
     private Chain ApplyBuffs()
     {
         if (!module.TryGetIPCSubscriber<VNavmesh>(out var vnav) || vnav == null || !vnav.IsReady())
-            return Chain.Create();
+            return Chain.Create("ApplyBuffs").DisposeWhenFinished();
 
         var buffs = module.GetModule<BuffModule>();
 
@@ -356,7 +362,7 @@ public partial class ReturnChain(TeleporterModule module, ReturnChainConfig conf
         var approachStartedAt = 0L;
         long? navigationInactiveSince = null;
 
-        var chain = Chain.Create();
+        var chain = Chain.Create("ApplyBuffs").DisposeWhenFinished();
         chain.BreakIf(() => !buffs.ShouldRefreshBuffs() || !vnav.IsReady() || closestKnowledgeCrystal == null);
         chain.Then(_ => Actions.TryUnmount());
 

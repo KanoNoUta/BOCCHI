@@ -1,11 +1,12 @@
-﻿using BOCCHI.ActionHelpers;
+﻿using BOCCHI.Chains;
+using BOCCHI.ActionHelpers;
 using BOCCHI.Data;
 using Ocelot.Chain;
 using Ocelot.Chain.ChainEx;
 
 namespace BOCCHI.Modules.MobFarmer.Chains;
 
-public class TreasureFindingChain(MobFarmerModule module) : ChainFactory
+public class TreasureFindingChain(MobFarmerModule module) : OwnedChainFactory
 {
     private readonly Job startingJob = Job.Current;
 

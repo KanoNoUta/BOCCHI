@@ -1,4 +1,6 @@
-﻿using FFXIVClientStructs.FFXIV.Client.Game;
+﻿using BOCCHI.Chains;
+using ECommons.Automation.NeoTaskManager;
+using FFXIVClientStructs.FFXIV.Client.Game;
 using Ocelot.Chain;
 using System;
 
@@ -39,15 +41,24 @@ public unsafe class Action(ActionType type, uint id)
         ActionManager.Instance()->UseAction(type, id, arg);
     }
 
+    // Callers abandon a cast chain after at most 15 seconds; a recast that
+    // never clears must end the chain instead of leaving it polling forever.
+    private const int CanCastTimeoutMs = 15_000;
+
     public Func<Chain> GetCastChain()
     {
-        return () => CastOnChain(Chain.Create($"Action({type}, {id})"));
+        return () => CastOnChain(Chain.Create($"Action({type}, {id})").DisposeWhenFinished());
     }
 
     public Chain CastOnChain(Chain chain)
     {
         return chain
-            .Then(_ => CanCast())
+            .Then(new TaskManagerTask(() => CanCast(), new TaskManagerConfiguration
+            {
+                TimeLimitMS = CanCastTimeoutMs,
+                AbortOnTimeout = true,
+                ShowError = false,
+            }))
             .Then(_ => Cast());
     }
 }

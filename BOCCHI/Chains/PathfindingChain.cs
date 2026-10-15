@@ -11,7 +11,7 @@ using System.Numerics;
 
 namespace BOCCHI.Chains;
 
-public class PathfindingChain : ChainFactory
+public class PathfindingChain : OwnedChainFactory
 {
     // The route is about 1,234 yalms long. Keep enough headroom for an
     // unmounted character while still stopping navigation on a true timeout.
@@ -29,6 +29,8 @@ public class PathfindingChain : ChainFactory
 
     private readonly VNavmesh vnav;
 
+    private readonly Func<bool>? stopCheck;
+
     private long northHornTransitStartedAt;
 
     public bool TransitAttempted { get; private set; }
@@ -40,20 +42,27 @@ public class PathfindingChain : ChainFactory
         Vector3 destination,
         EventData data,
         float? maxRadius = null,
-        float? minRadius = null)
+        float? minRadius = null,
+        Func<bool>? stopCheck = null)
     {
         this.vnav = vnav;
         this.destination = destination;
         this.data = data;
         this.maxRadius = maxRadius;
         this.minRadius = minRadius;
+        this.stopCheck = stopCheck;
+    }
+
+    private bool IsStopped()
+    {
+        return stopCheck?.Invoke() == true;
     }
 
     protected override Chain Create(Chain chain)
     {
         if (!NorthHornSouthCrossingRoute.TryCreate(data, Player.Position, out var transitRoute))
         {
-            return chain.Then(PathfindAndMoveToChain.RandomNearby(vnav, destination, maxRadius ?? 1f, minRadius ?? 0f));
+            return chain.Then(PathfindAndMoveToChain.RandomNearby(vnav, destination, maxRadius ?? 1f, minRadius ?? 0f, stopCheck));
         }
 
         var lastWaypoint = transitRoute[^1];
@@ -63,6 +72,7 @@ public class PathfindingChain : ChainFactory
         // profile intentionally avoids, so feed the full route to FollowPath.
         return chain
             .Debug($"Using North Horn south-crossing transit route for FATE {data.Id}")
+            .BreakIf(IsStopped)
             .Then(_ => StartNorthHornTransit(transitRoute))
             .Then(WaitForNorthHornTransit(vnav, lastWaypoint))
             .ConditionalThen(_ => TransitReachedEnd, _ => vnav.Stop());
@@ -70,6 +80,11 @@ public class PathfindingChain : ChainFactory
 
     private void StartNorthHornTransit(List<Vector3> transitRoute)
     {
+        if (IsStopped())
+        {
+            return;
+        }
+
         TransitAttempted = true;
         TransitReachedEnd = false;
         northHornTransitStartedAt = Environment.TickCount64;
@@ -82,6 +97,11 @@ public class PathfindingChain : ChainFactory
 
         return new TaskManagerTask((Func<bool?>)(() =>
         {
+            if (IsStopped())
+            {
+                return true;
+            }
+
             if (Vector3.DistanceSquared(Player.Position, lastWaypoint) <= arrivalDistanceSquared)
             {
                 TransitReachedEnd = true;

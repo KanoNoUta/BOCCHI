@@ -9,7 +9,7 @@ using Job = ECommons.ExcelServices.Job;
 
 namespace BOCCHI.Chains;
 
-public class StanceChain(bool stance) : ChainFactory
+public class StanceChain(bool stance) : OwnedChainFactory
 {
     protected override Chain Create(Chain chain)
     {

@@ -13,7 +13,7 @@ using System.Numerics;
 
 namespace BOCCHI.Modules.MobFarmer.Chains;
 
-public class ReturnTeleportWalkChain(VNavmesh vnav, Lifestream lifestream, Vector3 destination, AethernetData activityShard) : ChainFactory
+public class ReturnTeleportWalkChain(VNavmesh vnav, Lifestream lifestream, Vector3 destination, AethernetData activityShard) : OwnedChainFactory
 {
     protected override Chain Create(Chain chain)
     {

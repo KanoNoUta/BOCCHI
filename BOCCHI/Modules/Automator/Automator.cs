@@ -4,8 +4,11 @@ using BOCCHI.Enums;
 using BOCCHI.Modules.CriticalEncounters;
 using BOCCHI.Modules.Fates;
 using BOCCHI.Modules.StateManager;
+using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Plugin.Services;
 using ECommons.DalamudServices;
+using ECommons.GameHelpers;
+using ECommons.Throttlers;
 using FFXIVClientStructs.FFXIV.Client.Game.InstanceContent;
 using Ocelot.Chain;
 using Ocelot.Chain.ChainEx;
@@ -27,6 +30,29 @@ public class Automator
     private const double CriticalEncounterTransitReserveSeconds = 45d;
 
     private static readonly TimeSpan PostActivityReturnRetryDelay = TimeSpan.FromSeconds(5);
+
+    // Decide "already home" only after teleports, casts and loading screens
+    // have been quiet for this long. Judging mid-transition is how a late
+    // teleport used to strand the player at the event's shard.
+    private const int PostActivityReturnSettleMs = 2_500;
+
+    // Module updates pause during loading screens; a gap this long means the
+    // settle window must start again after the transition.
+    private const int PostActivityUpdateGapMs = 500;
+
+    // FATE/CE membership can linger (or belong to an overlapping FATE) after
+    // the activity ended. Do not wait on it forever.
+    private const int PostActivityEventStateGraceMs = 10_000;
+
+    private const int PostActivityInFlightLimitMs = 60_000;
+
+    private const int PostActivityLifestreamBusyLimitMs = 20_000;
+
+    // AI and rotation are released when an activity ends. If enemies keep the
+    // player in combat, Return can never be cast, so fight back after this.
+    private const int PostActivityCombatDefenseDelayMs = 5_000;
+
+    private const int PostActivityDiagnosticIntervalMs = 10_000;
 
     private static bool IsChainActive
     {
@@ -52,6 +78,24 @@ public class Automator
 
     private bool preferFateAfterCriticalEncounter;
 
+    private int postActivityReturnGeneration;
+
+    private long postActivityQueuedAtMs;
+
+    private long lastPostActivityUpdateMs;
+
+    private long? postActivitySettledSinceMs;
+
+    private long? postActivityEventStateSinceMs;
+
+    private long? postActivityInFlightSinceMs;
+
+    private long? postActivityLifestreamBusySinceMs;
+
+    private long? postActivityCombatSinceMs;
+
+    private AutomatorModule? postActivityDefenseOwner;
+
     public void PostUpdate(AutomatorModule module, IFramework framework)
     {
         // Module dispatch normally filters disabled modules, but the emergency
@@ -71,10 +115,15 @@ public class Automator
         var states = module.GetModule<StateManagerModule>();
         if (Activity == null && postActivityReturnPending)
         {
-            if (IsChainActive || HandlePostActivityReturn(module, states))
+            UpdatePostActivityCombatDefense(module);
+            if (IsChainActive || HandlePostActivityReturn(module, states, lifestream))
             {
                 return;
             }
+        }
+        else
+        {
+            ReleasePostActivityCombatDefense("no forced return is pending");
         }
 
         if (Activity == null)
@@ -259,6 +308,7 @@ public class Automator
             Plugin.Chain.Submit(ChainHelper.ReturnChain(new ReturnChainConfig
             {
                 ApproachAetheryte = true,
+                SkipReturnAtLanding = true,
                 StopCheck = () => !module.IsEnabled,
             }));
         }
@@ -367,10 +417,14 @@ public class Automator
         ClearActivity();
         idleTime = 0;
         postActivityReturnPending = false;
+        postActivityReturnGeneration++;
         postActivityReturnAttempts = 0;
         nextPostActivityReturnAttempt = DateTime.MinValue;
         postActivityReturnReason = "activity completed";
         preferFateAfterCriticalEncounter = false;
+        ResetPostActivityTracking();
+        // Every caller already stops the rotation and releases the AI.
+        postActivityDefenseOwner = null;
     }
 
     public void SuspendForIndependentNavigation(string reason)
@@ -395,9 +449,12 @@ public class Automator
         }
 
         postActivityReturnPending = false;
+        postActivityReturnGeneration++;
         postActivityReturnAttempts = 0;
         nextPostActivityReturnAttempt = DateTime.MinValue;
         idleTime = 0;
+        ResetPostActivityTracking();
+        ReleasePostActivityCombatDefense(reason);
         Svc.Log.Info($"Cancelled forced base-camp return because {reason} owns navigation.");
         return true;
     }
@@ -416,10 +473,13 @@ public class Automator
         }
 
         postActivityReturnPending = true;
+        postActivityReturnGeneration++;
         postActivityReturnAttempts = 0;
         nextPostActivityReturnAttempt = DateTime.MinValue;
         postActivityReturnReason = reason;
         idleTime = 0;
+        ResetPostActivityTracking();
+        postActivityQueuedAtMs = Environment.TickCount64;
         Svc.Log.Info($"Queued forced base-camp return after {reason}.");
     }
 
@@ -429,7 +489,7 @@ public class Automator
         Activity = null;
     }
 
-    private bool HandlePostActivityReturn(AutomatorModule module, StateManagerModule states)
+    private bool HandlePostActivityReturn(AutomatorModule module, StateManagerModule states, Lifestream lifestream)
     {
         if (!postActivityReturnPending)
         {
@@ -442,10 +502,66 @@ public class Automator
             return false;
         }
 
-        // Do not select or walk toward another event while the completion
-        // return is pending. Wait for combat/event state to settle, then use
-        // Return explicitly rather than walking to a nearby shard.
-        if (states.GetState() != State.Idle || Svc.Condition[Dalamud.Game.ClientState.Conditions.ConditionFlag.InCombat])
+        var nowMs = Environment.TickCount64;
+        if (nowMs - lastPostActivityUpdateMs > PostActivityUpdateGapMs)
+        {
+            postActivitySettledSinceMs = null;
+        }
+
+        lastPostActivityUpdateMs = nowMs;
+
+        // A teleport, cast or loading screen that started before the activity
+        // ended is still moving the player. Wait for it instead of judging the
+        // position mid-flight.
+        var inFlightReason = GetPostActivityInFlightReason(lifestream, nowMs);
+        if (inFlightReason != null)
+        {
+            postActivityInFlightSinceMs ??= nowMs;
+            if (nowMs - postActivityInFlightSinceMs.Value < PostActivityInFlightLimitMs)
+            {
+                postActivitySettledSinceMs = null;
+                LogPostActivityWait(inFlightReason);
+                return true;
+            }
+
+            if (EzThrottler.Throttle("Automator.PostActivityInFlightLimit", PostActivityDiagnosticIntervalMs))
+            {
+                Svc.Log.Warning(
+                    $"Forced base-camp return stopped waiting for {inFlightReason} after "
+                    + $"{PostActivityInFlightLimitMs / 1000}s.");
+            }
+        }
+        else
+        {
+            postActivityInFlightSinceMs = null;
+        }
+
+        // Return cannot be cast in combat.
+        if (Svc.Condition[ConditionFlag.InCombat])
+        {
+            postActivitySettledSinceMs = null;
+            LogPostActivityWait("combat");
+            return true;
+        }
+
+        var state = states.GetState();
+        if (state != State.Idle)
+        {
+            postActivityEventStateSinceMs ??= nowMs;
+            if (nowMs - postActivityEventStateSinceMs.Value < PostActivityEventStateGraceMs)
+            {
+                postActivitySettledSinceMs = null;
+                LogPostActivityWait($"state {state}");
+                return true;
+            }
+        }
+        else
+        {
+            postActivityEventStateSinceMs = null;
+        }
+
+        postActivitySettledSinceMs ??= nowMs;
+        if (nowMs - postActivitySettledSinceMs.Value < PostActivityReturnSettleMs)
         {
             return true;
         }
@@ -454,9 +570,7 @@ public class Automator
                 ZoneData.GetBaseCampAethernet(),
                 AethernetData.DISTANCE + 1f))
         {
-            postActivityReturnPending = false;
-            postActivityReturnAttempts = 0;
-            Svc.Log.Info($"Post-activity return already satisfied after {postActivityReturnReason}.");
+            CompletePostActivityReturn($"Post-activity return already satisfied after {postActivityReturnReason}.");
             return false;
         }
 
@@ -471,56 +585,245 @@ public class Automator
             Svc.Log.Error(
                 $"Giving up forced base-camp return after {postActivityReturnReason}: " +
                 $"{postActivityReturnAttempts} attempts failed.");
-            postActivityReturnPending = false;
-            postActivityReturnAttempts = 0;
+            CompletePostActivityReturn(null);
             return false;
         }
 
-        if (module.IsIndependentNavigationRunning)
+        postActivityReturnAttempts++;
+        var attempt = postActivityReturnAttempts;
+        var generation = postActivityReturnGeneration;
+        bool Stopped()
         {
-            CancelPostActivityReturn("independent navigation");
-            return false;
+            return !module.IsEnabled
+                   || !postActivityReturnPending
+                   || generation != postActivityReturnGeneration;
         }
 
+        // The native Return can keep failing (an action that stays
+        // unavailable, a dialog that never matches); the last attempt uses
+        // the aethernet network instead.
+        var useAethernet = attempt == MaxPostActivityReturnAttempts;
+        var baseCamp = ZoneData.GetBaseCampAethernet();
+        var teleport = useAethernet && ZoneData.GetClosestAethernetShard(Player.Position) != baseCamp
+            ? ChainHelper.TeleportChain(baseCamp, mountAfterTeleport: false, stopCheck: Stopped)
+            : null;
         var returnChain = ChainHelper.ReturnChain(new ReturnChainConfig
         {
             ApproachAetheryte = true,
-            ForceReturn = true,
-            StopCheck = () => !module.IsEnabled,
+            ForceReturn = !useAethernet,
+            SkipReturnAtLanding = true,
+            StopCheck = Stopped,
         });
-        postActivityReturnAttempts++;
-        var attempt = postActivityReturnAttempts;
         Svc.Log.Info(
             $"Starting forced base-camp return after {postActivityReturnReason} " +
-            $"({attempt}/{MaxPostActivityReturnAttempts}).");
+            $"({attempt}/{MaxPostActivityReturnAttempts}, method={(useAethernet ? "aethernet" : "Return")}, " +
+            $"queued {(nowMs - postActivityQueuedAtMs) / 1000d:F1}s ago).");
 
         Plugin.Chain.Submit(() =>
-            Chain.Create("Illegal:PostActivityReturn")
+        {
+            var chain = Chain.Create("Illegal:PostActivityReturn");
+            if (teleport != null)
+            {
+                chain.Then(teleport).BreakIf(() => !teleport.Succeeded);
+            }
+
+            return chain
                 .Then(returnChain)
                 .OnFinally(() =>
                 {
-                    if (!postActivityReturnPending)
+                    if (!postActivityReturnPending || generation != postActivityReturnGeneration)
                     {
                         return;
                     }
 
                     if (returnChain.Succeeded)
                     {
-                        postActivityReturnPending = false;
-                        postActivityReturnAttempts = 0;
-                        nextPostActivityReturnAttempt = DateTime.MinValue;
-                        idleTime = 0;
-                        Svc.Log.Info($"Forced base-camp return completed after {postActivityReturnReason}.");
+                        CompletePostActivityReturn($"Forced base-camp return completed after {postActivityReturnReason}.");
                         return;
                     }
 
+                    var reason = teleport is { Succeeded: false }
+                        ? teleport.FailureReason ?? "aethernet teleport timed out or was aborted"
+                        : returnChain.FailureReason ?? "return chain timed out or was aborted";
                     nextPostActivityReturnAttempt = DateTime.UtcNow + PostActivityReturnRetryDelay;
+                    // Combat that starts mid-attempt is waited out above; it
+                    // must not use up the attempts meant for real failures.
+                    var interruptedByCombat = Svc.Condition[ConditionFlag.InCombat];
+                    if (interruptedByCombat)
+                    {
+                        postActivityReturnAttempts = Math.Max(0, postActivityReturnAttempts - 1);
+                    }
+
                     Svc.Log.Warning(
                         $"Forced base-camp return failed after {postActivityReturnReason} " +
-                        $"({attempt}/{MaxPostActivityReturnAttempts}); " +
-                        $"reason={returnChain.FailureReason ?? "return chain timed out or was aborted"}.");
-                }));
+                        $"({attempt}/{MaxPostActivityReturnAttempts}{(interruptedByCombat ? ", interrupted by combat and not counted" : "")}); " +
+                        $"reason={reason}.");
+                });
+        });
         return true;
+    }
+
+    private string? GetPostActivityInFlightReason(Lifestream lifestream, long nowMs)
+    {
+        bool lifestreamBusy;
+        try
+        {
+            lifestreamBusy = lifestream.IsBusy();
+        }
+        catch (Exception exception)
+        {
+            Svc.Log.Warning(exception, "Lifestream IPC failed while checking for an in-flight teleport.");
+            lifestreamBusy = false;
+        }
+
+        if (lifestreamBusy)
+        {
+            postActivityLifestreamBusySinceMs ??= nowMs;
+            if (nowMs - postActivityLifestreamBusySinceMs.Value >= PostActivityLifestreamBusyLimitMs)
+            {
+                postActivityLifestreamBusySinceMs = null;
+                Svc.Log.Warning(
+                    $"Lifestream stayed busy for {PostActivityLifestreamBusyLimitMs / 1000}s after the activity ended; "
+                    + "aborting it so the forced return can proceed.");
+                try
+                {
+                    lifestream.Abort();
+                }
+                catch (Exception exception)
+                {
+                    Svc.Log.Warning(exception, "Could not abort the stale Lifestream request.");
+                }
+            }
+
+            return "Lifestream";
+        }
+
+        postActivityLifestreamBusySinceMs = null;
+
+        var player = Svc.Objects.LocalPlayer;
+        if (player == null || !player.IsTargetable)
+        {
+            return "player not ready";
+        }
+
+        if (player.IsCasting)
+        {
+            return "casting";
+        }
+
+        if (Svc.Condition[ConditionFlag.BetweenAreas]
+            || Svc.Condition[ConditionFlag.BetweenAreas51]
+            || Svc.Condition[ConditionFlag.OccupiedInQuestEvent]
+            || Svc.Condition[ConditionFlag.OccupiedInEvent]
+            || Svc.Condition[ConditionFlag.OccupiedInCutSceneEvent])
+        {
+            return "loading or interaction";
+        }
+
+        return null;
+    }
+
+    private void LogPostActivityWait(string reason)
+    {
+        if (EzThrottler.Throttle("Automator.PostActivityReturnWait", PostActivityDiagnosticIntervalMs))
+        {
+            Svc.Log.Info(
+                $"Forced base-camp return after {postActivityReturnReason} is waiting: {reason} "
+                + $"(queued {(Environment.TickCount64 - postActivityQueuedAtMs) / 1000d:F1}s ago).");
+        }
+    }
+
+    private void CompletePostActivityReturn(string? message)
+    {
+        postActivityReturnPending = false;
+        postActivityReturnGeneration++;
+        postActivityReturnAttempts = 0;
+        nextPostActivityReturnAttempt = DateTime.MinValue;
+        idleTime = 0;
+        ResetPostActivityTracking();
+        ReleasePostActivityCombatDefense("forced return finished");
+        if (message != null)
+        {
+            Svc.Log.Info(message);
+        }
+    }
+
+    private void ResetPostActivityTracking()
+    {
+        lastPostActivityUpdateMs = 0;
+        postActivitySettledSinceMs = null;
+        postActivityEventStateSinceMs = null;
+        postActivityInFlightSinceMs = null;
+        postActivityLifestreamBusySinceMs = null;
+        postActivityCombatSinceMs = null;
+    }
+
+    /// <summary>
+    /// Ending an activity releases the AI and the rotation. Enemies that keep
+    /// attacking afterwards then hold the player in combat forever, and Return
+    /// cannot be cast in combat. Fight back (without pulling anything new)
+    /// until combat ends, then hand control back to the Return.
+    /// </summary>
+    private void UpdatePostActivityCombatDefense(AutomatorModule module)
+    {
+        var player = Svc.Objects.LocalPlayer;
+        if (player == null || player.IsDead || !Svc.Condition[ConditionFlag.InCombat])
+        {
+            postActivityCombatSinceMs = null;
+            ReleasePostActivityCombatDefense("combat ended");
+            return;
+        }
+
+        var nowMs = Environment.TickCount64;
+        postActivityCombatSinceMs ??= nowMs;
+        if (nowMs - postActivityCombatSinceMs.Value < PostActivityCombatDefenseDelayMs
+            || !EzThrottler.Throttle("Automator.PostActivityCombatDefense", 1000))
+        {
+            return;
+        }
+
+        var attacker = TargetHelper.Enemies.FirstOrDefault(enemy => enemy.TargetObjectId == player.GameObjectId);
+        if (attacker == null)
+        {
+            return;
+        }
+
+        if (Svc.Targets.Target is not Dalamud.Game.ClientState.Objects.Types.IBattleNpc
+            {
+                IsDead: false,
+                IsTargetable: true,
+            } current
+            || current.TargetObjectId != player.GameObjectId)
+        {
+            Svc.Targets.Target = attacker;
+        }
+
+        if (postActivityDefenseOwner == null)
+        {
+            postActivityDefenseOwner = module;
+            module.SetAiProviderEnabled(true);
+            Svc.Log.Info(
+                $"Forced base-camp return after {postActivityReturnReason} is held by combat; "
+                + $"fighting back against {attacker.Name}.");
+        }
+
+        if (!PromeRotationController.IsRunning())
+        {
+            PromeRotationController.StartWithoutAutoPull();
+        }
+    }
+
+    private void ReleasePostActivityCombatDefense(string reason)
+    {
+        if (postActivityDefenseOwner is not { } module)
+        {
+            return;
+        }
+
+        postActivityDefenseOwner = null;
+        PromeRotationController.Stop();
+        module.SetAiProviderEnabled(false);
+        Svc.Log.Info($"Released post-activity combat defense: {reason}.");
     }
 }
 

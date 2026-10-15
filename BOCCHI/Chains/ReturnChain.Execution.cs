@@ -4,6 +4,7 @@ using BOCCHI.Pathfinding;
 using Dalamud.Game.ClientState.Conditions;
 using ECommons.DalamudServices;
 using ECommons.GameHelpers;
+using ECommons.Throttlers;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Component.GUI;
@@ -15,6 +16,8 @@ namespace BOCCHI.Chains;
 
 public partial class ReturnChain
 {
+    private const int WaitDiagnosticIntervalMs = 10_000;
+
     private Chain? executionChain;
     private ReturnCastTracker? returnTracker;
     private uint returnTerritory;
@@ -44,7 +47,8 @@ public partial class ReturnChain
                            || Svc.Condition[ConditionFlag.BetweenAreas51];
         var inSourceTerritory = Svc.ClientState.TerritoryType == returnTerritory;
         var player = Svc.Objects.LocalPlayer;
-        var atLanding = !betweenAreas && player?.IsTargetable == true && IsAtReturnLanding(returnTerritory);
+        var targetable = player?.IsTargetable == true;
+        var atLanding = !betweenAreas && targetable && IsAtReturnLanding(returnTerritory);
         returnTracker ??= new ReturnCastTracker(now, atLanding);
         module.ActiveReturn = this;
 
@@ -72,15 +76,19 @@ public partial class ReturnChain
             Actions.TryUnmount();
         }
 
-        var decision = returnTracker.Update(now, betweenAreas, casting, atLanding,
-            inSourceTerritory && player?.IsTargetable == true && movementPrepared
-            && !dialogOpen && !Player.IsMoving && !Svc.Condition[ConditionFlag.Mounted]
-            && !Svc.Condition[ConditionFlag.InCombat] && actionStatus == 0);
+        var moving = Player.IsMoving;
+        var mounted = Svc.Condition[ConditionFlag.Mounted];
+        var inCombat = Svc.Condition[ConditionFlag.InCombat];
+        var canRequest = inSourceTerritory && targetable && movementPrepared
+                         && !dialogOpen && !moving && !mounted && !inCombat && actionStatus == 0;
+        var decision = returnTracker.Update(now, betweenAreas, casting, atLanding, canRequest);
 
         if (decision == ReturnCastDecision.Complete)
         {
             returnCompleted = true;
-            Svc.Log.Info($"Return landed at base camp after {returnTracker.Attempts} request(s).");
+            Svc.Log.Info(returnTracker.Attempts == 0
+                ? "Return landing reached at base camp without a new request (a Return was already in flight)."
+                : $"Return landed at base camp after {returnTracker.Attempts} request(s).");
             return true;
         }
 
@@ -88,25 +96,37 @@ public partial class ReturnChain
         {
             FailureReason = $"Return failed: requests={returnTracker.Attempts}, actionStatus={actionStatus}, "
                 + $"cast={returnTracker.SawCast}, transition={returnTracker.SawTransition}, "
-                + $"dialog={dialogOpen}, territory={Svc.ClientState.TerritoryType}, expected={returnTerritory}.";
+                + $"dialog={dialogOpen}, combat={inCombat}, moving={moving}, mounted={mounted}, "
+                + $"territory={Svc.ClientState.TerritoryType}, expected={returnTerritory}.";
             Svc.Log.Warning(FailureReason);
             return true;
         }
 
-        // Pre-existing confirmations block the request. Only a dialog opened
-        // after an accepted BOCCHI Return may be confirmed, once the actual
-        // Yes button is visible and enabled. Do not depend on PostSetup timing.
-        if (returnTracker.CanConfirm(now) && inSourceTerritory && !betweenAreas && !casting
-            && dialog != null && dialog->AtkUnitBase.IsVisible
-            && dialog->AtkUnitBase.AtkValuesCount > 7 && dialog->AtkUnitBase.AtkValues != null
-            && dialog->AtkUnitBase.AtkValues[7].Type == AtkValueType.Int
-            && dialog->AtkUnitBase.AtkValues[7].Int == -1
-            && dialog->YesButton != null && dialog->YesButton->IsEnabled
-            && dialog->YesButton->AtkResNode != null && dialog->YesButton->AtkResNode->IsVisible())
+        // A confirmation that opens after a BOCCHI Return request belongs to
+        // it, whatever UseAction reported. Requests are only made while no
+        // dialog is open, so a pre-existing unrelated dialog is never clicked;
+        // a Return confirmation left open by an earlier BOCCHI attempt is
+        // recognised through the ledger instead of blocking every retry.
+        if (inSourceTerritory && !betweenAreas && !casting && dialogOpen
+            && (returnTracker.CanConfirm(now)
+                || ReturnRequestLedger.RequestedWithin(now, ReturnRequestLedger.StaleConfirmationWindowMs))
+            && !ReturnRequestLedger.ConfirmedWithin(now, ReturnRequestLedger.ConfirmationCooldownMs)
+            && IsReturnConfirmationReady(dialog))
         {
             returnTracker.RecordConfirmation(now);
+            ReturnRequestLedger.RecordConfirmation(now);
             dialog->AtkUnitBase.FireCallbackInt(0);
             Svc.Log.Info("Confirmed BOCCHI Return after the confirmation button became ready.");
+        }
+        else if (decision == ReturnCastDecision.Wait && !canRequest && !casting && !betweenAreas
+                 && !returnTracker.IsAwaitingResponse(now)
+                 && EzThrottler.Throttle("ReturnChain.WaitDiagnostics", WaitDiagnosticIntervalMs))
+        {
+            Svc.Log.Info(
+                $"Return is waiting before its next request: requests={returnTracker.Attempts}, "
+                + $"territory={inSourceTerritory}, targetable={targetable}, prepared={movementPrepared}, "
+                + $"dialog={dialogOpen}, moving={moving}, mounted={mounted}, combat={inCombat}, "
+                + $"actionStatus={actionStatus}.");
         }
 
         if (decision == ReturnCastDecision.Request)
@@ -121,10 +141,25 @@ public partial class ReturnChain
                 Svc.Log.Warning(exception, "Return action request threw an exception; retrying within the attempt budget.");
             }
             returnTracker.RecordRequest(now, accepted);
+            ReturnRequestLedger.RecordRequest(now);
             Svc.Log.Info($"Return request {returnTracker.Attempts}/{ReturnCastTracker.MaxAttempts}: accepted={accepted}, actionStatus={actionStatus}.");
         }
 
         return false;
+    }
+
+    private static unsafe bool IsReturnConfirmationReady(AddonSelectYesno* dialog)
+    {
+        return dialog != null
+               && dialog->AtkUnitBase.IsVisible
+               && dialog->AtkUnitBase.AtkValuesCount > 7
+               && dialog->AtkUnitBase.AtkValues != null
+               && dialog->AtkUnitBase.AtkValues[7].Type == AtkValueType.Int
+               && dialog->AtkUnitBase.AtkValues[7].Int == -1
+               && dialog->YesButton != null
+               && dialog->YesButton->IsEnabled
+               && dialog->YesButton->AtkResNode != null
+               && dialog->YesButton->AtkResNode->IsVisible();
     }
 
     private bool TryStopReturnMovement()
@@ -145,7 +180,7 @@ public partial class ReturnChain
         }
     }
 
-    private static bool IsAtReturnLanding(uint expectedTerritory)
+    internal static bool IsAtReturnLanding(uint expectedTerritory)
     {
         var player = Svc.Objects.LocalPlayer;
         return player != null && Svc.ClientState.TerritoryType == expectedTerritory

@@ -47,7 +47,8 @@
           "tooltip": "現在の蜃気楼の島を退出し、同じエリアへ自動的に再入場します"
         },
         "test_instance_entry": "インスタンス入場テスト",
-        "test_instance_entry_help": "蜃気楼の島の外で対応するNPCのそばに立ち、クリックすると選択したエリアへの入場を申請します。BOCCHIがDailyRoutinesのAutoTalkSkip、FieldEntryCommand、InstantLeaveDutyを自動的に有効化します。",
+        "test_instance_entry_help": "蜃気楼の島の外で対応するNPCのそばに立ち、クリックすると選択したエリアへの入場を申請します。BOCCHIがDailyRoutinesのAutoTalkSkipとFieldEntryCommandを自動的に有効化します。",
+        "auto_rotate_instance_leave_help": "退出にはOmniの「即刻退本」（/omni 即刻退本）を使います。BOCCHIは自動で有効化しないため、先にOmniで「即刻退本」を有効にしてください。",
         "instance_stay_minutes": {
           "label": "滞在時間（分）",
           "tooltip": "コンテンツ情報HUDの実際の残り時間から滞在時間を計算し、指定時間後にFATE・CE・戦闘・自動移動がない時に更新します"
@@ -377,8 +378,9 @@
           "entry": "[BOCCHI] インスタンス更新：前のエリアへ再入場します。",
           "initial_entry": "[BOCCHI] 不正モード：設定された蜃気楼の島への入場を申請します。",
           "entry_unavailable": "[BOCCHI] 不正モードは有効ですが、入場を申請できませんでした。DailyRoutinesの読み込みを確認してから、不正モードを入れ直してください。",
-          "modules_enabling": "[BOCCHI] インスタンスの入退場に必要なDailyRoutinesモジュールを有効化しています。",
-          "failed": "[BOCCHI] タイムアウトまたはDailyRoutinesコマンドが使用できないため、インスタンス更新を停止しました。"
+          "modules_enabling": "[BOCCHI] インスタンスの入場に必要なDailyRoutinesモジュールを有効化しています。",
+          "failed": "[BOCCHI] タイムアウトまたはDailyRoutines / Omniコマンドが使用できないため、インスタンス更新を停止しました。",
+          "leave_unavailable": "[BOCCHI] インスタンス更新の退出にはOmniの「即刻退本」が必要ですが、Omniが見つかりません。Omniを導入して「即刻退本」を有効にしてから、不正モードを入れ直してください。"
         }
       }
     }

@@ -19,11 +19,38 @@ public class TeleportChain(
     Lifestream lifestream,
     TeleporterModule module,
     Aethernet? sourceAethernet = null,
-    bool mountAfterTeleport = true) : ChainFactory
+    bool mountAfterTeleport = true,
+    Func<bool>? stopCheck = null) : OwnedChainFactory
 {
+    // North Horn loading times can comfortably exceed Ocelot's five second
+    // default, on both sides of the zone transition.
+    private const int LoadingTimeoutMs = 60_000;
+
     public bool Succeeded { get; private set; }
 
     public string? FailureReason { get; private set; }
+
+    /// <summary>
+    /// An owner that stops (an expired activity, emergency stop) must not
+    /// leave this chain running on its own: a teleport submitted after the
+    /// owner ended strands the player at the destination shard.
+    /// </summary>
+    private bool IsStopped()
+    {
+        return stopCheck?.Invoke() == true;
+    }
+
+    private bool CancelIfStopped()
+    {
+        if (!IsStopped())
+        {
+            return false;
+        }
+
+        FailureReason = $"Aethernet teleport to {aethernet} cancelled because its owner stopped.";
+        Svc.Log.Info(FailureReason);
+        return true;
+    }
 
     protected override Chain Create(Chain chain)
     {
@@ -39,6 +66,11 @@ public class TeleportChain(
         {
             Succeeded = true;
             Svc.Log.Info($"Aethernet teleport skipped: already at {aethernet}.");
+            return chain;
+        }
+
+        if (CancelIfStopped())
+        {
             return chain;
         }
 
@@ -63,7 +95,7 @@ public class TeleportChain(
         // Lifestream request cannot stall this chain forever.
         chain.Then(new TaskManagerTask(() =>
         {
-            if (!lifestream.IsBusy())
+            if (IsStopped() || !lifestream.IsBusy())
             {
                 return true;
             }
@@ -88,6 +120,7 @@ public class TeleportChain(
                 }
             },
         }));
+        chain.BreakIf(CancelIfStopped);
         // Lifestream performs NO approach of its own for custom aethernets: it
         // targets the crystal and calls the game's InteractWithObject, which
         // only fires inside the game's ~4.5m interaction range. The maintained
@@ -100,12 +133,17 @@ public class TeleportChain(
         const float interactRange = 4.2f;
         var lastRepathAt = 0L;
         chain.ConditionalThen(
-            _ => ZoneData.GetDistanceToAethernetShard(source) > interactRange,
-            new PathfindAndMoveToChain(vnav, ZoneData.GetAethernetShardApproachPosition(source)));
+            _ => !IsStopped() && ZoneData.GetDistanceToAethernetShard(source) > interactRange,
+            new PathfindAndMoveToChain(vnav, ZoneData.GetAethernetShardApproachPosition(source), stopCheck: stopCheck));
         chain.Then(new TaskManagerTask(() =>
         {
             try
             {
+                if (IsStopped())
+                {
+                    return true;
+                }
+
                 if (ZoneData.GetDistanceToAethernetShard(source) <= interactRange)
                 {
                     vnav.Stop();
@@ -196,9 +234,16 @@ public class TeleportChain(
             },
         }));
 
+        chain.BreakIf(CancelIfStopped);
         chain.Then(_ => vnav.Stop());
-        chain.Then(_ =>
+        chain.Then(context =>
         {
+            if (CancelIfStopped())
+            {
+                context.source.Cancel();
+                return;
+            }
+
             // Snapshot the sequence before submitting; a successful submit bumps
             // it, letting the poll below distinguish our attempt from a stale one.
             acceptedSequence = LifestreamTeleportStatus.GetSequence();
@@ -219,7 +264,8 @@ public class TeleportChain(
         // zone-transition detection below.
         chain.Then(new TaskManagerTask(() =>
         {
-            if (acceptedSequence == null)
+            // The owner that stopped this chain also aborted Lifestream.
+            if (acceptedSequence == null || IsStopped())
             {
                 return true;
             }
@@ -264,10 +310,22 @@ public class TeleportChain(
                 Svc.Log.Warning(FailureReason);
             },
         }));
-        // North Horn loading times can comfortably exceed Ocelot's five
-        // second default. Keep the chain alive until both sides of the zone
-        // transition have completed, then verify the actual landing shard.
-        chain.WaitToCycleCondition(ConditionFlag.BetweenAreas, timeout: 60000);
+        // Keep the chain alive until both sides of the zone transition have
+        // completed, then verify the actual landing shard. Until loading
+        // starts, a stopped owner no longer needs this teleport.
+        var sawLoading = false;
+        chain.Then(new TaskManagerTask(() =>
+        {
+            if (IsLoading())
+            {
+                sawLoading = true;
+                return true;
+            }
+
+            return IsStopped();
+        }, LoadingWait("start")));
+        chain.BreakIf(() => !sawLoading && CancelIfStopped());
+        chain.Then(new TaskManagerTask(() => !IsLoading(), LoadingWait("finish")));
         chain.Then(_ =>
         {
             var destination = aethernet.GetData();
@@ -287,10 +345,30 @@ public class TeleportChain(
         });
         // Mount if we should mount and not pathfind, otherwise let the pathfinder handle it
         chain.ConditionalThen(
-            _ => mountAfterTeleport && module.Config is { ShouldMount: true, PathToDestination: false },
-            ChainHelper.MountChain());
+            _ => mountAfterTeleport && !IsStopped() && module.Config is { ShouldMount: true, PathToDestination: false },
+            ChainHelper.MountChain(stopCheck));
 
         return chain;
+    }
+
+    private static bool IsLoading()
+    {
+        return Svc.Condition[ConditionFlag.BetweenAreas] || Svc.Condition[ConditionFlag.BetweenAreas51];
+    }
+
+    private TaskManagerConfiguration LoadingWait(string phase)
+    {
+        return new TaskManagerConfiguration
+        {
+            TimeLimitMS = LoadingTimeoutMs,
+            AbortOnTimeout = true,
+            ShowError = false,
+            OnTaskTimeout = (TaskManagerTask _, ref long _) =>
+            {
+                FailureReason = $"Timed out waiting for the aethernet loading screen to {phase} ({aethernet}).";
+                Svc.Log.Warning(FailureReason);
+            },
+        };
     }
 
     public override TaskManagerConfiguration? Config()

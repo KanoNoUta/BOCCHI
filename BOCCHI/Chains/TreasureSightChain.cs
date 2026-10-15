@@ -8,7 +8,7 @@ using Ocelot.Chain.ChainEx;
 
 namespace BOCCHI.Chains;
 
-public class TreasureSightChain(TreasureModule module, bool force = false) : ChainFactory
+public class TreasureSightChain(TreasureModule module, bool force = false) : OwnedChainFactory
 {
     private readonly Job StartingJob = Job.Current;
 

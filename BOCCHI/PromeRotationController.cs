@@ -38,6 +38,16 @@ public static class PromeRotationController
         Invoke(StartIpcName, "start");
     }
 
+    /// <summary>
+    /// Starts the rotation for self-defence while already in combat. AutoPull
+    /// stays off so it fights back without pulling anything new.
+    /// </summary>
+    public static void StartWithoutAutoPull()
+    {
+        SetAutoPull(false);
+        Invoke(StartIpcName, "start");
+    }
+
     public static void Stop()
     {
         Invoke(StopIpcName, "stop");

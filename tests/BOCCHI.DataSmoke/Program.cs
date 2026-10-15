@@ -1,4 +1,4 @@
-using BOCCHI;
+﻿using BOCCHI;
 using BOCCHI.Chains;
 using BOCCHI.Commands;
 using BOCCHI.Data;
@@ -1258,7 +1258,7 @@ var deathAutomatorModuleSource = File.ReadAllText(Path.Combine(
 var deathConfigWindowSource = File.ReadAllText(Path.Combine("BOCCHI", "Windows", "ConfigWindow.cs"));
 Assert(deathAutomatorModuleSource.Contains("HandleDeathReturn()", StringComparison.Ordinal)
        && deathAutomatorModuleSource.Contains("StopLocalAutomationForDeath", StringComparison.Ordinal)
-       && deathAutomatorModuleSource.Contains("deathReturnPending = BocchiActions.Return.TryCast()", StringComparison.Ordinal)
+       && deathAutomatorModuleSource.Contains("var accepted = BocchiActions.Return.TryCast();", StringComparison.Ordinal)
        && deathAutomatorModuleSource.Contains("deathReturnPending && Player.IsDead", StringComparison.Ordinal)
        && deathAutomatorModuleSource.Contains("OnDeathReturnSelectYesnoPostDraw", StringComparison.Ordinal)
        && deathAutomatorModuleSource.Contains("var addon = (AddonSelectYesno*)args.Addon.Address", StringComparison.Ordinal)
@@ -2473,16 +2473,17 @@ northRotation.Update(rotationStart.AddMinutes(15).AddSeconds(1), northInput with
 Assert(northRotation.Update(rotationStart.AddMinutes(15).AddSeconds(16), northInput with { TerritoryId = 0 })
        == InstanceRotationAction.EnterNorthHorn,
     "North Horn rotation must select the ocn entry action.");
-Assert(InstanceRotationController.LeaveCommand == "/pdr leaveduty"
+Assert(InstanceRotationController.LeaveCommand == "/omni 即刻退本"
+       && InstanceRotationController.OmniCommand == "/omni"
        && InstanceRotationController.SouthHornEntryCommand == "/pdrfe ocs"
        && InstanceRotationController.NorthHornEntryCommand == "/pdrfe ocn",
-    "DailyRoutines rotation commands must remain aligned with the verified local command modules.");
+    "Rotation must leave with Omni's 即刻退本 and enter with the DailyRoutines field entry commands.");
 Assert(DailyRoutinesModuleBridge.PluginInternalName == "DailyRoutines"
        && DailyRoutinesModuleBridge.IsModuleEnabledIpcName == "DailyRoutines.IsModuleEnabled"
        && DailyRoutinesModuleBridge.LoadModuleIpcName == "DailyRoutines.LoadModule"
        && DailyRoutinesModuleBridge.RequiredModuleNames.SequenceEqual(
-           new[] { "AutoTalkSkip", "FieldEntryCommand", "InstantLeaveDuty" }),
-    "Instance rotation must enable the verified DailyRoutines modules for dialogue, entry, and instant exit.");
+           new[] { "AutoTalkSkip", "FieldEntryCommand" }),
+    "Instance rotation must only enable the DailyRoutines modules for dialogue and entry; Omni owns leaving.");
 var invalidDailyRoutinesModuleRejected = false;
 try
 {
@@ -2492,7 +2493,7 @@ catch (ArgumentException)
 {
     invalidDailyRoutinesModuleRejected = true;
 }
-Assert(DailyRoutinesModuleBridge.GetLoadCommand("InstantLeaveDuty") == "/pdr load InstantLeaveDuty"
+Assert(DailyRoutinesModuleBridge.GetLoadCommand("FieldEntryCommand") == "/pdr load FieldEntryCommand"
        && invalidDailyRoutinesModuleRejected,
     "DailyRoutines load commands must use /pdr load and reject an empty module name.");
 Assert(!DailyRoutinesModuleBridge.ShouldUseCommandFallback(ipcAccepted: true)
@@ -2515,6 +2516,21 @@ Assert(instanceRotationControllerSource.Contains("pendingExitCommand", StringCom
            "EnsureDailyRoutinesCommandModules(module)",
            StringComparison.Ordinal),
     "Instant exit must remain pending until every required DailyRoutines module reports ready.");
+Assert(instanceRotationControllerSource.Contains("IsOmniLoaded()", StringComparison.Ordinal)
+       && instanceRotationControllerSource.Contains("messages.rotation.leave_unavailable", StringComparison.Ordinal),
+    "Leaving must check that Omni is loaded and tell the user instead of enabling 即刻退本 itself.");
+foreach (var language in new[] { "zh", "en", "jp", "fr" })
+{
+    var automatorTranslations = File.ReadAllText(Path.Combine("Translations", language, "modules.automator.json"));
+    Assert(automatorTranslations.Contains("\"auto_rotate_instance_leave_help\"", StringComparison.Ordinal)
+           && automatorTranslations.Contains("\"leave_unavailable\"", StringComparison.Ordinal)
+           && automatorTranslations.Contains("/omni 即刻退本", StringComparison.Ordinal)
+           && !automatorTranslations.Contains("InstantLeaveDuty", StringComparison.Ordinal),
+        $"The {language} settings must ask the user to enable Omni's 即刻退本.");
+}
+var configWindowRotationSource = File.ReadAllText(Path.Combine("BOCCHI", "Windows", "ConfigWindow.cs"));
+Assert(configWindowRotationSource.Contains("config.auto_rotate_instance_leave_help", StringComparison.Ordinal),
+    "The auto-rotate option must show the Omni 即刻退本 hint.");
 Assert(!CriticalEncounterTracker.CanReadOccultCrescentEvents(false, true)
        && !CriticalEncounterTracker.CanReadOccultCrescentEvents(true, false)
        && CriticalEncounterTracker.CanReadOccultCrescentEvents(true, true),

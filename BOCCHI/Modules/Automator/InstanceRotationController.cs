@@ -33,7 +33,10 @@ public static class InstanceEntryConfirmationPolicy
 
 public sealed class InstanceRotationController
 {
-    public const string LeaveCommand = "/pdr leaveduty";
+    // Omni's 即刻退本 leaves the duty, even in combat. BOCCHI does not turn it
+    // on; the settings page asks the user to enable it in Omni.
+    public const string LeaveCommand = "/omni 即刻退本";
+    public const string OmniCommand = "/omni";
     public const string SouthHornEntryCommand = "/pdrfe ocs";
     public const string NorthHornEntryCommand = "/pdrfe ocn";
 
@@ -122,6 +125,13 @@ public sealed class InstanceRotationController
                 if (!IsDailyRoutinesLoaded())
                 {
                     stateMachine.Fail("daily_routines_unavailable");
+                    break;
+                }
+
+                if (!IsOmniLoaded())
+                {
+                    stateMachine.Fail("omni_unavailable");
+                    Svc.Chat.PrintError(module.T("messages.rotation.leave_unavailable"));
                     break;
                 }
 
@@ -367,6 +377,21 @@ public sealed class InstanceRotationController
                && (eventContainer == null || eventContainer->CurrentEventId == 0);
     }
 
+    /// <summary>Omni registers /omni while it is loaded.</summary>
+    public static bool IsOmniLoaded()
+    {
+        try
+        {
+            return Svc.Commands.Commands.Keys.Any(command =>
+                string.Equals(command, OmniCommand, StringComparison.OrdinalIgnoreCase));
+        }
+        catch (Exception exception)
+        {
+            Svc.Log.Warning(exception, "Could not read the registered chat commands.");
+            return false;
+        }
+    }
+
     private static bool IsDailyRoutinesLoaded()
     {
         return Svc.PluginInterface.InstalledPlugins.Any(plugin =>
@@ -431,6 +456,16 @@ public sealed class InstanceRotationController
         {
             pendingExitCommand = false;
             stateMachine.Fail("daily_routines_unavailable");
+            return false;
+        }
+
+        // Re-entry still needs the DailyRoutines entry modules above, so only
+        // leave once both sides of the rotation are available.
+        if (!IsOmniLoaded())
+        {
+            pendingExitCommand = false;
+            stateMachine.Fail("omni_unavailable");
+            Svc.Chat.PrintError(module.T("messages.rotation.leave_unavailable"));
             return false;
         }
 

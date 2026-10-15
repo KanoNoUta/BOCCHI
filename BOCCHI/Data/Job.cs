@@ -1,4 +1,5 @@
-﻿using BOCCHI.Enums;
+﻿using BOCCHI.Chains;
+using BOCCHI.Enums;
 using FFXIVClientStructs.FFXIV.Client.Game.InstanceContent;
 using Ocelot.Chain;
 using Ocelot.Chain.ChainEx;
@@ -70,7 +71,8 @@ public class Job
 
     public Chain ChangeToChain()
     {
-        return Chain.Create()
+        return Chain.Create("ChangeJob")
+            .DisposeWhenFinished()
             .RunIf(() => Current.id != id)
             .Then(_ => ChangeTo())
             .WaitUntilStatus(UintStatus);

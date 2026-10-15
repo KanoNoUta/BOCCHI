@@ -418,17 +418,20 @@ public class AutomatorModule : Module
 
         if (decision == DeathReturnDecision.Trigger)
         {
+            // UseAction can report false even though the game opened the
+            // Return confirmation, so keep the confirmation window open for
+            // every request; the dialog handler only clicks while dead.
             deathReturnPending = true;
             deathReturnConfirmationDeadlineMs = nowMs + DeathReturnRetryMs;
             try
             {
-                deathReturnPending = BocchiActions.Return.TryCast();
+                var accepted = BocchiActions.Return.TryCast();
+                BOCCHI.Chains.ReturnRequestLedger.RecordRequest(nowMs);
                 Svc.Log.Info(
-                    $"Player remained dead for {Config.DeathReturnMinutes} minute(s); Return accepted={deathReturnPending}.");
+                    $"Player remained dead for {Config.DeathReturnMinutes} minute(s); Return accepted={accepted}.");
             }
             catch (Exception exception)
             {
-                deathReturnPending = false;
                 Svc.Log.Warning(exception, "Could not request Return for the dead player; the request will retry.");
             }
         }
