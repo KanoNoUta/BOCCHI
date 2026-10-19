@@ -353,8 +353,12 @@ public class ConfigWindow(Plugin primaryPlugin, Config config) : OcelotConfigWin
         DrawSectionTitle(T("editors.automation.instance_rotation"));
         DrawInitialInstanceArea(module);
         DrawBoolean(module, cfg, nameof(cfg.AutoRotateInstance));
-        // Omni's 即刻退本 is enabled by the user, not by BOCCHI.
-        ImGui.TextWrapped(module.T("config.auto_rotate_instance_leave_help"));
+        DrawInstanceLeaveProvider(module);
+        // The chosen plugin's instant leave is enabled by the user, not by BOCCHI.
+        ImGui.TextWrapped(string.Format(
+            module.T("config.auto_rotate_instance_leave_help"),
+            cfg.InstanceLeaveProvider.GetLabel(),
+            cfg.InstanceLeaveProvider.GetLeaveCommand()));
         DrawInstanceEntryTest(module);
         DrawFloat(module, cfg, nameof(cfg.InstanceStayMinutes), 15f, 180f, T("units.minutes_0"), !cfg.AutoRotateInstance);
         DrawBoolean(module, cfg, nameof(cfg.RotateWhenPopulationLow), !cfg.AutoRotateInstance);
@@ -398,6 +402,25 @@ public class ConfigWindow(Plugin primaryPlugin, Config config) : OcelotConfigWin
             ImGui.EndCombo();
         }
         ConfigTooltip(module, nameof(module.Config.InitialInstanceArea));
+    }
+
+    private void DrawInstanceLeaveProvider(AutomatorModule module)
+    {
+        var current = module.Config.InstanceLeaveProvider;
+        var label = ConfigLabel(module, nameof(module.Config.InstanceLeaveProvider));
+        if (ImGui.BeginCombo($"{label}##InstanceLeaveProvider", current.GetLabel()))
+        {
+            foreach (var provider in Enum.GetValues<InstanceLeaveProvider>())
+            {
+                if (ImGui.Selectable(provider.GetLabel(), provider == current))
+                {
+                    module.Config.InstanceLeaveProvider = provider;
+                    primaryPlugin.Config.Save();
+                }
+            }
+            ImGui.EndCombo();
+        }
+        ConfigTooltip(module, nameof(module.Config.InstanceLeaveProvider));
     }
 
     private void DrawAiProvider(AutomatorModule module)

@@ -72,6 +72,9 @@ public class AutomatorConfig : ModuleConfig
         get => IsPropertyEnabled(nameof(AutoRotateInstance));
     }
 
+    [Enum(typeof(InstanceLeaveProvider), nameof(InstanceLeaveProviderProvider))]
+    public InstanceLeaveProvider InstanceLeaveProvider { get; set; } = InstanceLeaveProvider.Omni;
+
     [FloatRange(15f, 180f)]
     [DependsOn(nameof(AutoRotateInstance))]
     [Indent]

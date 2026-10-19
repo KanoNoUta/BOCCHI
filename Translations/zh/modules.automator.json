@@ -50,9 +50,13 @@
           "label": "自动轮换副本",
           "tooltip": "无人值守时自动退出当前蜃景岛，并重新进入刚才所在的南征或北征区域"
         },
+        "instance_leave_provider": {
+          "label": "退本插件",
+          "tooltip": "自动轮换副本时用哪个插件的即刻退本命令退出当前蜃景岛"
+        },
         "test_instance_entry": "测试进入副本",
         "test_instance_entry_help": "站在蜃景岛外对应 NPC 旁，点击按钮即可按上面选择的区域直接申请进入。BOCCHI 会自动启用 DailyRoutines 的“自动跳过对话”和“特殊场景探索进入指令”模块。",
-        "auto_rotate_instance_leave_help": "自动退本使用 Omni 的“即刻退本”（/omni 即刻退本）。BOCCHI 不会自动开启它，请先在 Omni 里手动开启“即刻退本”。",
+        "auto_rotate_instance_leave_help": "自动退本使用 {0} 的即刻退本（{1}）。BOCCHI 不会自动开启这个功能，请先在 {0} 里手动开启。",
         "instance_stay_minutes": {
           "label": "岛内停留时间（分钟）",
           "tooltip": "按任务情报Addon显示的实际副本倒计时计算；达到该停留时间后，等待无FATE、CE、战斗和自动化任务时开始轮换"
@@ -399,8 +403,8 @@
           "initial_entry": "[BOCCHI] 自动模式：正在申请进入配置的蜃景岛区域。",
           "entry_unavailable": "[BOCCHI] 自动模式已开启，但无法申请入岛。请确认DailyRoutines已加载后，关闭并重新开启自动模式。",
           "modules_enabling": "[BOCCHI] 正在自动启用副本进入所需的 DailyRoutines 模块。",
-          "failed": "[BOCCHI] 副本轮换因超时或 DailyRoutines / Omni 命令不可用而停止。处理问题后请关闭并重新开启非法模式。",
-          "leave_unavailable": "[BOCCHI] 副本轮换需要 Omni 的“即刻退本”才能退本，但没有检测到 Omni。请安装 Omni 并开启“即刻退本”后，关闭并重新开启非法模式。"
+          "failed": "[BOCCHI] 副本轮换因超时、DailyRoutines 或所选退本插件不可用而停止。处理问题后请关闭并重新开启非法模式。",
+          "leave_unavailable": "[BOCCHI] 副本轮换需要 {0} 的即刻退本（{1}）才能退本，但没有检测到 {0}。请安装 {0} 并在其中开启即刻退本，或在设置里换一个退本插件，然后关闭并重新开启非法模式。"
         }
       }
     }

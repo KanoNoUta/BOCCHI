@@ -46,9 +46,13 @@
           "label": "Automatically rotate instance",
           "tooltip": "Leave the current Occult Crescent instance and automatically return to the same area for unattended operation"
         },
+        "instance_leave_provider": {
+          "label": "Leave duty plugin",
+          "tooltip": "Which plugin's instant leave command BOCCHI uses to leave the current Occult Crescent instance during rotation"
+        },
         "test_instance_entry": "Test instance entry",
         "test_instance_entry_help": "Stand beside the matching NPC outside the Occult Crescent and click to request entry to the selected area. BOCCHI automatically enables DailyRoutines' AutoTalkSkip and FieldEntryCommand modules.",
-        "auto_rotate_instance_leave_help": "Leaving the instance uses Omni's 即刻退本 (Instant Leave Duty, /omni 即刻退本). BOCCHI does not enable it for you; turn it on in Omni first.",
+        "auto_rotate_instance_leave_help": "Leaving the instance uses {0}'s instant leave ({1}). BOCCHI does not enable it for you; turn it on in {0} first.",
         "instance_stay_minutes": {
           "label": "Time in instance (minutes)",
           "tooltip": "Use the actual Duty Information addon countdown; rotate after this many minutes in the instance when no FATE, CE, combat, or automation task is active"
@@ -379,8 +383,8 @@
           "initial_entry": "[BOCCHI] Illegal Mode: requesting entry to the configured Occult Crescent area.",
           "entry_unavailable": "[BOCCHI] Illegal Mode is enabled, but entry could not be requested. Make sure DailyRoutines is loaded, then toggle Illegal Mode off and on.",
           "modules_enabling": "[BOCCHI] Enabling the DailyRoutines modules required for instance entry.",
-          "failed": "[BOCCHI] Instance rotation stopped after a timeout or an unavailable DailyRoutines / Omni command. Toggle Illegal Mode off and on after correcting the problem.",
-          "leave_unavailable": "[BOCCHI] Instance rotation needs Omni's 即刻退本 (Instant Leave Duty) to leave, but Omni was not detected. Install Omni, enable 即刻退本, then toggle Illegal Mode off and on."
+          "failed": "[BOCCHI] Instance rotation stopped after a timeout, or because DailyRoutines or the selected leave plugin was unavailable. Toggle Illegal Mode off and on after correcting the problem.",
+          "leave_unavailable": "[BOCCHI] Instance rotation needs {0}'s instant leave ({1}) to leave, but {0} was not detected. Install {0} and enable instant leave in it, or pick another leave plugin in the settings, then toggle Illegal Mode off and on."
         }
       }
     }

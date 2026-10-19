@@ -68,7 +68,7 @@
         },
         "test_instance_entry": "Tester l'entrée dans l'instance",
         "test_instance_entry_help": "Placez-vous près du PNJ correspondant à l'extérieur du Croissant occulte et cliquez pour demander l'entrée dans la zone sélectionnée. BOCCHI active automatiquement les modules AutoTalkSkip et FieldEntryCommand de DailyRoutines.",
-        "auto_rotate_instance_leave_help": "La sortie de l'instance utilise 即刻退本 d'Omni (/omni 即刻退本). BOCCHI ne l'active pas pour vous ; activez-le d'abord dans Omni.",
+        "auto_rotate_instance_leave_help": "La sortie de l'instance utilise la sortie instantanée de {0} ({1}). BOCCHI ne l'active pas pour vous ; activez-la d'abord dans {0}.",
         "do_critical_encounters": {
           "label": "Faire les Confrontations Critiques",
           "tooltip": "Considère les confrontations critiques lors du choix d'une activité"
@@ -179,6 +179,10 @@
         "auto_rotate_instance": {
           "label": "Changer automatiquement d'instance",
           "tooltip": "Quitte l'instance du Croissant occulte puis retourne automatiquement dans la même zone"
+        },
+        "instance_leave_provider": {
+          "label": "Plugin de sortie",
+          "tooltip": "Le plugin dont la commande de sortie instantanée sert à quitter l'instance du Croissant occulte pendant le changement d'instance"
         },
         "instance_stay_minutes": {
           "label": "Temps dans l'instance (minutes)",
@@ -379,8 +383,8 @@
           "initial_entry": "[BOCCHI] Mode illégal : demande d'entrée dans la zone configurée du Croissant occulte.",
           "entry_unavailable": "[BOCCHI] Le mode illégal est activé, mais l'entrée n'a pas pu être demandée. Vérifiez que DailyRoutines est chargé, puis désactivez et réactivez le mode illégal.",
           "modules_enabling": "[BOCCHI] Activation des modules DailyRoutines requis pour entrer dans l'instance.",
-          "failed": "[BOCCHI] Changement d'instance arrêté après un délai dépassé ou une commande DailyRoutines / Omni indisponible.",
-          "leave_unavailable": "[BOCCHI] Le changement d'instance a besoin de 即刻退本 d'Omni pour sortir, mais Omni est introuvable. Installez Omni, activez 即刻退本, puis désactivez et réactivez le mode illégal."
+          "failed": "[BOCCHI] Changement d'instance arrêté après un délai dépassé, ou parce que DailyRoutines ou le plugin de sortie choisi était indisponible.",
+          "leave_unavailable": "[BOCCHI] Le changement d'instance a besoin de la sortie instantanée de {0} ({1}), mais {0} est introuvable. Installez {0} et activez la sortie instantanée, ou choisissez un autre plugin de sortie dans les paramètres, puis désactivez et réactivez le mode illégal."
         }
       }
     }

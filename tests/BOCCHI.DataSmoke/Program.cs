@@ -2473,11 +2473,16 @@ northRotation.Update(rotationStart.AddMinutes(15).AddSeconds(1), northInput with
 Assert(northRotation.Update(rotationStart.AddMinutes(15).AddSeconds(16), northInput with { TerritoryId = 0 })
        == InstanceRotationAction.EnterNorthHorn,
     "North Horn rotation must select the ocn entry action.");
-Assert(InstanceRotationController.LeaveCommand == "/omni 即刻退本"
-       && InstanceRotationController.OmniCommand == "/omni"
+Assert(InstanceLeaveProvider.Omni.GetLeaveCommand() == "/omni 即刻退本"
+       && InstanceLeaveProvider.Omni.GetRootCommand() == "/omni"
+       && InstanceLeaveProvider.XszToolbox.GetLeaveCommand() == "/xsz leaveduty"
+       && InstanceLeaveProvider.XszToolbox.GetRootCommand() == "/xsz"
+       && InstanceLeaveProvider.DailyRoutines.GetLeaveCommand() == "/pdr leaveduty"
+       && InstanceLeaveProvider.DailyRoutines.GetRootCommand() == "/pdr"
+       && new AutomatorConfig().InstanceLeaveProvider == InstanceLeaveProvider.Omni
        && InstanceRotationController.SouthHornEntryCommand == "/pdrfe ocs"
        && InstanceRotationController.NorthHornEntryCommand == "/pdrfe ocn",
-    "Rotation must leave with Omni's 即刻退本 and enter with the DailyRoutines field entry commands.");
+    "Rotation must leave with the selected plugin (Omni by default) and enter with the DailyRoutines field entry commands.");
 Assert(DailyRoutinesModuleBridge.PluginInternalName == "DailyRoutines"
        && DailyRoutinesModuleBridge.IsModuleEnabledIpcName == "DailyRoutines.IsModuleEnabled"
        && DailyRoutinesModuleBridge.LoadModuleIpcName == "DailyRoutines.LoadModule"
@@ -2516,17 +2521,21 @@ Assert(instanceRotationControllerSource.Contains("pendingExitCommand", StringCom
            "EnsureDailyRoutinesCommandModules(module)",
            StringComparison.Ordinal),
     "Instant exit must remain pending until every required DailyRoutines module reports ready.");
-Assert(instanceRotationControllerSource.Contains("IsOmniLoaded()", StringComparison.Ordinal)
+Assert(instanceRotationControllerSource.Contains("leaveProvider.IsLoaded()", StringComparison.Ordinal)
+       && instanceRotationControllerSource.Contains("module.Config.InstanceLeaveProvider.IsLoaded()", StringComparison.Ordinal)
+       && instanceRotationControllerSource.Contains("Chat.ExecuteCommand(leaveProvider.GetLeaveCommand());", StringComparison.Ordinal)
        && instanceRotationControllerSource.Contains("messages.rotation.leave_unavailable", StringComparison.Ordinal),
-    "Leaving must check that Omni is loaded and tell the user instead of enabling 即刻退本 itself.");
+    "Leaving must check that the selected plugin is loaded and tell the user instead of enabling its instant leave.");
 foreach (var language in new[] { "zh", "en", "jp", "fr" })
 {
     var automatorTranslations = File.ReadAllText(Path.Combine("Translations", language, "modules.automator.json"));
     Assert(automatorTranslations.Contains("\"auto_rotate_instance_leave_help\"", StringComparison.Ordinal)
            && automatorTranslations.Contains("\"leave_unavailable\"", StringComparison.Ordinal)
-           && automatorTranslations.Contains("/omni 即刻退本", StringComparison.Ordinal)
+           && automatorTranslations.Contains("\"instance_leave_provider\"", StringComparison.Ordinal)
+           && automatorTranslations.Contains("{0}", StringComparison.Ordinal)
+           && automatorTranslations.Contains("{1}", StringComparison.Ordinal)
            && !automatorTranslations.Contains("InstantLeaveDuty", StringComparison.Ordinal),
-        $"The {language} settings must ask the user to enable Omni's 即刻退本.");
+        $"The {language} settings must ask the user to enable instant leave in the selected plugin.");
 }
 var configWindowRotationSource = File.ReadAllText(Path.Combine("BOCCHI", "Windows", "ConfigWindow.cs"));
 Assert(configWindowRotationSource.Contains("config.auto_rotate_instance_leave_help", StringComparison.Ordinal),
