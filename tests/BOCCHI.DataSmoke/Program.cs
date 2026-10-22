@@ -2992,7 +2992,17 @@ Assert(portedAutomatorConfig.MaxFateProgressPercent == 0
        && portedTreasureConfig.TreasureSightEveryNLocations == 10
        && !portedTreasureConfig.HuntSilverChestsOnly
        && portedTreasureConfig.HuntMinBronzePercent == 50
-       && portedTreasureConfig.HuntMinSilverPercent == 50,
+       && portedTreasureConfig.HuntMinSilverPercent == 50
+       && portedAutomatorConfig.AutoRepairThreshold == 0
+       && portedAutomatorConfig.AutoRepairMethod == AutoRepairMethod.SelfRepair,
     "Ported options must keep their documented defaults.");
+Assert(RepairPolicy.ConditionPercent(30000) == 100
+       && RepairPolicy.ConditionPercent(9000) == 30
+       && RepairPolicy.ConditionPercent(0) == 0,
+    "Gear condition must map 0-30000 to 0-100%.");
+Assert(RepairPolicy.NeedsRepair(30, 30)
+       && !RepairPolicy.NeedsRepair(31, 30)
+       && !RepairPolicy.NeedsRepair(0, 0),
+    "Auto repair must trigger at or below the threshold and stay off at 0.");
 
 Console.WriteLine("BOCCHI 7.55 North Horn data, lifecycle, config, translation, routing, precompute, and vnavmesh availability smoke tests passed.");

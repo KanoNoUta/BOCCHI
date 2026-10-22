@@ -400,6 +400,17 @@
         "pause_auto_treasure_hunt_for_critical_encounters": {
           "label": "有 CE 时暂停寻宝",
           "tooltip": "寻宝途中出现可以报名的 CE 时暂停寻宝去打 CE（脱战后才会暂停）。"
+        },
+        "auto_repair_threshold": {
+          "label": "自动修理阈值 (%)",
+          "tooltip": "在营地空闲时，身上任一装备耐久不高于这个百分比就自动修理。0 为关闭。"
+        },
+        "auto_repair_method": {
+          "label": "修理方式",
+          "tooltip": "自己修理需要暗物质。找修理工时，附近 50 米内没有修理工会改为自己修理。",
+          "self": "自己修理",
+          "mender": "找修理工",
+          "prefer_mender": "优先找修理工"
         }
       },
       "panel": {

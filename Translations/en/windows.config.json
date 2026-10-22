@@ -41,7 +41,8 @@
           "island_help": "This page shows events for one area. Shared combat, pathfinding, and rotation options are under Common.",
           "magic_pots": "Magic pots",
           "magic_pots_help": "Pot spawn timer, waiting at the next pot and the pot coffer (ported from upstream BOCCHI 4.2). FATEs must be on.",
-          "treasure_between_activities": "Treasure between activities"
+          "treasure_between_activities": "Treasure between activities",
+          "repair": "Auto repair"
         },
         "farming": {
           "title": "Farming settings",

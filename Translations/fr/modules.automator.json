@@ -380,6 +380,17 @@
         "pause_auto_treasure_hunt_for_critical_encounters": {
           "label": "Pause the hunt for CEs",
           "tooltip": "Pause the hunt when a CE can be registered for (only once out of combat)."
+        },
+        "auto_repair_threshold": {
+          "label": "Auto repair threshold (%)",
+          "tooltip": "While idle at base camp, repair when any equipped item is at or below this condition. 0 turns it off."
+        },
+        "auto_repair_method": {
+          "label": "Repair method",
+          "tooltip": "Self-repair needs dark matter. Mender options fall back to self-repair when no mender is within 50 yalms.",
+          "self": "Self-repair",
+          "mender": "Mender NPC",
+          "prefer_mender": "Prefer mender NPC"
         }
       },
       "panel": {

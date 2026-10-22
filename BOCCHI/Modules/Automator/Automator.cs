@@ -103,6 +103,12 @@ public class Automator
 
     private long? postActivityEventStateSinceMs;
 
+    private const float RepairCampRadius = 60f;
+
+    private static readonly TimeSpan RepairRetryDelay = TimeSpan.FromMinutes(5);
+
+    private DateTime nextRepairAttemptAt = DateTime.MinValue;
+
     private long? postActivityInFlightSinceMs;
 
     private long? postActivityLifestreamBusySinceMs;
@@ -381,6 +387,12 @@ public class Automator
         if (Activity != null)
         {
             Svc.Log.Info($"Selected activity: {Activity.GetName()}");
+            return;
+        }
+
+        if (TryStartRepair(module, vnav))
+        {
+            idleTime = 0;
             return;
         }
 
@@ -677,6 +689,27 @@ public class Automator
         ResetPostActivityTracking();
         postActivityQueuedAtMs = Environment.TickCount64;
         Svc.Log.Info($"Queued forced base-camp return after {reason}.");
+    }
+
+    private bool TryStartRepair(AutomatorModule module, VNavmesh vnav)
+    {
+        var threshold = module.Config.AutoRepairThreshold;
+        if (threshold <= 0 || DateTime.UtcNow < nextRepairAttemptAt || Svc.Condition[ConditionFlag.InCombat])
+        {
+            return false;
+        }
+
+        if (!ZoneData.IsNearAethernetShard(ZoneData.GetBaseCampAethernet(), RepairCampRadius)
+            || !RepairChain.ShouldRepair(threshold))
+        {
+            return false;
+        }
+
+        // One attempt per window: a repair that cannot finish (no dark matter,
+        // no mender) must not hold the automator at camp.
+        nextRepairAttemptAt = DateTime.UtcNow + RepairRetryDelay;
+        Plugin.Chain.Submit(() => RepairChain.Create(module.Config.AutoRepairMethod, threshold, vnav));
+        return true;
     }
 
     private static bool WantsManagedHunt(AutomatorModule module)

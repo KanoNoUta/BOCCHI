@@ -1,4 +1,5 @@
-﻿using Ocelot.Config.Attributes;
+﻿using BOCCHI.Chains;
+using Ocelot.Config.Attributes;
 using Ocelot.Modules;
 using System.Collections.Generic;
 
@@ -573,6 +574,12 @@ public class AutomatorConfig : ModuleConfig
     [DependsOn(nameof(EnableAutomaticTreasureHunt))]
     [Indent]
     public bool PauseAutoTreasureHuntForCriticalEncounters { get; set; } = false;
+
+    // Auto repair: 0 turns it off.
+    [IntRange(0, 99)]
+    public int AutoRepairThreshold { get; set; } = 0;
+
+    public AutoRepairMethod AutoRepairMethod { get; set; } = AutoRepairMethod.SelfRepair;
 
     // Magic pots
     [Checkbox]

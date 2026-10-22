@@ -1,3 +1,4 @@
+using BOCCHI.Chains;
 using BOCCHI.Data;
 using BOCCHI.Modules;
 using BOCCHI.Modules.Automator;
@@ -359,6 +360,10 @@ public class ConfigWindow(Plugin primaryPlugin, Config config) : OcelotConfigWin
         DrawBoolean(module, cfg, nameof(cfg.PauseAutoTreasureHuntForPots), !cfg.EnableAutomaticTreasureHunt);
         DrawBoolean(module, cfg, nameof(cfg.PauseAutoTreasureHuntForCriticalEncounters), !cfg.EnableAutomaticTreasureHunt);
 
+        DrawSectionTitle(T("editors.automation.repair"));
+        DrawInt(module, cfg, nameof(cfg.AutoRepairThreshold), 0, 99);
+        DrawAutoRepairMethod(module, cfg.AutoRepairThreshold <= 0);
+
         DrawSectionTitle(T("editors.automation.magic_pots"));
         ImGui.TextDisabled(T("editors.automation.magic_pots_help"));
         var potsDisabled = !cfg.DoFates;
@@ -442,6 +447,37 @@ public class ConfigWindow(Plugin primaryPlugin, Config config) : OcelotConfigWin
             ImGui.EndCombo();
         }
         ConfigTooltip(module, nameof(module.Config.InstanceLeaveProvider));
+    }
+
+    private void DrawAutoRepairMethod(AutomatorModule module, bool disabled)
+    {
+        var current = module.Config.AutoRepairMethod;
+        var label = ConfigLabel(module, nameof(module.Config.AutoRepairMethod));
+        ImGui.BeginDisabled(disabled);
+        if (ImGui.BeginCombo($"{label}##AutoRepairMethod", AutoRepairMethodLabel(module, current)))
+        {
+            foreach (var method in Enum.GetValues<AutoRepairMethod>())
+            {
+                if (ImGui.Selectable(AutoRepairMethodLabel(module, method), method == current))
+                {
+                    module.Config.AutoRepairMethod = method;
+                    primaryPlugin.Config.Save();
+                }
+            }
+            ImGui.EndCombo();
+        }
+        ImGui.EndDisabled();
+        ConfigTooltip(module, nameof(module.Config.AutoRepairMethod));
+    }
+
+    private static string AutoRepairMethodLabel(AutomatorModule module, AutoRepairMethod method)
+    {
+        return method switch
+        {
+            AutoRepairMethod.MenderNpc => module.T("config.auto_repair_method.mender"),
+            AutoRepairMethod.PreferMender => module.T("config.auto_repair_method.prefer_mender"),
+            _ => module.T("config.auto_repair_method.self"),
+        };
     }
 
     private void DrawAiProvider(AutomatorModule module)
