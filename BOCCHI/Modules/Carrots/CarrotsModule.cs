@@ -40,6 +40,18 @@ public class CarrotsModule(Plugin plugin, Config config) : Module(plugin, config
 
     public bool IsHuntRunning => hunter?.IsRunning == true;
 
+    public bool IsHuntPaused => hunter?.IsPaused == true;
+
+    public bool PauseHunt(string reason)
+    {
+        return hunter?.Pause(reason) == true;
+    }
+
+    public bool ResumeHunt()
+    {
+        return hunter?.Resume() == true;
+    }
+
     private readonly Panel panel = new();
 
     private readonly Radar radar = new();

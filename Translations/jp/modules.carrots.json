@@ -24,6 +24,10 @@
         "repeat_carrot_hunt": {
           "label": "繰り返す",
           "tooltip": "最終ノードに到達後に再度探索を開始します"
+        },
+        "scout_without_carrots": {
+          "label": "Scout without Fortune Carrots",
+          "tooltip": "Walk the route even with no Fortune Carrots and skip spots that need one."
         }
       }
     }

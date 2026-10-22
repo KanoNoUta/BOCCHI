@@ -94,6 +94,12 @@ public class CarrotHunt(CarrotsModule module) : Hunter(module)
                     {
                         outcome = HuntInteractionOutcome.OutOfRange;
                     }
+                    else if (CarrotScoutPolicy.ShouldSkipSpot(module.Config.ShouldScoutWithoutCarrots, Items.FortuneCarrot.Count()))
+                    {
+                        // Scouting: the spot was reached; it needs a carrot we do not have.
+                        Svc.Log.Info($"Carrot scout reached spot {nodeId} without a Fortune Carrot; moving on.");
+                        outcome = HuntInteractionOutcome.Succeeded;
+                    }
                 })
                 .BreakIf(() => outcome != HuntInteractionOutcome.None)
                 .Then(new TaskManagerTask((Func<bool?>)(() =>
@@ -300,7 +306,7 @@ public class CarrotHunt(CarrotsModule module) : Hunter(module)
 
     protected override bool ShouldStopEarly()
     {
-        return Items.FortuneCarrot.Count() <= 0;
+        return CarrotScoutPolicy.ShouldStopForNoCarrots(module.Config.ShouldScoutWithoutCarrots, Items.FortuneCarrot.Count());
     }
 
     public void ObserveRuntimeNodes()
@@ -387,5 +393,18 @@ public class CarrotHunt(CarrotsModule module) : Hunter(module)
     private IEnumerable<IEventObj> GetBunnyChests()
     {
         return Svc.Objects.OfType<IEventObj>().Where(o => o.BaseId == (uint)OccultObjectType.BunnyChest);
+    }
+}
+
+public static class CarrotScoutPolicy
+{
+    public static bool ShouldSkipSpot(bool scoutWithoutCarrots, int carrots)
+    {
+        return scoutWithoutCarrots && carrots <= 0;
+    }
+
+    public static bool ShouldStopForNoCarrots(bool scoutWithoutCarrots, int carrots)
+    {
+        return !scoutWithoutCarrots && carrots <= 0;
     }
 }

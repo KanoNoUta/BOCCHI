@@ -13,7 +13,11 @@
         "show_hunt_button": {
           "label": null
         },
-        "title": "Configuration des Carottes"
+        "title": "Configuration des Carottes",
+        "scout_without_carrots": {
+          "label": "Scout without Fortune Carrots",
+          "tooltip": "Walk the route even with no Fortune Carrots and skip spots that need one."
+        }
       },
       "panel": {
         "hunt": {

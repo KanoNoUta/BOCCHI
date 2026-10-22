@@ -176,6 +176,15 @@ public abstract class Hunter
 
     public bool IsRunning => running;
 
+    /// <summary>Paused hunts keep their remaining nodes and resume from them.</summary>
+    public bool IsPaused { get; private set; }
+
+    public string? PauseReason { get; private set; }
+
+    private List<uint>? resumeNodeIds;
+
+    private List<uint>? pausedNodeIds;
+
     public uint? ActiveNodeId => running
                                  && stepIndex < Steps.Count
                                  && CurrentStep.Type == PathfinderStepType.WalkToNode
@@ -309,7 +318,7 @@ public abstract class Hunter
             Plugin.Chain.Submit(() =>
             {
                 Task<List<PathfinderStep>> steps = null!;
-                var valid = GetValidNodes(config.MaxLevel);
+                var valid = HuntResumePolicy.Filter(GetValidNodes(config.MaxLevel), resumeNodeIds);
 
                 // Prep pathfinding
                 return Chain.Create("Hunter.Pathfinding")
@@ -373,6 +382,7 @@ public abstract class Hunter
         // callbacks, interaction state, and runtime recovery decisions cannot
         // leak into the next cycle.
         var repeat = running && ShouldRepeatAfterCompletion();
+        resumeNodeIds = null;
         Teardown();
         if (!repeat)
         {
@@ -389,9 +399,9 @@ public abstract class Hunter
         OcelotUi.Title($"{module.T("panel.hunt.title")}:");
         OcelotUi.Indent(() =>
         {
-            if (ImGui.Button(running ? I18N.T("generic.label.stop") : I18N.T("generic.label.start")))
+            if (ImGui.Button(running || IsPaused ? I18N.T("generic.label.stop") : I18N.T("generic.label.start")))
             {
-                if (running)
+                if (running || IsPaused)
                 {
                     Stop();
                 }
@@ -399,6 +409,40 @@ public abstract class Hunter
                 {
                     Start();
                 }
+            }
+
+            if (running)
+            {
+                ImGui.SameLine();
+                if (ImGui.Button($"{I18N.T("hunter.pause")}##HunterPause"))
+                {
+                    Pause("manual");
+                }
+
+                ImGui.SameLine();
+                if (ImGui.Button($"{I18N.T("hunter.recalculate.label")}##HunterRecalculate"))
+                {
+                    Recalculate();
+                }
+
+                if (ImGui.IsItemHovered())
+                {
+                    ImGui.SetTooltip(I18N.T("hunter.recalculate.tooltip"));
+                }
+            }
+            else if (IsPaused)
+            {
+                ImGui.SameLine();
+                if (ImGui.Button($"{I18N.T("hunter.resume")}##HunterResume"))
+                {
+                    Resume();
+                }
+
+                OcelotUi.LabelledValue(
+                    I18N.T("hunter.paused"),
+                    pausedNodeIds == null
+                        ? I18N.T("hunter.paused_all")
+                        : string.Format(I18N.T("hunter.paused_remaining"), pausedNodeIds.Count));
             }
 
             if (stopwatch.Elapsed > TimeSpan.Zero)
@@ -479,6 +523,10 @@ public abstract class Hunter
             return;
         }
 
+        IsPaused = false;
+        PauseReason = null;
+        resumeNodeIds = null;
+        pausedNodeIds = null;
         routeGeneration++;
         ResetHuntRouteState();
         running = true;
@@ -488,6 +536,10 @@ public abstract class Hunter
 
     public void Stop()
     {
+        IsPaused = false;
+        PauseReason = null;
+        pausedNodeIds = null;
+        resumeNodeIds = null;
         if (!running && pathfinder == null && Steps.Count == 0)
         {
             return;
@@ -498,6 +550,49 @@ public abstract class Hunter
         Teardown();
     }
 
+
+    /// <summary>
+    /// Stops moving but remembers the nodes still ahead, so <see cref="Resume"/>
+    /// plans a fresh route over just those from wherever the player is then.
+    /// </summary>
+    public bool Pause(string reason)
+    {
+        if (!running)
+        {
+            return false;
+        }
+
+        var remaining = HuntResumePolicy.RemainingNodes(Steps, stepIndex);
+        stopwatch.Stop();
+        running = false;
+        Teardown();
+        IsPaused = true;
+        PauseReason = reason;
+        // Paused before the route was planned: resume plans the whole hunt.
+        pausedNodeIds = remaining.Count > 0 ? remaining : null;
+        Svc.Log.Info($"[Hunter] Paused ({reason}) with {remaining.Count} nodes left.");
+        return true;
+    }
+
+    public bool Resume()
+    {
+        if (!IsPaused || running)
+        {
+            return false;
+        }
+
+        var remaining = pausedNodeIds;
+        Start();
+        resumeNodeIds = remaining;
+        Svc.Log.Info($"[Hunter] Resumed with {remaining?.Count.ToString() ?? "all"} nodes.");
+        return true;
+    }
+
+    /// <summary>Re-plans the rest of the route from the player's position.</summary>
+    public bool Recalculate()
+    {
+        return Pause("recalculate") && Resume();
+    }
 
     protected bool WalkToNodeHandler()
     {
@@ -1411,5 +1506,34 @@ public abstract class Hunter
 
         return expectedAethernet == Aethernet.Unknown
                || CurrentStep.Aethernet == expectedAethernet;
+    }
+}
+
+public static class HuntResumePolicy
+{
+    public static List<uint> RemainingNodes(IReadOnlyList<PathfinderStep> steps, int stepIndex)
+    {
+        var remaining = new List<uint>();
+        for (var i = Math.Max(0, stepIndex); i < steps.Count; i++)
+        {
+            if (steps[i].Type == PathfinderStepType.WalkToNode && !remaining.Contains(steps[i].NodeId))
+            {
+                remaining.Add(steps[i].NodeId);
+            }
+        }
+
+        return remaining;
+    }
+
+    /// <summary>Keeps the planner's node order; a null resume list keeps every node.</summary>
+    public static List<uint> Filter(List<uint> valid, IReadOnlyCollection<uint>? resumeNodeIds)
+    {
+        if (resumeNodeIds == null)
+        {
+            return valid;
+        }
+
+        var keep = resumeNodeIds.ToHashSet();
+        return valid.Where(keep.Contains).ToList();
     }
 }

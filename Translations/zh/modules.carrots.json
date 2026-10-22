@@ -24,6 +24,10 @@
         "repeat_carrot_hunt": {
           "label": "重复",
           "tooltip": "在到达最后一个节点后重新开始搜索"
+        },
+        "scout_without_carrots": {
+          "label": "没有胡萝卜也侦察",
+          "tooltip": "没有幸运胡萝卜时也按路线走一遍，需要胡萝卜的点直接跳过。"
         }
       }
     }

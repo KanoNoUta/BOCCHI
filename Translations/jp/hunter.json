@@ -6,6 +6,15 @@
     "export": {
       "label": "経路をjson形式としてエクスポート",
       "tooltip": "現在または最後の経路をjson形式にしてクリップボードに出力します"
-    }
+    },
+    "pause": "Pause",
+    "resume": "Resume",
+    "recalculate": {
+      "label": "Recalculate",
+      "tooltip": "Re-plan the rest of the route from where you are"
+    },
+    "paused": "Paused",
+    "paused_all": "Route not planned yet; resuming plans it from scratch",
+    "paused_remaining": "{0} spots left"
   }
 }

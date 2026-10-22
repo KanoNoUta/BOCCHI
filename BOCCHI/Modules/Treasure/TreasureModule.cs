@@ -58,6 +58,18 @@ public class TreasureModule(Plugin _plugin, Config config) : Module(_plugin, con
 
     public bool IsHuntRunning => hunter?.IsRunning == true;
 
+    public bool IsHuntPaused => hunter?.IsPaused == true;
+
+    public bool PauseHunt(string reason)
+    {
+        return hunter?.Pause(reason) == true;
+    }
+
+    public bool ResumeHunt()
+    {
+        return hunter?.Resume() == true;
+    }
+
     private readonly Panel panel = new();
 
     private readonly Radar radar = new();

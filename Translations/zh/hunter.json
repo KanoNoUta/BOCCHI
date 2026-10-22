@@ -6,6 +6,15 @@
     "export": {
       "label": "导出路径为JSON",
       "tooltip": "将当前/上次路径以JSON格式导出至剪贴板"
-    }
+    },
+    "pause": "暂停",
+    "resume": "继续",
+    "recalculate": {
+      "label": "重新规划",
+      "tooltip": "从当前位置重新规划剩下的路线"
+    },
+    "paused": "已暂停",
+    "paused_all": "路线还没规划，继续时从头规划",
+    "paused_remaining": "剩余 {0} 个点"
   }
 }

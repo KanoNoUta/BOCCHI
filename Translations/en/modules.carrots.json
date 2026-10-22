@@ -24,6 +24,10 @@
         "repeat_carrot_hunt": {
           "label": "Repeat",
           "tooltip": "Start the hunt again after reaching the final node"
+        },
+        "scout_without_carrots": {
+          "label": "Scout without Fortune Carrots",
+          "tooltip": "Walk the route even with no Fortune Carrots and skip spots that need one."
         }
       }
     }

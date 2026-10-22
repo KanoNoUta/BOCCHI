@@ -6,6 +6,15 @@
     "export": {
       "label": "Export Path to JSON",
       "tooltip": "Export the current/last path to JSON to your clipboard."
-    }
+    },
+    "pause": "Pause",
+    "resume": "Resume",
+    "recalculate": {
+      "label": "Recalculate",
+      "tooltip": "Re-plan the rest of the route from where you are"
+    },
+    "paused": "Paused",
+    "paused_all": "Route not planned yet; resuming plans it from scratch",
+    "paused_remaining": "{0} spots left"
   }
 }
