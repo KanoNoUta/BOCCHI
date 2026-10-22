@@ -413,6 +413,10 @@
           "tooltip": "Falls back to the other one when this job is not unlocked.",
           "chemist": "Chemist",
           "white_mage": "White Mage"
+        },
+        "stop_after_return": {
+          "label": "Stop after return and teleport",
+          "tooltip": "For FATEs and CEs, only Return and aethernet-teleport; on landing, mount and turn the automator off so you walk the rest yourself. If no teleport is needed it stops straight away. Turn the automator back on to continue."
         }
       },
       "panel": {
@@ -523,7 +527,8 @@
         },
         "forked_tower_offer_ciphers": "[BOCCHI] On the Blood tower pad. Offer your ciphers at a reliquary; the automator will not do it for you.",
         "forked_tower_on_pad": "[BOCCHI] On the Magic tower pad, waiting to be pulled in.",
-        "forked_tower_entered": "[BOCCHI] Entered the Forked Tower; the automator is now off."
+        "forked_tower_entered": "[BOCCHI] Entered the Forked Tower; the automator is now off.",
+        "stopped_after_return": "[BOCCHI] Stopped on the way to {0} (stop after return): the automator is off, walk the rest yourself."
       }
     }
   }

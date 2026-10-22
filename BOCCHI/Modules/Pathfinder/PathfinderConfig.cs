@@ -25,4 +25,9 @@ public class PathfinderConfig : ModuleConfig
     {
         get => IsPropertyEnabled(nameof(StuckJumpRecovery));
     }
+
+    [Checkbox]
+    [Label("modules.pathfinder.config.cancel_pathing_on_manual_cast.label")]
+    [Tooltip("modules.pathfinder.config.cancel_pathing_on_manual_cast.tooltip")]
+    public bool CancelPathingOnManualCast { get; set; } = true;
 }

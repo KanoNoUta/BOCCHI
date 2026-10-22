@@ -3143,4 +3143,13 @@ Assert(CompletionistPolicy.ShouldPursue(MonsterNote.CloisterDemon, _ => false)
         "Tracker graphs bucket the last 5 minutes into 15-second per-hour rates and stay off by default.");
 }
 
+Assert(BOCCHI.Services.ManualCastPathCancelPolicy.ShouldConsider(true, true, true, 7)
+       && !BOCCHI.Services.ManualCastPathCancelPolicy.ShouldConsider(false, true, true, 7)
+       && !BOCCHI.Services.ManualCastPathCancelPolicy.ShouldConsider(true, false, true, 7)
+       && !BOCCHI.Services.ManualCastPathCancelPolicy.ShouldConsider(true, true, false, 7)
+       && !BOCCHI.Services.ManualCastPathCancelPolicy.ShouldConsider(true, true, true, 0)
+       && new BOCCHI.Modules.Pathfinder.PathfinderConfig().CancelPathingOnManualCast
+       && !new AutomatorConfig().StopAfterReturn,
+    "Only combat actions in Occult Crescent cancel pathing, and stop-after-return stays off by default.");
+
 Console.WriteLine("BOCCHI 7.55 North Horn data, lifecycle, config, translation, routing, precompute, and vnavmesh availability smoke tests passed.");

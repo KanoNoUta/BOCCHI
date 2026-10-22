@@ -23,6 +23,10 @@
         "stuck_jump_recovery": {
           "label": "Jump when stuck",
           "tooltip": "When navigation makes no progress for a while (stuck on an obstacle), jump a few times to break free."
+        },
+        "cancel_pathing_on_manual_cast": {
+          "label": "Stop pathing when you use a combat action",
+          "tooltip": "When the automator, hunts and mob farmer are off but BOCCHI is walking you somewhere (for example to a shard after Return), using a combat action yourself or through a rotation plugin stops the walk so you can fight. Aethernet hops are never cut off."
         }
       }
     }

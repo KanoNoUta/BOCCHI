@@ -587,6 +587,10 @@ public class AutomatorConfig : ModuleConfig
     [IntRange(0, 30)]
     public int MaxReturnDelaySeconds { get; set; } = 0;
 
+    /// <summary>Teleport-only travel: after Return or an aethernet hop, mount and stop so the player walks the rest.</summary>
+    [Checkbox]
+    public bool StopAfterReturn { get; set; } = false;
+
     [Checkbox]
     public bool EnableTriageMode { get; set; } = false;
 

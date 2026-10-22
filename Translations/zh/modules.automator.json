@@ -433,6 +433,10 @@
           "tooltip": "选中的职业没解锁时用另一个。",
           "chemist": "药剂师",
           "white_mage": "白魔法师"
+        },
+        "stop_after_return": {
+          "label": "回城传送后停下（只传送不走路）",
+          "tooltip": "去 FATE/CE 时只负责回城和以太之光传送，落地后上坐骑并关闭自动运行，剩下的路自己走；目标就在附近不需要传送时也会直接停下。重新开启自动运行即可继续。"
         }
       },
       "panel": {
@@ -543,7 +547,8 @@
         },
         "forked_tower_offer_ciphers": "[BOCCHI] 已到达血之塔报名点。记得去旁边的祭坛交密文，自动模式不会代交。",
         "forked_tower_on_pad": "[BOCCHI] 已到达魔之塔报名点，等待传送。",
-        "forked_tower_entered": "[BOCCHI] 已进入两歧塔，自动模式已关闭。"
+        "forked_tower_entered": "[BOCCHI] 已进入两歧塔，自动模式已关闭。",
+        "stopped_after_return": "[BOCCHI] 已在前往 {0} 的路上停下（回城传送后停下），自动运行已关闭，请自己走过去。"
       }
     }
   }

@@ -322,6 +322,18 @@ public abstract class Activity : IDisposable
         PathfindingChain pathfinding,
         StateManagerModule states)
     {
+        if (module.Config.StopAfterReturn)
+        {
+            // Teleport-only travel: mount at the landing and hand the last
+            // stretch to the player.
+            return chain
+                .ConditionalThen(
+                    _ => ShouldContinueNavigation(states) && ShouldMountToPathfindTo(destination),
+                    ChainHelper.MountChain(ShouldStopNestedWork))
+                .ConditionalThen(_ => ShouldContinueNavigation(states), _ => StopForManualWalk())
+                .BreakIf(() => true);
+        }
+
         return chain
             // Mount before submitting movement. Submitting a ground route and
             // mounting afterwards interrupts vnavmesh and causes visible
@@ -549,6 +561,13 @@ public abstract class Activity : IDisposable
         {
             Actions.TryUnmount();
         }
+    }
+
+    private void StopForManualWalk()
+    {
+        Svc.Log.Info($"Stop after return: handing {GetName()} to the player.");
+        Svc.Chat.Print(string.Format(module.T("messages.stopped_after_return"), GetName()));
+        module.DisableIllegalMode();
     }
 
     private bool ShouldMountToPathfindTo(Vector3 destination)

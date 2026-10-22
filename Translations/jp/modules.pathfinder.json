@@ -23,6 +23,10 @@
         "stuck_jump_recovery": {
           "label": "スタック時にジャンプ",
           "tooltip": "移動中に長く動けなくなった場合（障害物に引っかかり）、数回ジャンプして脱出する"
+        },
+        "cancel_pathing_on_manual_cast": {
+          "label": "Stop pathing when you use a combat action",
+          "tooltip": "When the automator, hunts and mob farmer are off but BOCCHI is walking you somewhere (for example to a shard after Return), using a combat action yourself or through a rotation plugin stops the walk so you can fight. Aethernet hops are never cut off."
         }
       }
     }

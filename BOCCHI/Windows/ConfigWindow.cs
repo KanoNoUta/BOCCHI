@@ -364,6 +364,7 @@ public class ConfigWindow(Plugin primaryPlugin, Config config) : OcelotConfigWin
         DrawBoolean(module, cfg, nameof(cfg.AutoRegisterForForkedTower));
         DrawBoolean(module, cfg, nameof(cfg.StayMountedWhileWaiting));
         DrawInt(module, cfg, nameof(cfg.MaxReturnDelaySeconds), 0, 30);
+        DrawBoolean(module, cfg, nameof(cfg.StopAfterReturn));
 
         DrawSectionTitle(T("editors.automation.triage"));
         DrawBoolean(module, cfg, nameof(cfg.EnableTriageMode));

@@ -23,7 +23,11 @@
           "tooltip": null
         },
         "text": null,
-        "title": null
+        "title": null,
+        "cancel_pathing_on_manual_cast": {
+          "label": "Stop pathing when you use a combat action",
+          "tooltip": "When the automator, hunts and mob farmer are off but BOCCHI is walking you somewhere (for example to a shard after Return), using a combat action yourself or through a rotation plugin stops the walk so you can fight. Aethernet hops are never cut off."
+        }
       }
     }
   }

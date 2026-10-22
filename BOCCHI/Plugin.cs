@@ -50,7 +50,10 @@ public sealed class Plugin : OcelotPlugin
         OcelotInitialize(OcelotFeature.All);
 
         ChainHelper.Initialize(this);
+        manualCastPathCancel = new ManualCastPathCancel(this);
     }
+
+    private ManualCastPathCancel? manualCastPathCancel;
 
     private void SetupLanguage(IDalamudPluginInterface plugin)
     {
@@ -84,6 +87,7 @@ public sealed class Plugin : OcelotPlugin
 
     public override void Dispose()
     {
+        manualCastPathCancel?.Dispose();
         CapturingPluginLog.Uninstall();
         base.Dispose();
     }
