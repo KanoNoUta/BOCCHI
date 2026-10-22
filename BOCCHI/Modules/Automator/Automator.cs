@@ -242,11 +242,31 @@ public class Automator
             return;
         }
 
-        if (Activity != null && ShouldYieldActivityToPot(module, states, Activity, out var yieldReason))
+        if (Activity != null && ShouldAbandonFate(module, states, Activity, out var yieldReason, out var replacementCe, out var leavingCombat))
         {
-            Svc.Log.Info($"[Pots] Leaving {Activity.GetName()}: {yieldReason}.");
+            Svc.Log.Info($"[Automator] Leaving {Activity.GetName()}: {yieldReason}.");
             Plugin.Chain.Abort();
             vnav.Stop();
+            if (replacementCe != null && module.TryGetModule<CriticalEncountersModule>(out var critical) && critical != null)
+            {
+                // Hand over straight to the CE: clearing the activity while the
+                // game still reports the FATE would resume that FATE.
+                if (!leavingCombat)
+                {
+                    module.SetAiProviderEnabled(false);
+                    PromeRotationController.Stop();
+                }
+
+                ClearActivity();
+                Activity = new CriticalEncounter(replacementCe.Value, lifestream, vnav, module, critical);
+                preferFateAfterCriticalEncounter = ActivitySelectionPolicy.AfterActivitySelected(
+                    preferFateAfterCriticalEncounter,
+                    Activity.data.Type);
+                return;
+            }
+
+            // The pot that caused this must win the next selection.
+            preferFateAfterCriticalEncounter = false;
             module.SetAiProviderEnabled(false);
             PromeRotationController.Stop();
             ClearActivity();
@@ -365,21 +385,24 @@ public class Automator
             return null;
         }
 
-        var pots = PotContext.Capture(module);
-        if (module.Config.ShouldPreferPotFates && pots.HasStartableLivePot)
+        if (!FindCriticalEncounterGate(module))
         {
             return null;
         }
 
-        if (!PotTimingPolicy.AllowsStart(
-                pots.Cycle,
-                pots.Now,
-                TimeSpan.FromMinutes(module.Config.PotCriticalEncounterCutoffMinutes),
-                pots.PotWorkEnabled))
-        {
-            return null;
-        }
+        return TryFindStartableCriticalEncounter(module, source, out var data, out _)
+            ? new CriticalEncounter(data, lifestream, vnav, module, source)
+            : null;
+    }
 
+    private static bool TryFindStartableCriticalEncounter(
+        AutomatorModule module,
+        CriticalEncountersModule source,
+        out EventData data,
+        out TimeSpan registrationRemaining)
+    {
+        data = default;
+        registrationRemaining = TimeSpan.Zero;
         foreach (var encounter in source.CriticalEncounters.Values)
         {
             if (encounter.EventType >= 4)
@@ -397,9 +420,9 @@ public class Automator
                 continue;
             }
 
-            var registrationRemaining = source.Tracker.TowerTimer.GetTimeRemainingToRegister(encounter);
+            var remaining = source.Tracker.TowerTimer.GetTimeRemainingToRegister(encounter);
             if (!CriticalEncounterSelectionPolicy.HasEnoughRegistrationTime(
-                    registrationRemaining,
+                    remaining,
                     module.Config.ShouldDelayCriticalEncounters,
                     module.Config.MaxDelay,
                     CriticalEncounterTransitReserveSeconds))
@@ -407,15 +430,54 @@ public class Automator
                 continue;
             }
 
-            if (!EventData.CriticalEncounters.TryGetValue(encounter.DynamicEventId, out var data))
+            if (!EventData.CriticalEncounters.TryGetValue(encounter.DynamicEventId, out var found))
             {
                 continue;
             }
 
-            return new CriticalEncounter(data, lifestream, vnav, module, source);
+            data = found;
+            registrationRemaining = remaining;
+            return true;
         }
 
-        return null;
+        return false;
+    }
+
+    /// <summary>
+    /// A CE BOCCHI would start right now, when the FATE it is heading to (or
+    /// fighting, with the mid-FATE option) should give way to it.
+    /// </summary>
+    private static bool TryFindCriticalEncounterToLeaveFor(AutomatorModule module, out EventData data)
+    {
+        data = default;
+        if (!module.Config.ShouldDoCriticalEncounters
+            || !module.TryGetModule<CriticalEncountersModule>(out var source)
+            || source == null
+            || FindCriticalEncounterGate(module) is false
+            || !TryFindStartableCriticalEncounter(module, source, out data, out var remaining))
+        {
+            return false;
+        }
+
+        return FateSelectionPolicy.ShouldLeaveFateForCriticalEncounter(
+            module.Config.LeaveFateTravelForCeSeconds,
+            remaining);
+    }
+
+    /// <summary>The pot gates FindCriticalEncounter applies before looking at CEs.</summary>
+    private static bool FindCriticalEncounterGate(AutomatorModule module)
+    {
+        var pots = PotContext.Capture(module);
+        if (module.Config.ShouldPreferPotFates && pots.HasStartableLivePot)
+        {
+            return false;
+        }
+
+        return PotTimingPolicy.AllowsStart(
+            pots.Cycle,
+            pots.Now,
+            TimeSpan.FromMinutes(module.Config.PotCriticalEncounterCutoffMinutes),
+            pots.PotWorkEnabled);
     }
 
     private static FateActivity? FindFate(AutomatorModule module, Lifestream lifestream, VNavmesh vnav)
@@ -441,6 +503,8 @@ public class Automator
             TimeSpan.FromMinutes(module.Config.PotFateCutoffMinutes),
             pots.PotWorkEnabled);
         Fate? best = null;
+        var bestScore = float.MinValue;
+        var player = Svc.Objects.LocalPlayer?.Position ?? Vector3.Zero;
         foreach (var fate in source.fates.Values)
         {
             if (!liveFateIds.Contains(fate.Id))
@@ -464,9 +528,16 @@ public class Automator
             // must not gate eligibility. Presence in Svc.Fates plus the user's
             // FatesMap checkbox is the liveness contract; a FATE that actually
             // despawns mid-travel is handled by Activity.IsValid().
-            if (best == null)
+            if (FateSelectionPolicy.ShouldSkipByProgress(module.Config.MaxFateProgressPercent, fate.CurrentProgress))
+            {
+                continue;
+            }
+
+            var score = FateSelectionPolicy.Score(player, fate.StartPosition, fate.CurrentProgress);
+            if (best == null || score > bestScore)
             {
                 best = fate;
+                bestScore = score;
             }
         }
 
@@ -707,33 +778,64 @@ public class Automator
     }
 
     /// <summary>
-    /// An ordinary FATE BOCCHI is still travelling to gives way to a live pot,
-    /// and to the pot's cutoff window.
+    /// Whether the FATE BOCCHI is heading to (or, with the mid-FATE option,
+    /// fighting) should be dropped for a live pot, the pot cutoff, its own
+    /// progress, or a CE that is about to start.
     /// </summary>
-    private static bool ShouldYieldActivityToPot(
+    private static bool ShouldAbandonFate(
         AutomatorModule module,
         StateManagerModule states,
         Activity activity,
-        out string reason)
+        out string reason,
+        out EventData? replacementCe,
+        out bool engaged)
     {
         reason = string.Empty;
-        if (activity is not FateActivity
-            || PotZoneData.IsPotFate(activity.data.Id)
-            || activity.state is not (ActivityState.Idle or ActivityState.Pathfinding)
-            || activity.HasParticipated
-            || states.GetState() != State.Idle)
+        replacementCe = null;
+        engaged = false;
+        if (activity is not FateActivity || activity.state == ActivityState.Done)
         {
             return false;
         }
 
+        var isPot = PotZoneData.IsPotFate(activity.data.Id);
+        engaged = activity.HasParticipated
+                      || activity.state is not (ActivityState.Idle or ActivityState.Pathfinding)
+                      || states.GetState() != State.Idle;
+        if (engaged)
+        {
+            if (!isPot
+                && module.Config.ShouldLeaveEngagedFateForCriticalEncounter
+                && TryFindCriticalEncounterToLeaveFor(module, out var engagedCe))
+            {
+                reason = $"CE {engagedCe.Id} is starting (leave mid-FATE)";
+                replacementCe = engagedCe;
+                return true;
+            }
+
+            return false;
+        }
+
+        if (isPot)
+        {
+            if (!module.Config.ShouldPreferPotFates && TryFindCriticalEncounterToLeaveFor(module, out var potCe))
+            {
+                reason = $"CE {potCe.Id} is starting";
+                replacementCe = potCe;
+                return true;
+            }
+
+            return false;
+        }
+
         var pots = PotContext.Capture(module);
+        module.TryGetModule<FatesModule>(out var fates);
         // Only yield to a pot FindFate can actually pick, or this would loop.
         if (pots.StartableLivePot is { } livePot
-            && module.TryGetModule<FatesModule>(out var fates)
             && fates != null
             && fates.fates.ContainsKey(livePot))
         {
-            reason = $"pot {pots.StartableLivePot} is live";
+            reason = $"pot {livePot} is live";
             return true;
         }
 
@@ -744,6 +846,21 @@ public class Automator
                 pots.PotWorkEnabled))
         {
             reason = "the next pot is within the FATE cutoff";
+            return true;
+        }
+
+        if (fates != null
+            && fates.fates.TryGetValue(activity.data.Id, out var tracked)
+            && FateSelectionPolicy.ShouldSkipByProgress(module.Config.MaxFateProgressPercent, tracked.CurrentProgress))
+        {
+            reason = $"its progress reached {tracked.CurrentProgress}%";
+            return true;
+        }
+
+        if (TryFindCriticalEncounterToLeaveFor(module, out var ce))
+        {
+            reason = $"CE {ce.Id} is starting";
+            replacementCe = ce;
             return true;
         }
 
@@ -1148,5 +1265,31 @@ public static class ActivitySelectionPolicy
     public static bool AfterActivitySelected(bool preferFate, EventType activityType)
     {
         return activityType == EventType.Fate ? false : preferFate;
+    }
+}
+
+/// <summary>FATE choice and hand-off rules ported from upstream BOCCHI 4.2.</summary>
+public static class FateSelectionPolicy
+{
+    /// <summary>Nearer FATEs and FATEs with less progress score higher.</summary>
+    public static float Score(Vector3 player, Vector3 fatePosition, byte progress)
+    {
+        var distance = Vector2.Distance(new Vector2(player.X, player.Z), new Vector2(fatePosition.X, fatePosition.Z));
+        return 1000f / (distance + 1f) + Math.Max(0, 100 - progress);
+    }
+
+    /// <summary>0 turns the progress skip off.</summary>
+    public static bool ShouldSkipByProgress(int maximumProgressPercent, byte progress)
+    {
+        return maximumProgressPercent > 0 && progress >= maximumProgressPercent;
+    }
+
+    /// <summary>
+    /// A CE takes over once its registration has at most the configured
+    /// seconds left; 0 means as soon as it can be started.
+    /// </summary>
+    public static bool ShouldLeaveFateForCriticalEncounter(int thresholdSeconds, TimeSpan registrationRemaining)
+    {
+        return thresholdSeconds <= 0 || registrationRemaining <= TimeSpan.FromSeconds(thresholdSeconds);
     }
 }

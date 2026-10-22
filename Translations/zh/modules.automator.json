@@ -372,6 +372,18 @@
         "min_pot_fate_minutes_remaining": {
           "label": "魔法罐最少剩余时间（分钟）",
           "tooltip": "魔法罐 FATE 剩余时间少于这么多分钟就不去。0 为总是去。"
+        },
+        "max_fate_progress_percent": {
+          "label": "FATE 进度上限（%）",
+          "tooltip": "FATE 进度达到这个百分比就不去了，赶路途中达到也会放弃。0 为不限制。"
+        },
+        "leave_fate_travel_for_ce_seconds": {
+          "label": "去 FATE 途中改去 CE（秒）",
+          "tooltip": "还没开打的 FATE，遇到报名剩余不超过这么多秒的 CE 时改去 CE。0 为只要有能去的 CE 就改去。"
+        },
+        "leave_engaged_fate_for_critical_encounter": {
+          "label": "打 FATE 打到一半也去 CE",
+          "tooltip": "已经在打的普通 FATE 也会按上面的时间改去 CE，魔法罐除外。离开时可能还在战斗中。"
         }
       },
       "panel": {

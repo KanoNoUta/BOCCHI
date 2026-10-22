@@ -352,6 +352,18 @@
         "min_pot_fate_minutes_remaining": {
           "label": "Minimum pot time left (minutes)",
           "tooltip": "Skip a pot FATE with less time left than this. 0 always goes."
+        },
+        "max_fate_progress_percent": {
+          "label": "Skip FATEs at progress (%)",
+          "tooltip": "Skip FATEs at or above this progress, also while travelling. 0 disables."
+        },
+        "leave_fate_travel_for_ce_seconds": {
+          "label": "Leave FATE travel for a CE (seconds)",
+          "tooltip": "Drop a FATE not yet engaged for a CE whose registration has at most this many seconds left. 0 leaves for any startable CE."
+        },
+        "leave_engaged_fate_for_critical_encounter": {
+          "label": "Leave mid-FATE for a CE",
+          "tooltip": "Also leave an ordinary FATE you are fighting, with the same timing. Magic pots are never left. You may still be in combat when leaving."
         }
       },
       "panel": {

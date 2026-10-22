@@ -349,6 +349,9 @@ public class ConfigWindow(Plugin primaryPlugin, Config config) : OcelotConfigWin
         DrawBoolean(module, cfg, nameof(cfg.DelayCriticalEncounters), !cfg.DoCriticalEncounters);
         DrawFloat(module, cfg, nameof(cfg.MinDelay), 0f, 30f, T("units.seconds_1"), !cfg.DelayCriticalEncounters);
         DrawFloat(module, cfg, nameof(cfg.MaxDelay), 0f, 30f, T("units.seconds_1"), !cfg.DelayCriticalEncounters);
+        DrawInt(module, cfg, nameof(cfg.MaxFateProgressPercent), 0, 99, !cfg.DoFates);
+        DrawInt(module, cfg, nameof(cfg.LeaveFateTravelForCeSeconds), 0, 180, !cfg.DoFates || !cfg.DoCriticalEncounters);
+        DrawBoolean(module, cfg, nameof(cfg.LeaveEngagedFateForCriticalEncounter), !cfg.DoFates || !cfg.DoCriticalEncounters);
 
         DrawSectionTitle(T("editors.automation.magic_pots"));
         ImGui.TextDisabled(T("editors.automation.magic_pots_help"));

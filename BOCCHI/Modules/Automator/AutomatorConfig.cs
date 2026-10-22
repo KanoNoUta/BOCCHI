@@ -532,6 +532,24 @@ public class AutomatorConfig : ModuleConfig
         get => IsPropertyEnabled(nameof(DelayFates));
     }
 
+    [IntRange(0, 99)]
+    [DependsOn(nameof(DoFates))]
+    public int MaxFateProgressPercent { get; set; } = 0;
+
+    [IntRange(0, 180)]
+    [DependsOn(nameof(DoCriticalEncounters))]
+    public int LeaveFateTravelForCeSeconds { get; set; } = 90;
+
+    [Checkbox]
+    [DependsOn(nameof(DoCriticalEncounters))]
+    [Indent]
+    public bool LeaveEngagedFateForCriticalEncounter { get; set; } = false;
+
+    public bool ShouldLeaveEngagedFateForCriticalEncounter
+    {
+        get => IsPropertyEnabled(nameof(LeaveEngagedFateForCriticalEncounter));
+    }
+
     // Magic pots
     [Checkbox]
     [DependsOn(nameof(DoFates))]
