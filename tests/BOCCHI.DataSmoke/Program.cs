@@ -3029,5 +3029,11 @@ Assert(ForkedTowerRegistration.MeetsKnowledgeRequirement(40, 40)
        && ForkedTowerRegistration.MeetsKnowledgeRequirement(40, null)
        && ForkedTowerRegistration.MeetsKnowledgeRequirement(0, 1),
     "The Magic tower needs Knowledge 40; an unknown level never blocks.");
+Assert(ActivityParticipationState.IsAlreadyInside(EventType.Fate, 1964, 1964, 0)
+       && !ActivityParticipationState.IsAlreadyInside(EventType.Fate, 1964, 1962, 0)
+       && !ActivityParticipationState.IsAlreadyInside(EventType.CriticalEncounter, 33, 1962, 0)
+       && ActivityParticipationState.IsAlreadyInside(EventType.CriticalEncounter, 33, 1962, 33)
+       && !ActivityParticipationState.IsAlreadyInside(EventType.Fate, 0, 0, 0),
+    "An activity only starts as joined when the game reports that same FATE or CE.");
 
 Console.WriteLine("BOCCHI 7.55 North Horn data, lifecycle, config, translation, routing, precompute, and vnavmesh availability smoke tests passed.");

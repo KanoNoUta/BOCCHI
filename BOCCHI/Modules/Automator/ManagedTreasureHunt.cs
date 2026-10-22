@@ -31,6 +31,9 @@ public sealed class ManagedTreasureHunt
     /// <summary>Between activities a finished hunt only starts again after another activity.</summary>
     private bool waitingForActivity;
 
+    /// <summary>The player pressed Stop on our hunt: no more hunts until the automator restarts.</summary>
+    private bool stoppedByPlayer;
+
     public bool IsManaging => managing;
 
     public string? PauseReason { get; private set; }
@@ -54,6 +57,15 @@ public sealed class ManagedTreasureHunt
         }
 
         var running = treasure.IsHuntRunning;
+        if (!running && !treasure.IsHuntPaused && treasure.HuntStoppedByPlayer)
+        {
+            Svc.Log.Info("[Automator] The player stopped the managed treasure hunt.");
+            managing = false;
+            stoppedByPlayer = true;
+            wasRunning = false;
+            return;
+        }
+
         if (wasRunning && !running && !treasure.IsHuntPaused)
         {
             Svc.Log.Info("[Automator] Managed treasure hunt finished.");
@@ -73,13 +85,19 @@ public sealed class ManagedTreasureHunt
     /// <summary>Starts or resumes the hunt. Returns true while the hunt owns the player.</summary>
     public bool Ensure(AutomatorModule module, AutomatorRunMode mode)
     {
-        if (!TryGetTreasure(module, out var treasure))
+        if (stoppedByPlayer || !TryGetTreasure(module, out var treasure))
         {
             return false;
         }
 
-        if (managing && treasure.IsHuntPaused)
+        if (treasure.IsHuntPaused)
         {
+            // A pause the player made, or a hunt they started by hand, stays theirs.
+            if (!managing || treasure.IsHuntPausedByPlayer)
+            {
+                return false;
+            }
+
             Svc.Log.Info("[Automator] Resuming managed treasure hunt.");
             PauseReason = null;
             treasure.ResumeHunt();
@@ -150,6 +168,7 @@ public sealed class ManagedTreasureHunt
         PauseReason = null;
         nextStartAt = DateTimeOffset.MinValue;
         waitingForActivity = false;
+        stoppedByPlayer = false;
     }
 
     private static bool TryGetTreasure(AutomatorModule module, out TreasureModule treasure)

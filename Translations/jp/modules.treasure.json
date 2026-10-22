@@ -36,7 +36,7 @@
         },
         "hunt_silver_chests_only": {
           "label": "Silver coffers only",
-          "tooltip": "Only route through silver coffer spots."
+          "tooltip": "Only route through silver coffer spots. North Horn route spots carry no coffer type, so this does nothing there."
         },
         "skip_unsafe_treasure_windows": {
           "label": "Wait out unsafe South Horn windows",

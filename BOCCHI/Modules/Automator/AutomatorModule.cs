@@ -88,6 +88,23 @@ public class AutomatorModule : Module
             return;
         }
 
+        if (RequestedEnabled && RunMode != AutomatorRunMode.PotsAndTreasure)
+        {
+            // Switching while running: drop whatever the full mode was doing.
+            Plugin.Chain.Abort();
+            try
+            {
+                GetIPCSubscriber<VNavmesh>().Stop();
+            }
+            catch (Exception exception)
+            {
+                Svc.Log.Warning(exception, "Could not stop vnavmesh while switching to Pots & Treasure.");
+            }
+
+            PromeRotationController.Stop();
+            SetAiProviderEnabled(false);
+        }
+
         RunMode = AutomatorRunMode.PotsAndTreasure;
         automator.Refresh();
         if (!RequestedEnabled)
@@ -394,6 +411,7 @@ public class AutomatorModule : Module
     private void FailStartRequest(string reason, bool cleanupRuntime = true)
     {
         Config.Enabled = false;
+        RunMode = AutomatorRunMode.Full;
         if (cleanupRuntime)
         {
             instanceRotation.Reset();

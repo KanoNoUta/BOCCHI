@@ -379,7 +379,7 @@
         },
         "leave_fate_travel_for_ce_seconds": {
           "label": "去 FATE 途中改去 CE（秒）",
-          "tooltip": "还没开打的 FATE，遇到报名剩余不超过这么多秒的 CE 时改去 CE。0 为只要有能去的 CE 就改去。"
+          "tooltip": "还没开打的 FATE，遇到报名剩余不超过这么多秒的 CE 时改去 CE。0 为只要有能去的 CE 就改去。剩余不到 45 秒（开了 CE 延迟出发时再加最大延迟）的 CE 本来就不会去，所以设得比这个小不会触发。"
         },
         "leave_engaged_fate_for_critical_encounter": {
           "label": "打 FATE 打到一半也去 CE",

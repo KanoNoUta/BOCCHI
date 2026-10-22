@@ -5,6 +5,7 @@ using BOCCHI.Modules.CriticalEncounters;
 using BOCCHI.Modules.Automator.Pots;
 using BOCCHI.Modules.Fates;
 using BOCCHI.Modules.StateManager;
+using BOCCHI.Modules.Treasure;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Plugin.Services;
 using ECommons.DalamudServices;
@@ -154,8 +155,9 @@ public class Automator
                 return;
             }
 
-            // A CE or pot never pulls the player out of a fight mid-hunt.
-            if (Svc.Condition[ConditionFlag.InCombat])
+            // A CE or pot never pulls the player out of a fight mid-hunt, nor
+            // pauses while the hunt crosses a FATE or CE area.
+            if (Svc.Condition[ConditionFlag.InCombat] || states.GetState() != State.Idle)
             {
                 return;
             }
@@ -186,7 +188,11 @@ public class Automator
             if (states.GetState() == State.InCriticalEncounter)
             {
                 var critical = module.GetModule<CriticalEncountersModule>();
-                var encounter = critical.CriticalEncounters.Values.LastOrDefault(ev => ev.State != DynamicEventState.Inactive);
+                // Resume the CE the game says the player is in. The Forked
+                // Tower pad also reports its event; that is not a CE to fight.
+                var currentEventId = GetCurrentDynamicEventId();
+                var encounter = critical.CriticalEncounters.Values.FirstOrDefault(ev =>
+                    ev.DynamicEventId == currentEventId && !TowerHelper.TryGetTowerType(ev.DynamicEventId, out _));
                 if (encounter == null)
                 {
                     return;
@@ -212,7 +218,7 @@ public class Automator
 
             if (states.GetState() == State.InFate)
             {
-                Activity ??= FindFate(module, lifestream, vnav);
+                Activity ??= FindCurrentFate(module, lifestream, vnav) ?? FindFate(module, lifestream, vnav);
 
                 if (Activity != null)
                 {
@@ -220,9 +226,15 @@ public class Automator
                         preferFateAfterCriticalEncounter,
                         Activity.data.Type);
                     module.Debug($"Resuming running activity: {Activity.GetName()}");
+                    return;
                 }
 
-                return;
+                // Standing in a FATE BOCCHI would not do: carry on with normal
+                // selection once out of combat instead of idling in its area.
+                if (Svc.Condition[ConditionFlag.InCombat])
+                {
+                    return;
+                }
             }
         }
 
@@ -507,7 +519,8 @@ public class Automator
     private static bool TryFindCriticalEncounterToLeaveFor(AutomatorModule module, out EventData data)
     {
         data = default;
-        if (!module.Config.ShouldDoCriticalEncounters
+        if (module.RunMode == AutomatorRunMode.PotsAndTreasure
+            || !module.Config.ShouldDoCriticalEncounters
             || !module.TryGetModule<CriticalEncountersModule>(out var source)
             || source == null
             || FindCriticalEncounterGate(module) is false
@@ -535,6 +548,33 @@ public class Automator
             pots.Now,
             TimeSpan.FromMinutes(module.Config.PotCriticalEncounterCutoffMinutes),
             pots.PotWorkEnabled);
+    }
+
+    private static unsafe uint GetCurrentDynamicEventId()
+    {
+        var container = DynamicEventContainer.GetInstance();
+        return container != null ? container->CurrentEventId : 0u;
+    }
+
+    /// <summary>The FATE the player stands in, when BOCCHI would do it.</summary>
+    private static unsafe FateActivity? FindCurrentFate(AutomatorModule module, Lifestream lifestream, VNavmesh vnav)
+    {
+        var manager = FFXIVClientStructs.FFXIV.Client.Game.Fate.FateManager.Instance();
+        var currentFateId = manager != null ? (uint)manager->GetCurrentFateId() : 0u;
+        if (currentFateId == 0
+            || !module.TryGetModule<FatesModule>(out var source)
+            || source == null
+            || !source.fates.TryGetValue(currentFateId, out var fate))
+        {
+            return null;
+        }
+
+        var wanted = (PotZoneData.IsPotFate(currentFateId) && PotContext.Capture(module).PotWorkEnabled)
+                     || (module.RunMode != AutomatorRunMode.PotsAndTreasure
+                         && module.Config.ShouldDoFates
+                         && module.Config.FatesMap.TryGetValue(currentFateId, out var enabled)
+                         && enabled);
+        return wanted ? new FateActivity(fate.Data, lifestream, vnav, module, fate) : null;
     }
 
     private static FateActivity? FindFate(AutomatorModule module, Lifestream lifestream, VNavmesh vnav)
@@ -721,13 +761,24 @@ public class Automator
 
     private static bool WantsManagedHunt(AutomatorModule module)
     {
-        return module.RunMode == AutomatorRunMode.PotsAndTreasure || module.Config.ShouldEnableAutomaticTreasureHunt;
+        return (module.RunMode == AutomatorRunMode.PotsAndTreasure || module.Config.ShouldEnableAutomaticTreasureHunt)
+               && !IsTreasureWindowUnsafe(module);
+    }
+
+    private static bool IsTreasureWindowUnsafe(AutomatorModule module)
+    {
+        return module.TryGetModule<TreasureModule>(out var treasure)
+               && treasure != null
+               && treasure.Config.SkipUnsafeTreasureWindows
+               && TreasureHuntOptionsPolicy.IsUnsafeNow();
     }
 
     /// <summary>A pot is live, about to spawn, or its coffer is being farmed.</summary>
     private bool NeedsPotWork(AutomatorModule module)
     {
-        if (PotFarm != null || PotChestFarm.HasCacheMe())
+        // The coffer buff only counts while a farm could actually run.
+        if (PotFarm != null
+            || (PotChestFarm.HasCacheMe() && !potFarmBlockedUntilBuffEnds && module.Config.ShouldFarmPotChests))
         {
             return true;
         }
@@ -747,6 +798,13 @@ public class Automator
         if (ForkedTowerRegistration.TryFindRegistrable(module, out _))
         {
             reason = "Forked Tower registration";
+            return true;
+        }
+
+        // Waiting out an unsafe window inside the hunt would freeze the automator.
+        if (IsTreasureWindowUnsafe(module))
+        {
+            reason = "unsafe treasure window";
             return true;
         }
 

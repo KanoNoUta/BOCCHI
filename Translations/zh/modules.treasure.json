@@ -36,7 +36,7 @@
         },
         "hunt_silver_chests_only": {
           "label": "只找银箱",
-          "tooltip": "寻宝路线只包含银宝箱的点位。"
+          "tooltip": "寻宝路线只包含银宝箱的点位。北岛路线没有宝箱类型，这项在北岛不生效。"
         },
         "skip_unsafe_treasure_windows": {
           "label": "南岛危险时段暂停",

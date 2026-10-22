@@ -179,6 +179,11 @@ public abstract class Hunter
     /// <summary>Paused hunts keep their remaining nodes and resume from them.</summary>
     public bool IsPaused { get; private set; }
 
+    public const string ManualPauseReason = "manual";
+
+    /// <summary>The last hunt was stopped with the Stop button, not finished.</summary>
+    public bool StoppedByUser { get; private set; }
+
     public string? PauseReason { get; private set; }
 
     private List<uint>? resumeNodeIds;
@@ -432,6 +437,7 @@ public abstract class Hunter
                 if (running || IsPaused)
                 {
                     Stop();
+                    StoppedByUser = true;
                 }
                 else
                 {
@@ -444,7 +450,7 @@ public abstract class Hunter
                 ImGui.SameLine();
                 if (ImGui.Button($"{I18N.T("hunter.pause")}##HunterPause"))
                 {
-                    Pause("manual");
+                    Pause(ManualPauseReason);
                 }
 
                 ImGui.SameLine();
@@ -553,6 +559,7 @@ public abstract class Hunter
 
         IsPaused = false;
         PauseReason = null;
+        StoppedByUser = false;
         resumeNodeIds = null;
         pausedNodeIds = null;
         routeGeneration++;
@@ -680,6 +687,7 @@ public abstract class Hunter
                     return false;
                 }
 
+                OnNodeVisited(nodeId);
                 return true;
             }
 

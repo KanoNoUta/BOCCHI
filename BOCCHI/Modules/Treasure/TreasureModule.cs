@@ -60,6 +60,10 @@ public class TreasureModule(Plugin _plugin, Config config) : Module(_plugin, con
 
     public bool IsHuntPaused => hunter?.IsPaused == true;
 
+    public bool IsHuntPausedByPlayer => hunter is { IsPaused: true, PauseReason: BOCCHI.Pathfinding.Hunter.ManualPauseReason };
+
+    public bool HuntStoppedByPlayer => hunter?.StoppedByUser == true;
+
     public bool PauseHunt(string reason)
     {
         return hunter?.Pause(reason) == true;
@@ -274,6 +278,11 @@ public class TreasureModule(Plugin _plugin, Config config) : Module(_plugin, con
             return false;
         }
 
+        // Same switches as a manual start, so the module updates and every
+        // hunt option applies to automator-run hunts too.
+        Config.Enabled = true;
+        Config.EnableTreasureHunt = true;
+        PluginConfig.Save();
         hunter.Start();
         return true;
     }

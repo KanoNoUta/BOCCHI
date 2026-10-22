@@ -70,11 +70,13 @@ public abstract class Activity : IDisposable
             { ActivityState.Done, GetDoneChain },
         };
 
-        var states = module.GetModule<StateManagerModule>();
-        if (states.GetState() == State.InFate
-            || states.GetState() == State.InCriticalEncounter
-            || (FateManager.Instance() != null && FateManager.Instance()->GetCurrentFateId() != 0)
-            || (DynamicEventContainer.GetInstance() != null && DynamicEventContainer.GetInstance()->CurrentEventId != 0))
+        // Only this event counts: a CE taken over mid-FATE, or a pot picked
+        // while standing in another FATE, still has to travel.
+        var currentFate = FateManager.Instance() != null ? (uint)FateManager.Instance()->GetCurrentFateId() : 0u;
+        var currentEvent = DynamicEventContainer.GetInstance() != null
+            ? (uint)DynamicEventContainer.GetInstance()->CurrentEventId
+            : 0u;
+        if (ActivityParticipationState.IsAlreadyInside(data.Type, data.Id, currentFate, currentEvent))
         {
             state = ActivityState.Participating;
             hasEnteredActivity = true;
@@ -616,6 +618,13 @@ public static class ActivityParticipationState
     public static bool IsInsideActivity(State state)
     {
         return state is State.InFate or State.InCriticalEncounter;
+    }
+
+    public static bool IsAlreadyInside(EventType type, uint id, uint currentFateId, uint currentEventId)
+    {
+        return type == EventType.Fate
+            ? currentFateId != 0 && currentFateId == id
+            : currentEventId != 0 && currentEventId == id;
     }
 
     public static bool HasEnded(bool hasEnteredActivity, State state)

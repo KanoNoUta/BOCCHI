@@ -841,10 +841,9 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
         var silverOnly = module.Config.ShouldHuntSilverChestsOnly;
         if (ZoneData.IsInNorthHorn())
         {
-            var types = Treasure.ToDictionary(treasure => treasure.Id, treasure => treasure.Type);
-            return NorthHornTreasureRoute.NodeIds
-                .Where(id => !silverOnly || (types.TryGetValue(id, out var type) && type == TreasureHuntOptionsPolicy.SilverType))
-                .ToList();
+            // North Horn route nodes are waypoints without chest types, so
+            // silver-only cannot apply there.
+            return NorthHornTreasureRoute.NodeIds.ToList();
         }
 
         return Treasure

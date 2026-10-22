@@ -359,7 +359,7 @@
         },
         "leave_fate_travel_for_ce_seconds": {
           "label": "Leave FATE travel for a CE (seconds)",
-          "tooltip": "Drop a FATE not yet engaged for a CE whose registration has at most this many seconds left. 0 leaves for any startable CE."
+          "tooltip": "Drop a FATE not yet engaged for a CE whose registration has at most this many seconds left. 0 leaves for any startable CE. CEs with under 45 seconds left (plus the maximum delay when CE departure delay is on) are never picked, so smaller values never trigger."
         },
         "leave_engaged_fate_for_critical_encounter": {
           "label": "Leave mid-FATE for a CE",
