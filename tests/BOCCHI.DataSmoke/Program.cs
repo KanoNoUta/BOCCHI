@@ -67,7 +67,7 @@ static void RunCeCrowdsourceTests()
         "The CE history default must migrate existing configurations away from active-only filtering.");
 
     var crowdsourceSource = File.ReadAllText(Path.Combine(
-        "BOCCHI", "Modules", "CeCrowdsource", "CeCrowdsourceModule.cs"));
+        "BOCCHI", "Modules", "CeCrowdsource", "CeCrowdsourceModule.cs")).ReplaceLineEndings("\n");
     Assert(Regex.Matches(
                crowdsourceSource,
                @"CeCrowdsourceObservationPolicy\.ShouldUploadCriticalEncounter\(").Count == 2
