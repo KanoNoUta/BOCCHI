@@ -349,6 +349,7 @@ public sealed class InstanceRotationController
         if (!ZoneData.IsInOccultCrescent()
             || ZoneData.IsInForkedTower()
             || module.automator.Activity != null
+            || module.automator.IsPotWorkActive
             || ChainManager.Queues.Count > 0
             || module.GetModule<StateManagerModule>().GetState() != BOCCHI.Modules.StateManager.State.Idle
             || Svc.Condition[ConditionFlag.InCombat]

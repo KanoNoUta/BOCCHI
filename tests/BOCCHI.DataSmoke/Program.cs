@@ -5,6 +5,7 @@ using BOCCHI.Data;
 using BOCCHI.Data.Traps;
 using BOCCHI.Enums;
 using BOCCHI.Modules.Automator;
+using BOCCHI.Modules.Automator.Pots;
 using BOCCHI.Modules.AggroRange;
 using BOCCHI.Modules.Carrots;
 using BOCCHI.Modules.CeCrowdsource;
@@ -2792,5 +2793,144 @@ Assert(VnavmeshAvailabilityPolicy.Evaluate(true, true, new Version(0, 7, 6, 0)).
 Assert(VnavmeshAvailabilityPolicy.Evaluate(false, false, null).Status == VnavmeshAvailabilityStatus.Missing
        && VnavmeshAvailabilityPolicy.Evaluate(true, false, new Version(0, 7, 7, 0)).Status == VnavmeshAvailabilityStatus.NotLoaded,
     "Missing and unloaded vnavmesh installations must still be reported.");
+
+// Magic pots (ported from upstream BOCCHI 4.2).
+Assert(PotZoneData.PotFates.Count == 4
+       && PotZoneData.GetOppositePot(1976) == 1977
+       && PotZoneData.GetOppositePot(1977) == 1976
+       && PotZoneData.GetOppositePot(2072) == 2073
+       && PotZoneData.GetOppositePot(2073) == 2072
+       && PotZoneData.GetPotFates(ZoneData.SOUTHHORN).Count() == 2
+       && PotZoneData.GetPotFates(ZoneData.NORTHHORN).Count() == 2,
+    "Each island must have exactly two alternating magic pots.");
+Assert(PotZoneData.GetPrimaryPads(1976).Count == 30
+       && PotZoneData.GetPrimaryPads(1977).Count == 30
+       && PotZoneData.GetPrimaryPads(2072).Count == 30
+       && PotZoneData.GetPrimaryPads(2073).Count == 32
+       && PotZoneData.GetRerollPads(ZoneData.SOUTHHORN).Count == 20
+       && PotZoneData.GetRerollPads(ZoneData.NORTHHORN).Count == 21,
+    "Pot coffer pads must match upstream BOCCHI 4.2.");
+foreach (var pot in PotZoneData.PotFates)
+{
+    var data = EventData.GetFate(pot.Id, pot.TerritoryId);
+    Assert(data.Id == pot.Id && data.StartPosition is { } start && Vector3.Distance(start, pot.Center) < 1f,
+        $"Pot {pot.Id} must match the FATE data.");
+}
+
+{
+    var t0 = DateTimeOffset.FromUnixTimeSeconds(1_800_000_000);
+    var tracker = new PotCycleTracker();
+    var live = tracker.Update(ZoneData.SOUTHHORN, 1976, t0, t0 + TimeSpan.FromMinutes(2));
+    Assert(live.CurrentActivePotFateId == 1976
+           && live.PredictedNextPotFateId == 1977
+           && live.PredictedNextSpawnAt == t0 + TimeSpan.FromMinutes(30)
+           && !live.IsRemoteAnchor,
+        "A live pot must predict the opposite pot 30 minutes later.");
+    var idle = tracker.Update(ZoneData.SOUTHHORN, 0, t0, t0 + TimeSpan.FromMinutes(20));
+    Assert(idle.CurrentActivePotFateId == 0 && idle.PredictedNextPotFateId == 1977,
+        "Ending the pot must keep the prediction.");
+    var rolled = tracker.Update(ZoneData.SOUTHHORN, 0, t0, t0 + TimeSpan.FromMinutes(36));
+    Assert(rolled.AnchorPotFateId == 1977
+           && rolled.PredictedNextPotFateId == 1976
+           && rolled.PredictedNextSpawnAt == t0 + TimeSpan.FromMinutes(60),
+        "A predicted pot not seen within the grace must roll the prediction forward.");
+
+    var remote = new PotCycleTracker();
+    Assert(!remote.TryApplyRemoteAnchor(ZoneData.SOUTHHORN, 2072, t0, t0),
+        "A remote pot from the other island must be rejected.");
+    Assert(!remote.TryApplyRemoteAnchor(ZoneData.NORTHHORN, 2072, t0 + TimeSpan.FromMinutes(5), t0),
+        "A remote pot spawn in the future must be rejected.");
+    Assert(remote.TryApplyRemoteAnchor(ZoneData.NORTHHORN, 2072, t0 - TimeSpan.FromMinutes(100), t0),
+        "An old remote pot must still anchor the cycle.");
+    var remoteCycle = remote.Get(ZoneData.NORTHHORN);
+    Assert(remoteCycle.IsRemoteAnchor
+           && remoteCycle.PredictedNextPotFateId == 2072
+           && remoteCycle.PredictedNextSpawnAt == t0 + TimeSpan.FromMinutes(20),
+        "An old remote anchor must be rolled forward to the next pot.");
+    Assert(!remote.TryApplyRemoteAnchor(ZoneData.NORTHHORN, 2073, t0 - TimeSpan.FromMinutes(200), t0),
+        "An older remote report must not replace a newer anchor.");
+    remote.Update(ZoneData.NORTHHORN, 2073, t0, t0);
+    Assert(!remote.Get(ZoneData.NORTHHORN).IsRemoteAnchor
+           && !remote.TryApplyRemoteAnchor(ZoneData.NORTHHORN, 2072, t0, t0 + TimeSpan.FromSeconds(30)),
+        "A pot seen live must override and then lock out remote anchors.");
+
+    var next = live with { CurrentActivePotFateId = 0 };
+    var spawn = next.PredictedNextSpawnAt;
+    Assert(PotTimingPolicy.AllowsStart(next, spawn - TimeSpan.FromMinutes(6), TimeSpan.FromMinutes(5), true)
+           && !PotTimingPolicy.AllowsStart(next, spawn - TimeSpan.FromMinutes(4), TimeSpan.FromMinutes(5), true)
+           && PotTimingPolicy.AllowsStart(next, spawn - TimeSpan.FromMinutes(4), TimeSpan.FromMinutes(5), false)
+           && PotTimingPolicy.AllowsStart(next, spawn - TimeSpan.FromMinutes(4), TimeSpan.Zero, true)
+           && PotTimingPolicy.AllowsStart(next, spawn + TimeSpan.FromMinutes(6), TimeSpan.FromMinutes(5), true)
+           && PotTimingPolicy.AllowsStart(PotCycleSnapshot.Empty, spawn, TimeSpan.FromMinutes(5), true),
+        "Pot cutoffs must count down to the pot's spawn and lapse after the stale grace.");
+    Assert(!PotTimingPolicy.ShouldPreposition(next, spawn - TimeSpan.FromMinutes(4), 3, true)
+           && PotTimingPolicy.ShouldPreposition(next, spawn - TimeSpan.FromMinutes(2), 3, true)
+           && PotTimingPolicy.ShouldPreposition(next, spawn + TimeSpan.FromMinutes(1), 3, true)
+           && !PotTimingPolicy.ShouldPreposition(next, spawn + TimeSpan.FromMinutes(6), 3, true)
+           && !PotTimingPolicy.ShouldPreposition(next, spawn - TimeSpan.FromMinutes(2), 3, false),
+        "Pot waiting must start within the lead time and stop after the stale grace.");
+    Assert(!PotTimingPolicy.ShouldSkipLivePot(0, 30)
+           && PotTimingPolicy.ShouldSkipLivePot(2, 60)
+           && !PotTimingPolicy.ShouldSkipLivePot(2, 300)
+           && !PotTimingPolicy.ShouldSkipLivePot(2, 0),
+        "Minimum pot time left must skip only pots with a known short timer.");
+    var now = t0;
+    Assert(PotTimingPolicy.ResolveSpawnTime(t0.ToUnixTimeSeconds() - 60, t0.ToUnixTimeSeconds() - 10, now) == t0 - TimeSpan.FromSeconds(60)
+           && PotTimingPolicy.ResolveSpawnTime(t0.ToUnixTimeSeconds() + 600, t0.ToUnixTimeSeconds() - 10, now) == t0 - TimeSpan.FromSeconds(10)
+           && PotTimingPolicy.ResolveSpawnTime(0, 0, now) == now,
+        "Pot spawn time must prefer a plausible game start time over first-seen.");
+}
+
+Assert(PotTreasureFilter.DirectionFromParameter(1) == PotHintDirection.North
+       && PotTreasureFilter.DirectionFromParameter(8) == PotHintDirection.NorthWest
+       && PotTreasureFilter.DirectionFromParameter(9) == PotHintDirection.Unknown
+       && MathF.Abs(PotTreasureFilter.Bearing(Vector3.Zero, new Vector3(0, 0, -10)) - 0f) < 0.01f
+       && MathF.Abs(PotTreasureFilter.Bearing(Vector3.Zero, new Vector3(10, 0, 0)) - 90f) < 0.01f
+       && MathF.Abs(PotTreasureFilter.Bearing(Vector3.Zero, new Vector3(0, 0, 10)) - 180f) < 0.01f
+       && PotTreasureFilter.AngleDelta(350f, 10f) == 20f,
+    "Pot compass bearings must be clockwise from north (-Z).");
+{
+    var pads = new[] { new Vector3(0, 0, -8), new Vector3(0, 0, -40), new Vector3(30, 0, 0), new Vector3(0, 0, 25) };
+    var north = PotTreasureFilter.Narrow(pads, Vector3.Zero, PotHintDirection.North, PotHintDistance.Far, PotTreasureFilter.OctantTolerance);
+    Assert(north.Count == 2 && north[0] == pads[1] && north[1] == pads[0],
+        "A pot hint must keep only pads in its octant, nearest to the hinted distance first.");
+    Assert(PotTreasureFilter.Narrow(pads, Vector3.Zero, PotHintDirection.Unknown, PotHintDistance.Unknown, 22.5f).Count == pads.Length,
+        "An unknown hint must leave the pool unchanged.");
+    Assert(PotTreasureFilter.IsOnPotPad(new Vector3(1, 0, -8), pads, [new Vector3(100, 0, 100)])
+           && !PotTreasureFilter.IsOnPotPad(new Vector3(1, 0, -8), pads, [new Vector3(1, 0, -8.2f)])
+           && !PotTreasureFilter.IsOnPotPad(new Vector3(200, 0, 200), pads, []),
+        "A revealed coffer belongs to the pot only on a pot pad no ordinary coffer spot is closer to.");
+}
+
+Assert(PotHintTracker.Classify(10985, out _) == PotLogEventKind.CofferReveal
+       && PotHintTracker.Classify(10986, out var immediate) == PotLogEventKind.Hint && immediate == PotHintDistance.Immediate
+       && PotHintTracker.Classify(10989, out var beyond) == PotLogEventKind.Hint && beyond == PotHintDistance.BeyondFar
+       && PotHintTracker.Classify(10994, out _) == PotLogEventKind.BonusOffer
+       && PotHintTracker.Classify(10990, out _) == null,
+    "Pot log messages must be classified by their LogMessage row.");
+{
+    var center = new Vector3(100, 5, 100);
+    var inside = new Vector3(120, 5, 100);
+    Assert(PotWaitActivity.GetStandPosition(center, inside, 0.5f, 0.5f) == inside,
+        "A player already in the pot ring must stay put.");
+    for (var i = 0; i < 20; i++)
+    {
+        var stand = PotWaitActivity.GetStandPosition(center, new Vector3(500, 5, 500), i / 19f, (i * 7 % 20) / 20f);
+        var distance = PotTreasureFilter.Distance2D(stand, center);
+        Assert(distance >= PotWaitActivity.PrepositionMinRadius - 0.01f && distance <= PotWaitActivity.PrepositionMaxRadius + 0.01f,
+            "The pot wait spot must be 12-32 yalms from the pot.");
+    }
+}
+
+var potConfig = new AutomatorConfig();
+Assert(!potConfig.PreferPotFates
+       && potConfig.PrepositionToPots
+       && !potConfig.FarmPotChests
+       && potConfig.FarmRerollPotChests
+       && potConfig.PotSpawnLeadMinutes == 3
+       && potConfig.PotFateCutoffMinutes == 5
+       && potConfig.PotCriticalEncounterCutoffMinutes == 10
+       && potConfig.MinPotFateMinutesRemaining == 0,
+    "Magic pot settings must default to upstream BOCCHI 4.2's values, with the coffer farm off.");
 
 Console.WriteLine("BOCCHI 7.55 North Horn data, lifecycle, config, translation, routing, precompute, and vnavmesh availability smoke tests passed.");

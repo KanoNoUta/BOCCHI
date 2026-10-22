@@ -320,6 +320,38 @@
         "do_north_horn_fate2084": {
           "label": "North Horn Aléa 2084",
           "tooltip": "Active/Désactive la participation à l'Aléa 2084 de North Horn."
+        },
+        "prefer_pot_fates": {
+          "label": "Prefer magic pots",
+          "tooltip": "Go for a live magic pot FATE first and skip CEs while it is up, even if that pot is unticked in the event list."
+        },
+        "preposition_to_pots": {
+          "label": "Wait at the next pot",
+          "tooltip": "Predict the next magic pot from the spawn cycle and wait near it before it appears."
+        },
+        "pot_spawn_lead_minutes": {
+          "label": "Pot wait lead (minutes)",
+          "tooltip": "How many minutes before the next pot spawns to leave for it."
+        },
+        "farm_pot_chests": {
+          "label": "Open the pot coffer",
+          "tooltip": "After a pot, use the elixir, follow the compass hints to the coffer and open it."
+        },
+        "farm_reroll_pot_chests": {
+          "label": "Search second-chance spots",
+          "tooltip": "Also search the coffer spots used by the second chance."
+        },
+        "pot_fate_cutoff_minutes": {
+          "label": "Stop FATEs before a pot (minutes)",
+          "tooltip": "Do not start ordinary FATEs this close to the next pot, and drop ones not yet engaged. 0 disables."
+        },
+        "pot_critical_encounter_cutoff_minutes": {
+          "label": "Stop CEs before a pot (minutes)",
+          "tooltip": "Do not start CEs this close to the next pot. 0 disables."
+        },
+        "min_pot_fate_minutes_remaining": {
+          "label": "Minimum pot time left (minutes)",
+          "tooltip": "Skip a pot FATE with less time left than this. 0 always goes."
         }
       },
       "panel": {
@@ -337,7 +369,8 @@
             "waiting_to_start_ce": "En attente du début de la CC",
             "participating": "En cours de participation",
             "done": "Terminé",
-            "unknown": "État inconnu"
+            "unknown": "État inconnu",
+            "waiting_for_pot": "Waiting for the pot"
           }
         },
         "rotation": {
@@ -358,6 +391,22 @@
           "title": "Mode illégal BOCCHI",
           "toggle_illegal_mode": "Activer ou désactiver le mode illégal",
           "disabled": "Le mode illégal n'est pas activé."
+        },
+        "pots": {
+          "label": "Magic pot",
+          "active": "{0} is up",
+          "next": "Next: {0} in about {1} ({2})",
+          "any_moment": "any moment",
+          "remote": "shared data",
+          "local": "seen here",
+          "farming": "Looking for the {0} coffer ({1} spots left)",
+          "waiting_for": "Waiting for {0}",
+          "names": {
+            "1976": "Pas de pot pour les pots",
+            "1977": "Mauvais œil pour les pots",
+            "2072": "North Horn pot 2072",
+            "2073": "North Horn pot 2073"
+          }
         }
       },
       "run_state": {

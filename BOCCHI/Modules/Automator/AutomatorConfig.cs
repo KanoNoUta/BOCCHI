@@ -532,6 +532,60 @@ public class AutomatorConfig : ModuleConfig
         get => IsPropertyEnabled(nameof(DelayFates));
     }
 
+    // Magic pots
+    [Checkbox]
+    [DependsOn(nameof(DoFates))]
+    public bool PreferPotFates { get; set; } = false;
+
+    public bool ShouldPreferPotFates
+    {
+        get => IsPropertyEnabled(nameof(PreferPotFates));
+    }
+
+    [Checkbox]
+    [DependsOn(nameof(DoFates))]
+    public bool PrepositionToPots { get; set; } = true;
+
+    public bool ShouldPrepositionToPots
+    {
+        get => IsPropertyEnabled(nameof(PrepositionToPots));
+    }
+
+    [Checkbox]
+    [DependsOn(nameof(DoFates))]
+    public bool FarmPotChests { get; set; } = false;
+
+    public bool ShouldFarmPotChests
+    {
+        get => IsPropertyEnabled(nameof(FarmPotChests));
+    }
+
+    [Checkbox]
+    [DependsOn(nameof(FarmPotChests))]
+    [Indent]
+    public bool FarmRerollPotChests { get; set; } = true;
+
+    public bool ShouldFarmRerollPotChests
+    {
+        get => IsPropertyEnabled(nameof(FarmRerollPotChests));
+    }
+
+    [IntRange(0, 15)]
+    [DependsOn(nameof(PrepositionToPots))]
+    public int PotSpawnLeadMinutes { get; set; } = 3;
+
+    [IntRange(0, 30)]
+    [DependsOn(nameof(DoFates))]
+    public int PotFateCutoffMinutes { get; set; } = 5;
+
+    [IntRange(0, 30)]
+    [DependsOn(nameof(DoFates))]
+    public int PotCriticalEncounterCutoffMinutes { get; set; } = 10;
+
+    [IntRange(0, 15)]
+    [DependsOn(nameof(DoFates))]
+    public int MinPotFateMinutesRemaining { get; set; } = 0;
+
     [Checkbox]
     [Indent]
     [DependsOn(nameof(DoFates))]

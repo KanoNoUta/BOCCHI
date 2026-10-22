@@ -38,7 +38,9 @@
           "combat_targets": "戦闘と対象",
           "event_behavior": "FATE / CE 共通動作",
           "instance_rotation": "インスタンス切替",
-          "island_help": "このページには各エリアのイベントだけを表示します。戦闘、移動、切替は共通設定にあります。"
+          "island_help": "このページには各エリアのイベントだけを表示します。戦闘、移動、切替は共通設定にあります。",
+          "magic_pots": "Magic pots",
+          "magic_pots_help": "Pot spawn timer, waiting at the next pot and the pot coffer (ported from upstream BOCCHI 4.2). FATEs must be on."
         },
         "farming": {
           "title": "モブ狩り設定",

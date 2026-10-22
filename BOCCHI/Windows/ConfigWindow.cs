@@ -350,6 +350,18 @@ public class ConfigWindow(Plugin primaryPlugin, Config config) : OcelotConfigWin
         DrawFloat(module, cfg, nameof(cfg.MinDelay), 0f, 30f, T("units.seconds_1"), !cfg.DelayCriticalEncounters);
         DrawFloat(module, cfg, nameof(cfg.MaxDelay), 0f, 30f, T("units.seconds_1"), !cfg.DelayCriticalEncounters);
 
+        DrawSectionTitle(T("editors.automation.magic_pots"));
+        ImGui.TextDisabled(T("editors.automation.magic_pots_help"));
+        var potsDisabled = !cfg.DoFates;
+        DrawBoolean(module, cfg, nameof(cfg.PreferPotFates), potsDisabled);
+        DrawBoolean(module, cfg, nameof(cfg.PrepositionToPots), potsDisabled);
+        DrawInt(module, cfg, nameof(cfg.PotSpawnLeadMinutes), 0, 15, potsDisabled || !cfg.PrepositionToPots);
+        DrawBoolean(module, cfg, nameof(cfg.FarmPotChests), potsDisabled);
+        DrawBoolean(module, cfg, nameof(cfg.FarmRerollPotChests), potsDisabled || !cfg.FarmPotChests);
+        DrawInt(module, cfg, nameof(cfg.PotFateCutoffMinutes), 0, 30, potsDisabled);
+        DrawInt(module, cfg, nameof(cfg.PotCriticalEncounterCutoffMinutes), 0, 30, potsDisabled);
+        DrawInt(module, cfg, nameof(cfg.MinPotFateMinutesRemaining), 0, 15, potsDisabled);
+
         DrawSectionTitle(T("editors.automation.instance_rotation"));
         DrawInitialInstanceArea(module);
         DrawBoolean(module, cfg, nameof(cfg.AutoRotateInstance));

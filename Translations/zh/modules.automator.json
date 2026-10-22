@@ -340,6 +340,38 @@
         "do_north_horn_fate2084": {
           "label": "北岛 FATE 2084：高傲的雷兽——新月女王",
           "tooltip": "选择是否参加北岛 FATE 2084“高傲的雷兽——新月女王”"
+        },
+        "prefer_pot_fates": {
+          "label": "魔法罐优先",
+          "tooltip": "魔法罐 FATE 在场时优先去打，并且不接 CE。开启后即使事件开关里没勾这个罐子也会去。"
+        },
+        "preposition_to_pots": {
+          "label": "提前蹲点魔法罐",
+          "tooltip": "按刷新周期推算下一个魔法罐，出现前先到罐子附近等待。"
+        },
+        "pot_spawn_lead_minutes": {
+          "label": "提前蹲点时间（分钟）",
+          "tooltip": "下一个魔法罐出现前多少分钟出发去蹲点。"
+        },
+        "farm_pot_chests": {
+          "label": "自动开罐后宝箱",
+          "tooltip": "打完魔法罐获得寻宝状态后，自动使用药水、按罗盘提示找到宝箱并打开。"
+        },
+        "farm_reroll_pot_chests": {
+          "label": "也搜索二次机会点位",
+          "tooltip": "宝箱可能刷在二次机会的点位上，开启后这些点位也一起搜索。"
+        },
+        "pot_fate_cutoff_minutes": {
+          "label": "罐前停止接 FATE（分钟）",
+          "tooltip": "离下一个魔法罐出现不足这么多分钟时，不再开始普通 FATE，还没开打的也会放弃。0 为不限制。"
+        },
+        "pot_critical_encounter_cutoff_minutes": {
+          "label": "罐前停止接 CE（分钟）",
+          "tooltip": "离下一个魔法罐出现不足这么多分钟时，不再开始新的 CE。0 为不限制。"
+        },
+        "min_pot_fate_minutes_remaining": {
+          "label": "魔法罐最少剩余时间（分钟）",
+          "tooltip": "魔法罐 FATE 剩余时间少于这么多分钟就不去。0 为总是去。"
         }
       },
       "panel": {
@@ -358,7 +390,8 @@
             "waiting_to_start_ce": "等待CE开始",
             "participating": "正在参战",
             "done": "已完成",
-            "unknown": "未知状态"
+            "unknown": "未知状态",
+            "waiting_for_pot": "等待魔法罐出现"
           }
         },
         "rotation": {
@@ -378,6 +411,22 @@
           "title": "BOCCHI 非法模式",
           "toggle_illegal_mode": "开启或关闭非法模式",
           "disabled": "非法模式尚未启用。"
+        },
+        "pots": {
+          "label": "魔法罐",
+          "active": "{0} 进行中",
+          "next": "下一个：{0}，约 {1} 后出现（{2}）",
+          "any_moment": "随时出现",
+          "remote": "共享数据",
+          "local": "本地观测",
+          "farming": "正在找 {0} 的宝箱（剩余 {1} 个点位）",
+          "waiting_for": "蹲点等待 {0}",
+          "names": {
+            "1976": "幸福的魔法罐",
+            "1977": "瑟瑟发抖的魔法罐",
+            "2072": "被欺负的魔法罐",
+            "2073": "被吹飞的魔法罐"
+          }
         }
       },
       "run_state": {

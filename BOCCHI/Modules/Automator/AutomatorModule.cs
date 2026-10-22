@@ -1,4 +1,5 @@
 ﻿using ECommons.Automation;
+using BOCCHI.Modules.Automator.Pots;
 using BOCCHI.Modules.Buff;
 using BOCCHI.Modules.Carrots;
 using BOCCHI.Modules.MobFarmer;
@@ -68,6 +69,12 @@ public class AutomatorModule : Module
 
     public readonly Panel panel = new();
 
+    public readonly PotCycleTracker potCycles = new();
+
+    public readonly PotHintTracker potHints = new();
+
+    private long nextPotCycleUpdateAt;
+
     public readonly Random random = new();
 
     public AutomatorRunState RunState => runState.State;
@@ -104,10 +111,12 @@ public class AutomatorModule : Module
             AddonEvent.PostDraw,
             "SelectYesno",
             OnDeathReturnSelectYesnoPostDraw);
+        potHints.Start();
     }
 
     public override void Dispose()
     {
+        potHints.Dispose();
         Svc.AddonLifecycle.UnregisterListener(
             AddonEvent.PostDraw,
             "ContentsFinderConfirm",
@@ -121,6 +130,14 @@ public class AutomatorModule : Module
 
     public override void PostUpdate(UpdateContext context)
     {
+        // The pot timer is shown even when the automator is off.
+        var tick = Environment.TickCount64;
+        if (tick >= nextPotCycleUpdateAt)
+        {
+            nextPotCycleUpdateAt = tick + 500;
+            PotContext.UpdateCycles(this);
+        }
+
         if (HandleDeathReturn())
         {
             return;

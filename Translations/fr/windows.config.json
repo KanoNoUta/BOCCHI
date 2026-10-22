@@ -38,7 +38,9 @@
           "combat_targets": "Combat et cibles",
           "event_behavior": "Comportement commun ALÉA / RC",
           "instance_rotation": "Rotation d'instance",
-          "island_help": "Cette page affiche les événements d'une zone. Le combat, la navigation et la rotation sont sous Commun."
+          "island_help": "Cette page affiche les événements d'une zone. Le combat, la navigation et la rotation sont sous Commun.",
+          "magic_pots": "Magic pots",
+          "magic_pots_help": "Pot spawn timer, waiting at the next pot and the pot coffer (ported from upstream BOCCHI 4.2). FATEs must be on."
         },
         "farming": {
           "title": "Paramètres de farm",

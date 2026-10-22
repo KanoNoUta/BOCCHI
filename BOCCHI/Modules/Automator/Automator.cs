@@ -2,6 +2,7 @@
 using BOCCHI.Data;
 using BOCCHI.Enums;
 using BOCCHI.Modules.CriticalEncounters;
+using BOCCHI.Modules.Automator.Pots;
 using BOCCHI.Modules.Fates;
 using BOCCHI.Modules.StateManager;
 using Dalamud.Game.ClientState.Conditions;
@@ -16,6 +17,7 @@ using Ocelot.IPC;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 
 namespace BOCCHI.Modules.Automator;
 
@@ -54,7 +56,7 @@ public class Automator
 
     private const int PostActivityDiagnosticIntervalMs = 10_000;
 
-    private static bool IsChainActive
+    internal static bool IsChainActive
     {
         get => AutomatorChainPolicy.IsActive(
             ChainManager.Queues.Values.Select(queue => (queue.IsRunning, queue.QueueCount)));
@@ -63,6 +65,15 @@ public class Automator
     private static long lastFateDiagnosticAt;
 
     public Activity? Activity { get; private set; } = null;
+
+    public PotChestFarm? PotFarm { get; private set; }
+
+    /// <summary>A pot wait or coffer farm owns the player; rotation must wait.</summary>
+    public bool IsPotWorkActive => PotFarm != null || Activity is PotWaitActivity;
+
+    // A farm that gave up while Cache Me If You Can is still up must not
+    // restart for the same buff.
+    private bool potFarmBlockedUntilBuffEnds;
 
     public bool IsPostActivityReturnPending => postActivityReturnPending;
 
@@ -113,6 +124,11 @@ public class Automator
         }
 
         var states = module.GetModule<StateManagerModule>();
+        if (UpdatePotChestFarm(module, vnav))
+        {
+            return;
+        }
+
         if (Activity == null && postActivityReturnPending)
         {
             UpdatePostActivityCombatDefense(module);
@@ -179,7 +195,12 @@ public class Automator
         if (Activity != null && !Activity.IsValid())
         {
             var endedActivityType = Activity.data.Type;
-            var shouldReturn = PostActivityReturnPolicy.ShouldQueue(
+            var endedPotFarmFate = GetPotFarmFate(module, Activity);
+            // A pot wait ends when its pot spawns; the live pot is picked up
+            // next, so there is nothing to return from.
+            var shouldReturn = Activity is not PotWaitActivity
+                && endedPotFarmFate == 0
+                && PostActivityReturnPolicy.ShouldQueue(
                 Activity.data.Type,
                 module.PluginConfig.TeleporterConfig.ReturnAfterFate,
                 module.PluginConfig.TeleporterConfig.ReturnAfterCriticalEncounter,
@@ -207,13 +228,28 @@ public class Automator
             preferFateAfterCriticalEncounter = ActivitySelectionPolicy.AfterActivityEnded(
                 preferFateAfterCriticalEncounter,
                 endedActivityType);
-            if (shouldReturn)
+            if (endedPotFarmFate != 0)
+            {
+                StartPotChestFarm(module, endedPotFarmFate);
+            }
+            else if (shouldReturn)
             {
                 QueuePostActivityReturn(returnReason);
             }
             // Let the lower-priority FATE/CE trackers refresh before selecting
             // another activity. Continuing in this same update can immediately
             // reselect the just-despawned FATE from their stale cache.
+            return;
+        }
+
+        if (Activity != null && ShouldYieldActivityToPot(module, states, Activity, out var yieldReason))
+        {
+            Svc.Log.Info($"[Pots] Leaving {Activity.GetName()}: {yieldReason}.");
+            Plugin.Chain.Abort();
+            vnav.Stop();
+            module.SetAiProviderEnabled(false);
+            PromeRotationController.Stop();
+            ClearActivity();
             return;
         }
 
@@ -227,7 +263,10 @@ public class Automator
             if (Activity.state == ActivityState.Done)
             {
                 var endedActivityType = Activity.data.Type;
-                var shouldReturn = PostActivityReturnPolicy.ShouldQueue(
+                var endedPotFarmFate = GetPotFarmFate(module, Activity);
+                var shouldReturn = Activity is not PotWaitActivity
+                    && endedPotFarmFate == 0
+                    && PostActivityReturnPolicy.ShouldQueue(
                     Activity.data.Type,
                     module.PluginConfig.TeleporterConfig.ReturnAfterFate,
                     module.PluginConfig.TeleporterConfig.ReturnAfterCriticalEncounter,
@@ -239,7 +278,11 @@ public class Automator
                 preferFateAfterCriticalEncounter = ActivitySelectionPolicy.AfterActivityEnded(
                     preferFateAfterCriticalEncounter,
                     endedActivityType);
-                if (shouldReturn)
+                if (endedPotFarmFate != 0)
+                {
+                    StartPotChestFarm(module, endedPotFarmFate);
+                }
+                else if (shouldReturn)
                 {
                     QueuePostActivityReturn(returnReason);
                 }
@@ -285,6 +328,7 @@ public class Automator
                 Activity.data.Type);
             break;
         }
+        Activity ??= FindPotWait(module, lifestream, vnav);
         if (Activity != null)
         {
             Svc.Log.Info($"Selected activity: {Activity.GetName()}");
@@ -317,6 +361,21 @@ public class Automator
     private static CriticalEncounter? FindCriticalEncounter(AutomatorModule module, Lifestream lifestream, VNavmesh vnav)
     {
         if (!module.TryGetModule<CriticalEncountersModule>(out var source) || source == null)
+        {
+            return null;
+        }
+
+        var pots = PotContext.Capture(module);
+        if (module.Config.ShouldPreferPotFates && pots.HasStartableLivePot)
+        {
+            return null;
+        }
+
+        if (!PotTimingPolicy.AllowsStart(
+                pots.Cycle,
+                pots.Now,
+                TimeSpan.FromMinutes(module.Config.PotCriticalEncounterCutoffMinutes),
+                pots.PotWorkEnabled))
         {
             return null;
         }
@@ -367,6 +426,20 @@ public class Automator
         }
 
         var liveFateIds = Svc.Fates.Select(fate => (uint)fate.FateId).ToHashSet();
+        var pots = PotContext.Capture(module);
+        // A live pot beats every other FATE.
+        if (pots.StartableLivePot is { } livePot
+            && source.fates.TryGetValue(livePot, out var potFate)
+            && liveFateIds.Contains(livePot))
+        {
+            return new FateActivity(potFate.Data, lifestream, vnav, module, potFate);
+        }
+
+        var fatesAllowed = PotTimingPolicy.AllowsStart(
+            pots.Cycle,
+            pots.Now,
+            TimeSpan.FromMinutes(module.Config.PotFateCutoffMinutes),
+            pots.PotWorkEnabled);
         Fate? best = null;
         foreach (var fate in source.fates.Values)
         {
@@ -376,6 +449,12 @@ public class Automator
             }
 
             if (!module.Config.FatesMap.TryGetValue(fate.Id, out var enabled) || !enabled)
+            {
+                continue;
+            }
+
+            // Pots were handled above; a pot that is not startable stays skipped.
+            if (PotZoneData.IsPotFate(fate.Id) || !fatesAllowed)
             {
                 continue;
             }
@@ -414,6 +493,8 @@ public class Automator
 
     public void Refresh()
     {
+        StopPotChestFarm("automator refreshed");
+        potFarmBlockedUntilBuffEnds = false;
         ClearActivity();
         idleTime = 0;
         postActivityReturnPending = false;
@@ -429,6 +510,7 @@ public class Automator
 
     public void SuspendForIndependentNavigation(string reason)
     {
+        StopPotChestFarm(reason);
         var hadActivity = Activity != null;
         ClearActivity();
         var cancelledReturn = CancelPostActivityReturn(reason);
@@ -481,6 +563,191 @@ public class Automator
         ResetPostActivityTracking();
         postActivityQueuedAtMs = Environment.TickCount64;
         Svc.Log.Info($"Queued forced base-camp return after {reason}.");
+    }
+
+    private void StopPotChestFarm(string reason)
+    {
+        if (PotFarm == null)
+        {
+            return;
+        }
+
+        PotFarm.Stop(null, reason);
+        PotFarm = null;
+        potFarmBlockedUntilBuffEnds = PotChestFarm.HasCacheMe();
+    }
+
+    /// <summary>The pot FATE whose coffer should be farmed now that it ended, or 0.</summary>
+    private static uint GetPotFarmFate(AutomatorModule module, Activity activity)
+    {
+        return activity is FateActivity
+               && activity.HasParticipated
+               && PotZoneData.IsPotFate(activity.data.Id)
+               && module.Config.ShouldFarmPotChests
+            ? activity.data.Id
+            : 0;
+    }
+
+    private void StartPotChestFarm(AutomatorModule module, uint fateId)
+    {
+        CancelPostActivityReturn("pot coffer farm");
+        ReleasePostActivityCombatDefense("pot coffer farm");
+        PotFarm = new PotChestFarm(
+            module,
+            module.potHints,
+            fateId,
+            Svc.ClientState.TerritoryType,
+            module.Config.ShouldFarmRerollPotChests);
+    }
+
+    /// <summary>Runs the coffer farm. Returns true while it owns this update.</summary>
+    private bool UpdatePotChestFarm(AutomatorModule module, VNavmesh vnav)
+    {
+        var hasBuff = PotChestFarm.HasCacheMe();
+        if (!hasBuff)
+        {
+            potFarmBlockedUntilBuffEnds = false;
+        }
+
+        if (PotFarm == null)
+        {
+            // Cache Me If You Can from a pot BOCCHI did not fight in (or one
+            // finished by hand) still points at a coffer.
+            if (!hasBuff
+                || potFarmBlockedUntilBuffEnds
+                || !module.Config.ShouldFarmPotChests
+                || Activity != null
+                || !ZoneData.IsInOccultCrescent()
+                || Svc.Condition[ConditionFlag.InCombat]
+                || IsChainActive)
+            {
+                return false;
+            }
+
+            var fateId = ResolvePotForBuff(module);
+            if (fateId == 0)
+            {
+                return false;
+            }
+
+            Svc.Log.Info($"[Pots] Cache Me If You Can is active; farming the coffer of pot {fateId}.");
+            StartPotChestFarm(module, fateId);
+        }
+
+        PotFarm!.Update(vnav);
+        if (!PotFarm.IsFinished)
+        {
+            return true;
+        }
+
+        var reason = PotFarm.FinishReason ?? "finished";
+        PotFarm = null;
+        potFarmBlockedUntilBuffEnds = PotChestFarm.HasCacheMe();
+        if (module.PluginConfig.TeleporterConfig.ReturnAfterFate)
+        {
+            QueuePostActivityReturn($"pot coffer farm ({reason})");
+        }
+
+        return true;
+    }
+
+    private static uint ResolvePotForBuff(AutomatorModule module)
+    {
+        var territory = Svc.ClientState.TerritoryType;
+        var live = Svc.Fates.Select(fate => (uint)fate.FateId).FirstOrDefault(PotZoneData.IsPotFate);
+        if (live != 0)
+        {
+            return live;
+        }
+
+        var cycle = module.potCycles.Get(territory);
+        if (cycle.HasKnownAnchor
+            && cycle.AnchorPotFateId != 0
+            && DateTimeOffset.UtcNow - cycle.AnchorSpawnAt < TimeSpan.FromMinutes(12))
+        {
+            return cycle.AnchorPotFateId;
+        }
+
+        var player = Svc.Objects.LocalPlayer?.Position ?? Vector3.Zero;
+        return PotZoneData.GetPotFates(territory)
+            .OrderBy(pot => PotZoneData.GetPrimaryPads(pot.Id)
+                .Select(pad => PotTreasureFilter.Distance2D(pad, player))
+                .DefaultIfEmpty(PotTreasureFilter.Distance2D(pot.Center, player))
+                .Min())
+            .Select(pot => pot.Id)
+            .FirstOrDefault();
+    }
+
+    private static PotWaitActivity? FindPotWait(AutomatorModule module, Lifestream lifestream, VNavmesh vnav)
+    {
+        var pots = PotContext.Capture(module);
+        if (!module.Config.ShouldPrepositionToPots
+            || !pots.PotWorkEnabled
+            || pots.LivePot != 0
+            || !PotTimingPolicy.ShouldPreposition(pots.Cycle, pots.Now, module.Config.PotSpawnLeadMinutes, true)
+            || !PotZoneData.TryGetPotFate(pots.Cycle.PredictedNextPotFateId, out var pot))
+        {
+            return null;
+        }
+
+        var territory = Svc.ClientState.TerritoryType;
+        var data = EventData.GetFate(pot.Id, territory);
+        return new PotWaitActivity(data, pot, lifestream, vnav, module, () =>
+        {
+            var current = PotContext.Capture(module);
+            return module.IsEnabled
+                   && current.LivePot == 0
+                   && current.Cycle.PredictedNextPotFateId == pot.Id
+                   && PotTimingPolicy.ShouldPreposition(
+                       current.Cycle,
+                       current.Now,
+                       module.Config.PotSpawnLeadMinutes,
+                       current.PotWorkEnabled);
+        });
+    }
+
+    /// <summary>
+    /// An ordinary FATE BOCCHI is still travelling to gives way to a live pot,
+    /// and to the pot's cutoff window.
+    /// </summary>
+    private static bool ShouldYieldActivityToPot(
+        AutomatorModule module,
+        StateManagerModule states,
+        Activity activity,
+        out string reason)
+    {
+        reason = string.Empty;
+        if (activity is not FateActivity
+            || PotZoneData.IsPotFate(activity.data.Id)
+            || activity.state is not (ActivityState.Idle or ActivityState.Pathfinding)
+            || activity.HasParticipated
+            || states.GetState() != State.Idle)
+        {
+            return false;
+        }
+
+        var pots = PotContext.Capture(module);
+        // Only yield to a pot FindFate can actually pick, or this would loop.
+        if (pots.StartableLivePot is { } livePot
+            && module.TryGetModule<FatesModule>(out var fates)
+            && fates != null
+            && fates.fates.ContainsKey(livePot))
+        {
+            reason = $"pot {pots.StartableLivePot} is live";
+            return true;
+        }
+
+        if (!PotTimingPolicy.AllowsStart(
+                pots.Cycle,
+                pots.Now,
+                TimeSpan.FromMinutes(module.Config.PotFateCutoffMinutes),
+                pots.PotWorkEnabled))
+        {
+            reason = "the next pot is within the FATE cutoff";
+            return true;
+        }
+
+        return false;
     }
 
     private void ClearActivity()

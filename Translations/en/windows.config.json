@@ -38,7 +38,9 @@
           "combat_targets": "Combat and targets",
           "event_behavior": "Shared FATE / CE behavior",
           "instance_rotation": "Instance rotation",
-          "island_help": "This page shows events for one area. Shared combat, pathfinding, and rotation options are under Common."
+          "island_help": "This page shows events for one area. Shared combat, pathfinding, and rotation options are under Common.",
+          "magic_pots": "Magic pots",
+          "magic_pots_help": "Pot spawn timer, waiting at the next pot and the pot coffer (ported from upstream BOCCHI 4.2). FATEs must be on."
         },
         "farming": {
           "title": "Farming settings",

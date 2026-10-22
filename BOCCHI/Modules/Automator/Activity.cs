@@ -40,6 +40,9 @@ public abstract class Activity : IDisposable
 
     private bool hasEnteredActivity;
 
+    /// <summary>Whether the player has been inside this FATE or CE at any point.</summary>
+    public bool HasParticipated => hasEnteredActivity;
+
     protected readonly Dictionary<ActivityState, Func<StateManagerModule, Func<Chain>?>> handlers;
 
     private readonly static List<uint> DangerousEnemies = [

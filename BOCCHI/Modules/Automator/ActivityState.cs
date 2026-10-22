@@ -6,6 +6,7 @@ public enum ActivityState
     Pathfinding,
     WaitingToStartCriticalEncounter,
     Participating,
+    WaitingForPot,
     Done,
 }
 
@@ -19,6 +20,7 @@ public static class ActivityStateExtensions
             ActivityState.Pathfinding => "pathfinding",
             ActivityState.WaitingToStartCriticalEncounter => "waiting_to_start_ce",
             ActivityState.Participating => "participating",
+            ActivityState.WaitingForPot => "waiting_for_pot",
             ActivityState.Done => "done",
             _ => "unknown",
         };
