@@ -632,6 +632,12 @@ public class ConfigWindow(Plugin primaryPlugin, Config config) : OcelotConfigWin
             ImGui.EndTabItem();
         }
 
+        if (ImGui.BeginTabItem($"{string.Format(T("editors.farming.spots_tab"), module.Config.Spots.Count)}###MobFarmerSpots"))
+        {
+            DrawMobFarmerSpots(module);
+            ImGui.EndTabItem();
+        }
+
         if (ImGui.BeginTabItem(T("editors.farming.common_tab")))
         {
             DrawMobFarmerCommon(module);
@@ -719,6 +725,19 @@ public class ConfigWindow(Plugin primaryPlugin, Config config) : OcelotConfigWin
             }
 
             ImGui.EndTable();
+        }
+    }
+
+    private void DrawMobFarmerSpots(MobFarmerModule module)
+    {
+        var cfg = module.Config;
+        using (ImRaii.Child("##MobFarmerSpotList", new Vector2(0, 0), false))
+        {
+            FarmSpotEditor.Draw(module, primaryPlugin.Config.Save);
+
+            DrawSectionTitle(T("editors.farming.claimed_spots"));
+            DrawFloat(module, cfg, nameof(cfg.ClaimedSpotSeconds), 3f, 30f, T("units.seconds_1"));
+            DrawFloat(module, cfg, nameof(cfg.ClaimedPlayerRadius), 3f, 15f, "%.1f");
         }
     }
 

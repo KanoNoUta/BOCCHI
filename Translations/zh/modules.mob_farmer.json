@@ -78,6 +78,14 @@
         "treasure_sight_interval_minutes": {
           "label": "寻宝术间隔（分钟）",
           "tooltip": "0 = 每次战斗结束后都施放（原有行为）\n大于 0 时按此间隔施放，等待怪物时也会施放"
+        },
+        "claimed_spot_seconds": {
+          "label": "判定被占用的时间",
+          "tooltip": "其他玩家持续占用当前刷怪点（附近的怪都在和别人战斗，或有玩家站在刷怪点/聚怪点附近）超过此时间后，本次运行中跳过该点并前往下一个刷怪点"
+        },
+        "claimed_player_radius": {
+          "label": "判定占用的玩家距离",
+          "tooltip": "其他玩家在刷怪点或聚怪点此距离（米）内时视为被占用"
         }
       },
       "panel": {
@@ -97,7 +105,33 @@
           "yield_treasure_hunt": "定时寻宝中",
           "yield_crystal_buffs": "返回补充水晶增益",
           "approaching": "正在返回刷怪点"
-        }
+        },
+        "spot": "刷怪点：{0}"
+      },
+      "spots": {
+        "help": "开始刷怪时使用当前区域中优先级最高的已启用刷怪点（同优先级取最近的），并先走过去；列表为空时在按下开始的位置刷怪。聚怪点可选，用于洞穴或高塔等地形。",
+        "add_here": "将当前位置添加为刷怪点",
+        "empty": "暂无刷怪点，开始时在当前位置刷怪。",
+        "default_name": "刷怪点 {0}",
+        "unnamed": "刷怪点",
+        "name": "名称",
+        "enabled": "启用",
+        "priority": "优先级",
+        "move_up": "上移",
+        "move_down": "下移",
+        "origin": "刷怪点：{0:0.0}, {1:0.0}, {2:0.0}",
+        "set_origin": "设为当前位置",
+        "use_stack": "使用聚怪点",
+        "use_stack_tooltip": "聚怪阶段走到这里，而不是走向最远的怪",
+        "stack": "聚怪点：{0:0.0}, {1:0.0}, {2:0.0}",
+        "set_stack": "将聚怪点设为当前位置",
+        "min_fight": "开始战斗所需怪物数",
+        "min_fight_tooltip": "0 = 使用通用参数中的设置",
+        "delete": "删除",
+        "distance": "{0:0} 米",
+        "other_zone": "（其他区域）",
+        "disabled": "（已停用）",
+        "current": "（当前）"
       }
     }
   }

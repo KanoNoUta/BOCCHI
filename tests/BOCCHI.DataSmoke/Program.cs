@@ -3221,4 +3221,86 @@ Assert(BOCCHI.Services.ManualCastPathCancelPolicy.ShouldConsider(true, true, tru
         "Walking back to the farm spot must give up after three attempts without progress.");
 }
 
+// Mob farmer named spots, ported from upstream BOCCHI 4.2.
+{
+    var farmerDefaults = new BOCCHI.Modules.MobFarmer.MobFarmerConfig();
+    Assert(farmerDefaults.Spots.Count == 0
+           && farmerDefaults.ClaimedSpotSeconds == 8f
+           && farmerDefaults.ClaimedPlayerRadius == 5f,
+        "Farm spots must default to none, with upstream's claimed-spot timing.");
+
+    BOCCHI.Modules.MobFarmer.FarmSpot Spot(string name, int priority, float x, uint territory, bool enabled = true)
+    {
+        var spot = new BOCCHI.Modules.MobFarmer.FarmSpot
+        {
+            Name = name,
+            Priority = priority,
+            TerritoryId = territory,
+            Enabled = enabled,
+        };
+        spot.SetOrigin(new Vector3(x, 30f, 0f));
+        return spot;
+    }
+
+    var low = Spot("low", 0, 10f, ZoneData.SOUTHHORN);
+    var far = Spot("far", 1, 100f, ZoneData.SOUTHHORN);
+    var near = Spot("near", 1, 50f, ZoneData.SOUTHHORN);
+    var north = Spot("north", 5, 0f, ZoneData.NORTHHORN);
+    var off = Spot("off", 9, 0f, ZoneData.SOUTHHORN, enabled: false);
+    var anyZone = Spot("any", 0, 5f, 0);
+    var spots = new List<BOCCHI.Modules.MobFarmer.FarmSpot> { low, far, near, north, off };
+    var claimed = new HashSet<BOCCHI.Modules.MobFarmer.FarmSpot>();
+    Assert(BOCCHI.Modules.MobFarmer.FarmSpotPolicy.SelectBest(spots, ZoneData.SOUTHHORN, claimed, Vector3.Zero) == near,
+        "The best spot must be the highest priority of this zone, nearest on a tie, skipping disabled spots.");
+    claimed.Add(near);
+    Assert(BOCCHI.Modules.MobFarmer.FarmSpotPolicy.SelectBest(spots, ZoneData.SOUTHHORN, claimed, Vector3.Zero) == far,
+        "A claimed spot must be skipped.");
+    claimed.Add(far);
+    Assert(BOCCHI.Modules.MobFarmer.FarmSpotPolicy.SelectBest(spots, ZoneData.SOUTHHORN, claimed, Vector3.Zero) == low
+           && BOCCHI.Modules.MobFarmer.FarmSpotPolicy.SelectBest(spots, ZoneData.NORTHHORN, claimed, Vector3.Zero) == north,
+        "Spots of the other horn must not be chosen.");
+    claimed.Add(low);
+    Assert(BOCCHI.Modules.MobFarmer.FarmSpotPolicy.SelectBest(spots, ZoneData.SOUTHHORN, claimed, Vector3.Zero) == null
+           && BOCCHI.Modules.MobFarmer.FarmSpotPolicy.SelectBest(new[] { anyZone }, ZoneData.NORTHHORN, claimed, Vector3.Zero) == anyZone,
+        "With every spot claimed there is none left; a spot without a zone fits any zone.");
+    Assert(Math.Abs(BOCCHI.Modules.MobFarmer.FarmSpotPolicy.Distance2D(new Vector3(0, 0, 0), new Vector3(3, 50, 4)) - 5f) < 0.001f,
+        "Spot distances must ignore height.");
+
+    Assert(BOCCHI.Modules.MobFarmer.FarmSpotPolicy.EffectiveMinimumMobsToStartFight(null, 5) == 5
+           && BOCCHI.Modules.MobFarmer.FarmSpotPolicy.EffectiveMinimumMobsToStartFight(low, 5) == 5
+           && BOCCHI.Modules.MobFarmer.FarmSpotPolicy.EffectiveMinimumMobsToStartFight(new BOCCHI.Modules.MobFarmer.FarmSpot { MinimumMobsToStartFight = 3 }, 5) == 3
+           && BOCCHI.Modules.MobFarmer.FarmSpotPolicy.EffectiveMinimumMobsToStartFight(new BOCCHI.Modules.MobFarmer.FarmSpot { MinimumMobsToStartFight = 99 }, 5) == 20,
+        "A spot's own fight minimum must override the common one, and 0 must fall back.");
+
+    Assert(BOCCHI.Modules.MobFarmer.FarmSpotPolicy.IsClaimedNow(true, false, false)
+           && !BOCCHI.Modules.MobFarmer.FarmSpotPolicy.IsClaimedNow(true, true, false)
+           && !BOCCHI.Modules.MobFarmer.FarmSpotPolicy.IsClaimedNow(false, false, false)
+           && BOCCHI.Modules.MobFarmer.FarmSpotPolicy.IsClaimedNow(false, true, true),
+        "A spot is claimed when others hold every enemy around it or stand on it.");
+    var claimTimer = new BOCCHI.Modules.MobFarmer.FarmSpotClaimTimer();
+    var t0 = DateTimeOffset.FromUnixTimeSeconds(1_800_000_000);
+    Assert(!claimTimer.Tick(true, t0, 8f)
+           && !claimTimer.Tick(true, t0 + TimeSpan.FromSeconds(7), 8f)
+           && claimTimer.Tick(true, t0 + TimeSpan.FromSeconds(8), 8f)
+           && !claimTimer.Tick(true, t0 + TimeSpan.FromSeconds(9), 8f),
+        "A spot must count as claimed only after staying claimed for the configured time.");
+    Assert(!claimTimer.Tick(false, t0 + TimeSpan.FromSeconds(20), 8f)
+           && !claimTimer.Tick(true, t0 + TimeSpan.FromSeconds(21), 8f)
+           && !claimTimer.Tick(true, t0 + TimeSpan.FromSeconds(28), 8f),
+        "A spot that frees up must restart the claimed timer.");
+
+    var a = Spot("a", 0, 0f, 0);
+    var b = Spot("b", 1, 0f, 0);
+    var c = Spot("c", 1, 0f, 0);
+    var ordering = new List<BOCCHI.Modules.MobFarmer.FarmSpot> { a, b, c };
+    Assert(BOCCHI.Modules.MobFarmer.FarmSpotPolicy.Ordered(ordering).SequenceEqual(new[] { b, c, a }),
+        "Spots must list by priority, keeping list order on ties.");
+    BOCCHI.Modules.MobFarmer.FarmSpotPolicy.Move(ordering, c, up: true);
+    BOCCHI.Modules.MobFarmer.FarmSpotPolicy.Move(ordering, a, up: true);
+    Assert(BOCCHI.Modules.MobFarmer.FarmSpotPolicy.Ordered(ordering).SequenceEqual(new[] { c, a, b })
+           && BOCCHI.Modules.MobFarmer.FarmSpotPolicy.NextPriority(ordering) == 3
+           && BOCCHI.Modules.MobFarmer.FarmSpotPolicy.NextPriority(new List<BOCCHI.Modules.MobFarmer.FarmSpot>()) == 0,
+        "Moving a spot up must reorder it by priority, and a new spot must go to the top.");
+}
+
 Console.WriteLine("BOCCHI 7.55 North Horn data, lifecycle, config, translation, routing, precompute, and vnavmesh availability smoke tests passed.");

@@ -23,6 +23,12 @@ public class Scanner(MobFarmerModule module)
         get => Mobs.Where(o => !o.HasTarget());
     }
 
+    /// <summary>Enemies fighting someone else.</summary>
+    public IEnumerable<IBattleNpc> Contested
+    {
+        get => Mobs.Where(o => o.HasTarget() && !o.IsTargetingPlayer());
+    }
+
     public unsafe void Tick(IFramework _)
     {
         Mobs = TargetHelper.Enemies.Where(o =>

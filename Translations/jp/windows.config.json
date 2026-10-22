@@ -58,7 +58,9 @@
           "loop_return": "周回と帰還",
           "battle_bell": "戦いの鐘",
           "debug_display": "デバッグ表示",
-          "yields": "Yields and treasure"
+          "yields": "Yields and treasure",
+          "spots_tab": "Farm spots ({0})",
+          "claimed_spots": "Claimed spots"
         }
       },
       "actions": {

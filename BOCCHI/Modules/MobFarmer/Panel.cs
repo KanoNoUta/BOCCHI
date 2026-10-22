@@ -43,6 +43,11 @@ public class Panel
             BocchiUi.Metric(module.T("panel.in_combat"), module.Scanner.InCombat.Count().ToString());
             ImGui.EndTable();
         }
+
+        if (running && module.Farmer.Spots.Name is { } spotName)
+        {
+            ImGui.TextDisabled(string.Format(module.T("panel.spot"), spotName));
+        }
     }
 
     private static string GetStateLabel(MobFarmerModule module)

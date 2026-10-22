@@ -112,6 +112,7 @@ public class Config : IOcelotConfig
         MobFarmerConfig.Mobs ??= [];
         MobFarmerConfig.SouthHornMobs ??= [];
         MobFarmerConfig.NorthHornMobs ??= [];
+        MobFarmerConfig.Spots ??= [];
 
         if (Version < 3)
         {

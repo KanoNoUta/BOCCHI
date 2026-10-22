@@ -50,7 +50,7 @@ public class GatheringHandler(MobFarmerModule module) : FarmerPhaseHandler(modul
             ChainQueue.Submit(() => Chain.Create().Then(_ => Actions.TryUnmount()));
         }
 
-        if (InCombat.Count() >= Module.Config.MinimumMobsToStartFight || !NotInCombat.Any())
+        if (InCombat.Count() >= Module.Farmer.Spots.EffectiveMinimumMobsToStartFight(Module.Config) || !NotInCombat.Any())
         {
             vnav.Stop();
             ChainQueue.Abort();

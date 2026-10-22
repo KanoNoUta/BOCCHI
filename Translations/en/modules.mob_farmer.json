@@ -74,6 +74,14 @@
         "treasure_sight_interval_minutes": {
           "label": "Treasure Sight interval (minutes)",
           "tooltip": "0 = after every fight (the previous behaviour).\nAbove 0: cast on this interval, also while waiting for enemies."
+        },
+        "claimed_spot_seconds": {
+          "label": "Leave a claimed spot after",
+          "tooltip": "If other players keep the current spot this long (every nearby enemy is fighting someone else, or a player stands on the farm or stack point), skip it for this run and go to the next spot."
+        },
+        "claimed_player_radius": {
+          "label": "Claimed player radius",
+          "tooltip": "Treat the spot as claimed while another player is this close (yalms) to the farm or stack point."
         }
       },
       "panel": {
@@ -93,7 +101,33 @@
           "yield_treasure_hunt": "Timed Treasure Hunt",
           "yield_crystal_buffs": "Refreshing crystal buffs",
           "approaching": "Returning to the farm spot"
-        }
+        },
+        "spot": "Spot: {0}"
+      },
+      "spots": {
+        "help": "Start uses the highest-priority enabled spot of the current zone (nearest on a tie) and walks there first. With no spots the farmer works where you press Start. The stack point is optional, for caves and towers.",
+        "add_here": "Add current position as a spot",
+        "empty": "No spots: Start uses where you are standing.",
+        "default_name": "Spot {0}",
+        "unnamed": "Spot",
+        "name": "Name",
+        "enabled": "Enabled",
+        "priority": "Priority",
+        "move_up": "Up",
+        "move_down": "Down",
+        "origin": "Farm point: {0:0.0}, {1:0.0}, {2:0.0}",
+        "set_origin": "Set to current position",
+        "use_stack": "Use a stack point",
+        "use_stack_tooltip": "Stack the pack here instead of at the furthest enemy.",
+        "stack": "Stack point: {0:0.0}, {1:0.0}, {2:0.0}",
+        "set_stack": "Set stack point to current position",
+        "min_fight": "Minimum enemies before fighting",
+        "min_fight_tooltip": "0 = use the common setting.",
+        "delete": "Delete",
+        "distance": "{0:0}y",
+        "other_zone": "(other zone)",
+        "disabled": "(disabled)",
+        "current": "(current)"
       }
     }
   }

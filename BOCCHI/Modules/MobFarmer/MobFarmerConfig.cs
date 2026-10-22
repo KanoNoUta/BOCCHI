@@ -62,6 +62,14 @@ public class MobFarmerConfig : ModuleConfig
 
     [IntRange(0, 20)] public int ExtraTimeToWait { get; set; } = 0;
 
+    // Named farm spots, edited on their own config tab. Empty: farm where
+    // the player stands when the farmer starts.
+    public List<FarmSpot> Spots { get; set; } = [];
+
+    [FloatRange(3f, 30f)] public float ClaimedSpotSeconds { get; set; } = 8f;
+
+    [FloatRange(3f, 15f)] public float ClaimedPlayerRadius { get; set; } = 5f;
+
     // Yields: the farmer pauses itself and hands the player to another mode,
     // then walks back to its spot. Ported from upstream BOCCHI 4.2.
     [Checkbox] public bool YieldToPots { get; set; } = false;

@@ -52,7 +52,8 @@ public class StackingHandler(MobFarmerModule module) : FarmerPhaseHandler(module
             return FarmerPhase.Fighting;
         }
 
-        StackGoal = furthest.Position;
+        // A spot's stack point (caves, towers) beats the furthest enemy.
+        StackGoal = Module.Farmer.Spots.StackPoint ?? furthest.Position;
         BOCCHI.Pathfinding.AggroAvoidanceNavigation.PathfindAndMoveTo(vnav, StackGoal.Value, false);
         HasRunStack = true;
         return null;

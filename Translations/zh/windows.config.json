@@ -58,7 +58,9 @@
           "loop_return": "循环与返回",
           "battle_bell": "战斗之铃",
           "debug_display": "调试显示",
-          "yields": "让位与寻宝"
+          "yields": "让位与寻宝",
+          "spots_tab": "刷怪点 ({0})",
+          "claimed_spots": "被占用的刷怪点"
         }
       },
       "actions": {

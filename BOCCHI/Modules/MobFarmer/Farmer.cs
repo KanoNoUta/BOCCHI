@@ -51,6 +51,8 @@ public class Farmer : IDisposable
 
     public readonly FarmerYields Yields = new();
 
+    public readonly FarmerSpotSession Spots = new();
+
     private const float ApproachArriveRange = 2f;
 
     private readonly FarmerApproachTracker approachTracker = new();
@@ -106,6 +108,18 @@ public class Farmer : IDisposable
         if (Suspended)
         {
             return;
+        }
+
+        // Another player on the spot: move on to the next one.
+        if (StateMachine.State == FarmerPhase.Waiting
+            && !NeedsApproach
+            && Spots.TickClaimed(module, Player.Position)
+            && Spots.Current != null)
+        {
+            StartingPoint = Spots.Current.GetOrigin();
+            NeedsApproach = true;
+            approachTracker.Reset();
+            BOCCHI.Pathfinding.AggroAvoidanceNavigation.Stop();
         }
 
         StateMachine.Update();
@@ -208,7 +222,11 @@ public class Farmer : IDisposable
         LastTreasureSightAt = null;
         StateMachine.Reset();
 
-        StartingPoint = Player.Position;
+        // A configured spot is walked to first; without one the farmer
+        // works where the player stands.
+        Spots.Begin(module.Config, Player.Position);
+        StartingPoint = Spots.Current?.GetOrigin() ?? Player.Position;
+        NeedsApproach = Player.DistanceTo(StartingPoint) > ApproachArriveRange;
         Yields.Start(module);
         RotationPlugin.PhantomJobOff();
         PromeRotationController.Stop();
@@ -243,6 +261,7 @@ public class Farmer : IDisposable
         NeedsApproach = false;
         approachSubmitted = false;
         StartingPoint = Vector3.Zero;
+        Spots.Reset();
         StateMachine.Reset();
     }
 
