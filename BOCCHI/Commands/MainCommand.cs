@@ -25,6 +25,8 @@ public class MainCommand(Plugin plugin) : OcelotCommand
  - /bocchi config : 打开设置界面
  - /bocchi cfg : 打开设置界面
  - /bocchi th : 切换宝箱猎人
+ - /bocchi changelog : 查看本版本更新日志
+ - /bocchi logs : 打开日志窗口
 --------------------------------
 ".Trim();
     }
@@ -54,6 +56,18 @@ public class MainCommand(Plugin plugin) : OcelotCommand
             return;
         }
 #endif
+
+        if (arguments == "changelog")
+        {
+            plugin.Windows.GetWindow<BOCCHI.Services.ChangelogWindow>().Show();
+            return;
+        }
+
+        if (arguments is "logs" or "log")
+        {
+            plugin.Windows.GetWindow<BOCCHI.Services.LogsWindow>().Toggle();
+            return;
+        }
 
         if (arguments == "buff")
         {

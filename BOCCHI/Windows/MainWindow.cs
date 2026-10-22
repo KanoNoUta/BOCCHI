@@ -110,6 +110,24 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
             {
                 if (m == ImGuiMouseButton.Left)
                 {
+                    Plugin.Windows.GetWindow<BOCCHI.Services.ChangelogWindow>().Show();
+                }
+                else if (m == ImGuiMouseButton.Right)
+                {
+                    Plugin.Windows.GetWindow<BOCCHI.Services.LogsWindow>().Toggle();
+                }
+            },
+            Icon = FontAwesomeIcon.Scroll,
+            IconOffset = new Vector2(1, 1),
+            ShowTooltip = () => ImGui.SetTooltip(T("buttons.changelog_and_logs")),
+        });
+
+        TitleBarButtons.Add(new TitleBarButton
+        {
+            Click = m =>
+            {
+                if (m == ImGuiMouseButton.Left)
+                {
                     Plugin.Modules.GetModule<AutomatorModule>().DisableIllegalMode();
                 }
             },

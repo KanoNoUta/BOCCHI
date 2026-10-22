@@ -20,6 +20,9 @@
     </PropertyGroup>
     <!-- Files -->
     <ItemGroup>
+        <EmbeddedResource Include="..\CHANGELOG.md">
+            <LogicalName>BOCCHI.CHANGELOG.md</LogicalName>
+        </EmbeddedResource>
         <None Include="BOCCHI.json">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </None>

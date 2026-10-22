@@ -1,0 +1,23 @@
+{
+  "windows": {
+    "changelog": {
+      "title": "BOCCHI {0} 更新内容",
+      "empty": "本版本没有更新说明。",
+      "got_it": "知道了"
+    },
+    "logs": {
+      "title": "BOCCHI 日志",
+      "search": "搜索",
+      "auto_scroll": "自动滚动",
+      "copy": "复制",
+      "clear": "清空",
+      "count": "显示 {0} 条（最多保留 {1} 条）",
+      "levels": {
+        "debug": "调试及以上",
+        "information": "信息及以上",
+        "warning": "警告及以上",
+        "error": "仅错误"
+      }
+    }
+  }
+}

@@ -16,7 +16,8 @@
         "stop_automatic": "自動運転を停止",
         "stopping": "停止中",
         "stop_all": "すべて停止",
-        "stop_all_tooltip": "自動運転、宝箱・ニンジン探索、モブ狩り、移動、待機タスクを停止します。"
+        "stop_all_tooltip": "自動運転、宝箱・ニンジン探索、モブ狩り、移動、待機タスクを停止します。",
+        "changelog_and_logs": "Left-click: this version's changelog. Right-click: log window"
       },
       "nav": {
         "workspace": "ワークスペース",
@@ -133,7 +134,3 @@
     }
   }
 }
-
-
-
-

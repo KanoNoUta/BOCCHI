@@ -3111,4 +3111,21 @@ Assert(CompletionistPolicy.ShouldPursue(MonsterNote.CloisterDemon, _ => false)
         "Ninja Hide is off by default, hides from mobs at or above your Knowledge, and drops Hide 2.5s after threats leave.");
 }
 
+{
+    var changelog = File.ReadAllText("CHANGELOG.md");
+    var section = BOCCHI.Services.ChangelogText.ExtractVersionSection(changelog, "3.5.0");
+    var parsed = section == null ? [] : BOCCHI.Services.ChangelogText.ParseLines(section);
+    var csprojVersion = Regex.Match(File.ReadAllText(Path.Combine("BOCCHI", "BOCCHI.csproj")), "<Version>(.+?)</Version>").Groups[1].Value;
+    Assert(parsed.Count > 3
+           && parsed.All(line => line.Kind == BOCCHI.Services.ChangelogLineKind.Bullet)
+           && !parsed.Any(line => line.Text.Contains('`'))
+           && BOCCHI.Services.ChangelogText.ExtractVersionSection(changelog, "9.9.9") == null
+           && BOCCHI.Services.ChangelogText.ExtractVersionSection(changelog, csprojVersion) != null
+           && BOCCHI.Services.ChangelogText.NormalizeVersion("3.6.0.0") == "3.6.0"
+           && BOCCHI.Services.ChangelogText.NormalizeVersion("3.6.1") == "3.6.1"
+           && BOCCHI.Services.LogBuffer.Render("Node {NodeId} at {Distance}", [12, 3.5]) == "Node 12 at 3.5"
+           && BOCCHI.Services.LogBuffer.Render("broken {", [1]).StartsWith("broken {"),
+        "The changelog window finds the current version's notes, and log lines render their values.");
+}
+
 Console.WriteLine("BOCCHI 7.55 North Horn data, lifecycle, config, translation, routing, precompute, and vnavmesh availability smoke tests passed.");

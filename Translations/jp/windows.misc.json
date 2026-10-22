@@ -1,0 +1,23 @@
+{
+  "windows": {
+    "changelog": {
+      "title": "BOCCHI {0}: what's new",
+      "empty": "No notes for this version.",
+      "got_it": "Got it"
+    },
+    "logs": {
+      "title": "BOCCHI logs",
+      "search": "Search",
+      "auto_scroll": "Auto-scroll",
+      "copy": "Copy",
+      "clear": "Clear",
+      "count": "Showing {0} lines (keeps up to {1})",
+      "levels": {
+        "debug": "Debug and up",
+        "information": "Info and up",
+        "warning": "Warnings and up",
+        "error": "Errors only"
+      }
+    }
+  }
+}

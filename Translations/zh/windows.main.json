@@ -16,7 +16,8 @@
         "stop_automatic": "停止自动运行",
         "stopping": "正在停止",
         "stop_all": "停止全部",
-        "stop_all_tooltip": "停止自动运行、挖宝、胡萝卜、刷怪、导航和排队任务。"
+        "stop_all_tooltip": "停止自动运行、挖宝、胡萝卜、刷怪、导航和排队任务。",
+        "changelog_and_logs": "左键：本版本更新日志；右键：日志窗口"
       },
       "nav": {
         "workspace": "工作区",
@@ -133,7 +134,3 @@
     }
   }
 }
-
-
-
-

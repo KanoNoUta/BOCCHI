@@ -2,6 +2,7 @@
 using BOCCHI.Data;
 using BOCCHI.Modules.Automator;
 using BOCCHI.Pathfinding;
+using BOCCHI.Services;
 using Dalamud.Game;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Plugin;
@@ -41,6 +42,7 @@ public sealed class Plugin : OcelotPlugin
         }
 
         SetupLanguage(plugin);
+        CapturingPluginLog.Install();
 
         AggroAvoidanceNavigation.Configure(() => Config.AggroRangeConfig);
         StuckJumpRecovery.Configure(() => Config.PathfinderConfig);
@@ -78,6 +80,12 @@ public sealed class Plugin : OcelotPlugin
         {
             I18N.SetLanguage("uwu");
         }
+    }
+
+    public override void Dispose()
+    {
+        CapturingPluginLog.Uninstall();
+        base.Dispose();
     }
 
     protected override bool ShouldUpdate()

@@ -36,6 +36,9 @@ public class Config : IOcelotConfig
 
     public bool ShowAdvancedUi { get; set; } = false;
 
+    /// <summary>The last version whose changelog was shown; drives the "what's new" window.</summary>
+    public string? LastSeenPluginVersion { get; set; }
+
     // Core
     public MountConfig MountConfig { get; set; } = new();
 
