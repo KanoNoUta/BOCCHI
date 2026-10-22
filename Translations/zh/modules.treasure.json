@@ -61,6 +61,30 @@
         "use_south_horn_authored_route": {
           "label": "南岛使用预设寻宝路线",
           "tooltip": "在南部新月岛按上游作者整理的分区顺序巡箱（营地、流浪者庇护所、晶石洞窟、长老林、石沼），而不是每次重新计算。可在寻宝面板选择起始区域。"
+        },
+        "use_ninja_hide_on_dangerous_routes": {
+          "label": "危险路段使用忍者隐遁",
+          "tooltip": "寻宝或魔法罐找箱途中附近有知识等级过高的怪时，下坐骑、切到忍者套装并使用隐遁通过；远离后解除隐遁并换回原套装。能看穿隐遁的 Haunt 类怪物不计入威胁。"
+        },
+        "use_occult_sprint_while_hidden": {
+          "label": "隐遁时使用辅助盗贼的冲刺",
+          "tooltip": "隐遁期间临时切到辅助盗贼并使用其冲刺，开箱前会换回原辅助职业。"
+        },
+        "ninja_gearset_number": {
+          "label": "忍者套装编号",
+          "tooltip": "需要隐遁时切换到的套装编号（与游戏套装列表一致，从 1 开始）。填 0 表示不切换，此时只有当前已是忍者才会隐遁。"
+        },
+        "knowledge_hide_offset": {
+          "label": "隐遁知识等级偏移",
+          "tooltip": "怪的知识等级达到“你的知识等级 + 偏移”时视为威胁。调高则只躲更强的怪。"
+        },
+        "knowledge_threat_enter_distance": {
+          "label": "进入隐遁距离",
+          "tooltip": "威胁怪进入这个距离时开始隐遁；骑乘时额外 +5 码。"
+        },
+        "knowledge_threat_exit_distance": {
+          "label": "解除隐遁距离",
+          "tooltip": "所有威胁怪离开这个距离 2.5 秒后才解除隐遁；重新上坐骑至少要离开 35 码。"
         }
       },
       "panel": {

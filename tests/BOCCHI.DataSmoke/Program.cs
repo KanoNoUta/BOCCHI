@@ -3087,4 +3087,28 @@ Assert(CompletionistPolicy.ShouldPursue(MonsterNote.CloisterDemon, _ => false)
         "South Horn follows the 68-coffer authored route from the nearest coffer or a chosen area, skipping cleared areas.");
 }
 
+{
+    var t0 = new DateTime(2026, 10, 22, 0, 0, 0, DateTimeKind.Utc);
+    DateTime? clearSince = null;
+    var heldWhileThreatened = NinjaHidePolicy.StayRequired(true, ref clearSince, t0) && clearSince == null;
+    var heldDuringDebounce = NinjaHidePolicy.StayRequired(false, ref clearSince, t0.AddSeconds(1)) && clearSince == t0.AddSeconds(1);
+    var stillHeld = NinjaHidePolicy.StayRequired(false, ref clearSince, t0.AddSeconds(3));
+    var releasedAfterDebounce = !NinjaHidePolicy.StayRequired(false, ref clearSince, t0.AddSeconds(3.6)) && clearSince == null;
+    var hideConfig = new TreasureConfig();
+    Assert(heldWhileThreatened && heldDuringDebounce && stillHeld && releasedAfterDebounce
+           && NinjaHidePolicy.HideAtOrAbove(20, 0) == 20
+           && NinjaHidePolicy.HideAtOrAbove(2, -5) == 1
+           && NinjaHidePolicy.EnterDistance(10f, mounted: true) == 15f
+           && NinjaHidePolicy.EnterDistance(10f, mounted: false) == 10f
+           && NinjaHidePolicy.ExitDistance(20f, 25f) == 25f
+           && NinjaHidePolicy.RemountClearDistance(20f) == 35f
+           && !hideConfig.UseNinjaHideOnDangerousRoutes
+           && !hideConfig.UseOccultSprintWhileHidden
+           && hideConfig.NinjaGearsetNumber == 0
+           && hideConfig.KnowledgeHideOffset == 0
+           && hideConfig.KnowledgeThreatEnterDistance == 10f
+           && hideConfig.KnowledgeThreatExitDistance == 20f,
+        "Ninja Hide is off by default, hides from mobs at or above your Knowledge, and drops Hide 2.5s after threats leave.");
+}
+
 Console.WriteLine("BOCCHI 7.55 North Horn data, lifecycle, config, translation, routing, precompute, and vnavmesh availability smoke tests passed.");

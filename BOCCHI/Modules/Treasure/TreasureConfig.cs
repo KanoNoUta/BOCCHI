@@ -113,6 +113,31 @@ public class TreasureConfig : ModuleConfig
     public bool ShowNorthHornRouteMap { get; set; } = true;
 
     [Checkbox]
+    [Experimental]
+    [DependsOn(nameof(Enabled), nameof(EnableTreasureHunt))]
+    public bool UseNinjaHideOnDangerousRoutes { get; set; } = false;
+
+    [Checkbox]
+    [DependsOn(nameof(Enabled), nameof(EnableTreasureHunt), nameof(UseNinjaHideOnDangerousRoutes))]
+    public bool UseOccultSprintWhileHidden { get; set; } = false;
+
+    [IntRange(0, 100)]
+    [DependsOn(nameof(Enabled), nameof(EnableTreasureHunt), nameof(UseNinjaHideOnDangerousRoutes))]
+    public int NinjaGearsetNumber { get; set; } = 0;
+
+    [IntRange(-5, 10)]
+    [DependsOn(nameof(Enabled), nameof(EnableTreasureHunt), nameof(UseNinjaHideOnDangerousRoutes))]
+    public int KnowledgeHideOffset { get; set; } = 0;
+
+    [FloatRange(5f, 40f)]
+    [DependsOn(nameof(Enabled), nameof(EnableTreasureHunt), nameof(UseNinjaHideOnDangerousRoutes))]
+    public float KnowledgeThreatEnterDistance { get; set; } = 10f;
+
+    [FloatRange(10f, 60f)]
+    [DependsOn(nameof(Enabled), nameof(EnableTreasureHunt), nameof(UseNinjaHideOnDangerousRoutes))]
+    public float KnowledgeThreatExitDistance { get; set; } = 20f;
+
+    [Checkbox]
     [DependsOn(nameof(Enabled), nameof(EnableTreasureHunt))]
     [Label("modules.treasure.config.show_spirit_pot_prediction.label")]
     public bool ShowSpiritPotPrediction { get; set; } = true;

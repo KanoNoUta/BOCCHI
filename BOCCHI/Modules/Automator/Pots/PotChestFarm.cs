@@ -1,5 +1,6 @@
 using BOCCHI.Chains;
 using BOCCHI.Data;
+using BOCCHI.Modules.Treasure;
 using BOCCHI.Pathfinding;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.Objects.Types;
@@ -113,6 +114,9 @@ public sealed class PotChestFarm
     private readonly List<IGameObject> chests = [];
 
     private Queue<Vector3> candidates = new();
+
+    // Upstream hides from pot-area packs a little earlier than on hunts.
+    private readonly NinjaHideTravel ninjaHide = new("Pots", enterFloor: 18f);
 
     private List<Vector3> pool = [];
 
@@ -283,6 +287,7 @@ public sealed class PotChestFarm
 
         IsFinished = true;
         FinishReason = reason;
+        ninjaHide.Finish();
         hints.Disarm();
         StopMoving(vnav);
         ReleaseSelfDefense();
@@ -1132,6 +1137,7 @@ public sealed class PotChestFarm
             return OpenResult.Pending;
         }
 
+        ninjaHide.BeforeInteract(module.PluginConfig.TreasureConfig);
         Interact(target);
         interactAttempted = true;
         return IsOpened(target) ? OpenResult.Opened : OpenResult.Pending;
@@ -1253,9 +1259,15 @@ public sealed class PotChestFarm
             return;
         }
 
+        if (!ninjaHide.Prepare(module.PluginConfig.TreasureConfig, vnav))
+        {
+            return;
+        }
+
         if (mount
             && distance > MountDistance
             && module.PluginConfig.TeleporterConfig.ShouldMount
+            && ninjaHide.CanMount(module.PluginConfig.TreasureConfig)
             && !Svc.Condition[ConditionFlag.Mounted]
             && !Svc.Condition[ConditionFlag.InCombat]
             && !player.IsCasting)
@@ -1359,7 +1371,9 @@ public sealed class PotChestFarm
             watchImprovedAt = now;
         }
 
-        if (Automator.IsChainActive || Svc.Condition[ConditionFlag.Mounted] && Player.IsCasting)
+        if (Automator.IsChainActive
+            || ninjaHide.IsHolding
+            || Svc.Condition[ConditionFlag.Mounted] && Player.IsCasting)
         {
             watchImprovedAt = now;
             watchIdleSince = null;

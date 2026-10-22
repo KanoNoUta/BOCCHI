@@ -294,6 +294,25 @@ public abstract class Hunter
     }
 
     /// <summary>While true the hunt finishes its current step but starts no new one.</summary>
+    /// <summary>
+    /// Runs every tick while travelling to a node. Returning false holds the
+    /// hunt for this tick (for example while casting Hide); the override is
+    /// responsible for stopping navigation if it needs the player still.
+    /// </summary>
+    protected virtual bool PrepareTravel()
+    {
+        return true;
+    }
+
+    protected virtual bool CanMountForTravel()
+    {
+        return true;
+    }
+
+    protected virtual void OnBeforeNodeInteraction()
+    {
+    }
+
     protected virtual bool ShouldHoldBeforeNextStep()
     {
         return false;
@@ -703,6 +722,13 @@ public abstract class Hunter
             }
         }
 
+        if (!PrepareTravel())
+        {
+            // Holding is not a lack of progress toward the node.
+            lastNodeProgress = DateTime.UtcNow;
+            return false;
+        }
+
         // vnavmesh's cancelable Pathfind query returns a Task<List<Vector3>>.
         // Under the CN Dalamud the IPC layer serializes the return value, and a
         // Task result trips a Newtonsoft self-referencing-loop exception, which
@@ -768,6 +794,7 @@ public abstract class Hunter
     {
         var scheduledGeneration = routeGeneration;
         var scheduledStepIndex = stepIndex;
+        OnBeforeNodeInteraction();
         interactionPending = true;
         interactionNodeId = nodeId;
         interactionStepIndex = scheduledStepIndex;
@@ -1411,6 +1438,7 @@ public abstract class Hunter
     private bool ShouldMountForTravel()
     {
         return m.PluginConfig.TeleporterConfig.ShouldMount
+               && CanMountForTravel()
                && !Player.Mounted
                && states.GetState() != State.InCombat
                && !Player.IsCasting

@@ -8,6 +8,7 @@ using Dalamud.Interface.Textures;
 using ECommons.Automation.NeoTaskManager;
 using ECommons.DalamudServices;
 using ECommons.GameHelpers;
+using ECommons.Throttlers;
 using FFXIVClientStructs.FFXIV.Client.Game.Control;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using FFXIVClientStructs.FFXIV.Client.UI;
@@ -459,6 +460,29 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
     }
 
     private long lastUnsafeLogAt;
+
+    private readonly NinjaHideTravel ninjaHide = new("TreasureHunt");
+
+    protected override bool PrepareTravel()
+    {
+        return ninjaHide.Prepare(module.Config, vnav);
+    }
+
+    protected override bool CanMountForTravel()
+    {
+        return ninjaHide.CanMount(module.Config);
+    }
+
+    protected override void OnBeforeNodeInteraction()
+    {
+        ninjaHide.BeforeInteract(module.Config);
+    }
+
+    protected override void Teardown()
+    {
+        ninjaHide.Finish();
+        base.Teardown();
+    }
 
     protected override void OnStarted()
     {

@@ -61,6 +61,30 @@
         "use_south_horn_authored_route": {
           "label": "Use the authored South Horn route",
           "tooltip": "In South Horn, visit coffers in the hand-authored area order (base camp, Wanderer's Haven, Crystallized Caverns, Eldergrowth, Stonemarsh) instead of a freshly computed route. Pick the starting area in the hunt panel."
+        },
+        "use_ninja_hide_on_dangerous_routes": {
+          "label": "Use Ninja Hide on dangerous routes",
+          "tooltip": "When a mob with high enough Knowledge is near a treasure hunt or pot coffer route, dismount, swap to your Ninja gearset and Hide past it, then drop Hide and swap back once clear. Haunts see through Hide and are ignored."
+        },
+        "use_occult_sprint_while_hidden": {
+          "label": "Use Occult Sprint while hidden",
+          "tooltip": "While hidden, switch to Phantom Thief to use Occult Sprint; the previous phantom job is restored before opening a coffer."
+        },
+        "ninja_gearset_number": {
+          "label": "Ninja gearset number",
+          "tooltip": "The gearset to equip when Hide is needed (1-based, as in the game's gearset list). 0 never swaps, so Hide is only used if you are already a Ninja."
+        },
+        "knowledge_hide_offset": {
+          "label": "Knowledge hide offset",
+          "tooltip": "Mobs at your Knowledge level plus this offset or higher count as threats. Raise it to hide only from stronger mobs."
+        },
+        "knowledge_threat_enter_distance": {
+          "label": "Hide enter distance",
+          "tooltip": "Hide when a threat comes this close; +5 yalms while mounted."
+        },
+        "knowledge_threat_exit_distance": {
+          "label": "Hide exit distance",
+          "tooltip": "Drop Hide once every threat has been beyond this distance for 2.5 seconds; remounting waits until 35 yalms clear."
         }
       },
       "panel": {
