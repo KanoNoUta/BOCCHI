@@ -251,6 +251,12 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
             RestartConnection(now);
         }
 
+        // Re-read the territory every tick. The cached value used to be set
+        // only at load and on territory-change callbacks; a plugin loaded on
+        // the title screen could keep 0 for the whole session, so the server
+        // never saw the player on the island (no island count, no upload slot,
+        // no island events).
+        Volatile.Write(ref presenceTerritoryId, Svc.ClientState.TerritoryType);
         RefreshPresenceScope(now);
 
         if (Config.SendHeartbeat && now >= nextHeartbeatAt)

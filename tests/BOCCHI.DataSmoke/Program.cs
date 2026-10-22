@@ -79,6 +79,10 @@ static void RunCeCrowdsourceTests()
            && crowdsourceSource.Contains("CeCrowdsourcePresencePolicy.CanPublishIslandPresence", StringComparison.Ordinal)
            && !crowdsourceSource.Contains("presence.IsIsland && presence.InstanceId == 0", StringComparison.Ordinal),
         "Island companion presence must clear on territory changes, preserve player identity during loading, and reject stale island responses.");
+    Assert(crowdsourceSource.Contains(
+               "Volatile.Write(ref presenceTerritoryId, Svc.ClientState.TerritoryType);\n        RefreshPresenceScope(now);",
+               StringComparison.Ordinal),
+        "Crowdsource presence must re-read the territory every tick so a title-screen load cannot pin it to 0.");
     Assert(crowdsourceSource.Contains("OnFateSpawned += OnLocalPotSpawned", StringComparison.Ordinal)
            && crowdsourceSource.Contains("OnFateDespawned += OnLocalPotDespawned", StringComparison.Ordinal)
            && crowdsourceSource.Contains("UploadPotObservation(fate, \"Running\")", StringComparison.Ordinal)
