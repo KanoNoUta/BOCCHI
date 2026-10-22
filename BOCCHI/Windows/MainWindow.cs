@@ -224,13 +224,12 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
             return;
         }
 
-        var toolsWidth = FullToolColumnWidth();
         var startWidth = LuminTheme.S(126f);
         var stopWidth = LuminTheme.S(108f);
 
         if (ImGui.BeginTable(
                 "##MainCommandBar",
-                4,
+                3,
                 ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.NoPadOuterX))
         {
             ImGui.TableSetupColumn("Area", ImGuiTableColumnFlags.WidthFixed, LuminTheme.S(150f));
@@ -239,7 +238,6 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
                 "Commands",
                 ImGuiTableColumnFlags.WidthFixed,
                 startWidth + stopWidth + ImGui.GetStyle().ItemSpacing.X);
-            ImGui.TableSetupColumn("Tools", ImGuiTableColumnFlags.WidthFixed, toolsWidth);
 
             ImGui.TableNextColumn();
             DrawAreaStatus();
@@ -252,14 +250,10 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
             ImGui.SameLine();
             DrawStopAllButton(automator, snapshot, stopWidth);
 
-            ImGui.TableNextColumn();
-            if (BocchiUi.IconButton(FontAwesomeIcon.Cog, "OpenSettings", T("buttons.open_settings")))
-            {
-                Plugin.Windows.ToggleConfigUI();
-            }
-            ImGui.SameLine();
-            DrawModePill(snapshot, "EnterCompact", compact: false);
-
+            // Settings and the compact toggle live in the title bar (cog and
+            // compress icons). Repeating them here as a gear and a second
+            // "stopped | collapse" pill duplicated both the controls and the
+            // run state already shown in the Operation column.
             ImGui.EndTable();
         }
 
@@ -272,35 +266,21 @@ public class MainWindow(Plugin primaryPlugin, Config config) : OcelotMainWindow(
         ImGui.Separator();
     }
 
-    /// <summary>Settings icon button plus the mode pill, including the gap between them.</summary>
-    private static float FullToolColumnWidth() =>
-        ImGui.GetFrameHeight()
-        + ImGui.GetStyle().ItemSpacing.X
-        + LuminWidgets.PillToggleWidth(LongestStateLabel(), T("buttons.collapse"));
-
     private void DrawNarrowCommandBar(
         AutomatorModule automator,
         BocchiOperationSnapshot snapshot)
     {
         if (ImGui.BeginTable(
                 "##MainCommandBarNarrow",
-                3,
+                2,
                 ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.NoPadOuterX))
         {
             ImGui.TableSetupColumn("Area", ImGuiTableColumnFlags.WidthFixed, LuminTheme.S(138f));
             ImGui.TableSetupColumn("Operation", ImGuiTableColumnFlags.WidthStretch);
-            ImGui.TableSetupColumn("Tools", ImGuiTableColumnFlags.WidthFixed, FullToolColumnWidth());
             ImGui.TableNextColumn();
             DrawAreaStatus();
             ImGui.TableNextColumn();
             DrawOperationStatus(snapshot, compact: true);
-            ImGui.TableNextColumn();
-            if (BocchiUi.IconButton(FontAwesomeIcon.Cog, "OpenSettingsNarrow", T("buttons.open_settings")))
-            {
-                Plugin.Windows.ToggleConfigUI();
-            }
-            ImGui.SameLine();
-            DrawModePill(snapshot, "EnterCompactNarrow", compact: false);
             ImGui.EndTable();
         }
 

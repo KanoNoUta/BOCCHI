@@ -14,10 +14,20 @@ public static unsafe class CeZoneServerId
     private static readonly object Sync = new();
     private static readonly TimeSpan ResolveRetryDelay = TimeSpan.FromSeconds(2);
 
-    private const string ContentReplyManagerSig =
-        "48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 45 33 C0 48 8D 57 ?? 41 8B CE E8 ?? ?? ?? ?? 48 8D 8F";
+    // Newest first. The CN 2026-10 client moved the ContentReplyManager
+    // initialiser, so the old pattern no longer matches and the island could
+    // never be identified (same fix as OmenTools 2595209). Keep the old one
+    // as a fallback for clients that have not been patched yet.
+    private static readonly string[] ContentReplyManagerSigs =
+    [
+        "48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? " +
+        "48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? " +
+        "48 8D 0D ?? ?? ?? ?? 48 83 C4",
+        "48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 45 33 C0 48 8D 57 ?? 41 8B CE E8 ?? ?? ?? ?? 48 8D 8F",
+    ];
 
     private const string ZoneServerIdOffsetSig =
+        "0F 11 83 ?? ?? ?? ?? 0F 10 4F ?? 0F 11 8B ?? ?? ?? ?? 0F 10 47 ?? " +
         "0F 11 83 ?? ?? ?? ?? 0F 10 4F ?? 0F 11 8B ?? ?? ?? ?? 0F 10 47 ?? " +
         "0F 11 83 ?? ?? ?? ?? 0F 10 4F ?? 0F 11 8B ?? ?? ?? ?? 0F 10 47 ?? " +
         "0F 11 83 ?? ?? ?? ?? 0F 10 4F";
@@ -25,6 +35,7 @@ public static unsafe class CeZoneServerId
     private static nint contentReplyManagerPtr;
     private static nint zoneServerIdOffset;
     private static DateTime nextResolveAt;
+    private static bool resolveFailureLogged;
 
     public static uint Current
     {
@@ -77,25 +88,35 @@ public static unsafe class CeZoneServerId
             }
 
             nextResolveAt = now.Add(ResolveRetryDelay);
-            try
+            var manager = nint.Zero;
+            var managerIndex = -1;
+            for (var i = 0; i < ContentReplyManagerSigs.Length && manager == nint.Zero; i++)
             {
-                var manager = Svc.SigScanner.GetStaticAddressFromSig(ContentReplyManagerSig);
-                var offset = Svc.SigScanner.GetStaticAddressFromSig(ZoneServerIdOffsetSig);
-                if (manager == nint.Zero || offset == nint.Zero)
+                if (Svc.SigScanner.TryGetStaticAddressFromSig(ContentReplyManagerSigs[i], out var address))
                 {
-                    return false;
+                    manager = address;
+                    managerIndex = i;
+                }
+            }
+
+            Svc.SigScanner.TryGetStaticAddressFromSig(ZoneServerIdOffsetSig, out var offset);
+            if (manager == nint.Zero || offset == nint.Zero)
+            {
+                if (!resolveFailureLogged)
+                {
+                    resolveFailureLogged = true;
+                    Svc.Log.Warning(
+                        $"[CeZoneServerId] signature not found (manager={manager != nint.Zero}, offset={offset != nint.Zero}); "
+                        + "crowdsource cannot identify the island on this client");
                 }
 
-                contentReplyManagerPtr = manager;
-                zoneServerIdOffset = offset;
-                Svc.Log.Info("[CeZoneServerId] signature resolved");
-                return true;
-            }
-            catch (Exception ex)
-            {
-                Svc.Log.Debug($"[CeZoneServerId] signature resolve failed; retrying: {ex.Message}");
                 return false;
             }
+
+            contentReplyManagerPtr = manager;
+            zoneServerIdOffset = offset;
+            Svc.Log.Info($"[CeZoneServerId] signature resolved (pattern {managerIndex}, offset 0x{offset:X})");
+            return true;
         }
     }
 }

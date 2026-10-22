@@ -30,13 +30,23 @@ public class Panel
 
         if (!module.Connected)
         {
-            BocchiUi.EmptyState(
-                module.T("panel.server_error"),
-                module.WaitingForZoneServerId
-                    ? module.T("panel.waiting_zone")
-                    : string.IsNullOrWhiteSpace(module.LastError)
-                        ? module.T("panel.connecting")
-                        : $"{module.T("panel.last_error")}: {module.LastError}");
+            // 标题说明状态，副标题说明原因，避免两行写同一句话；还没发过请求
+            // （等区服 ID 或刚进岛）时不算“连接失败”。
+            if (module.WaitingForZoneServerId)
+            {
+                BocchiUi.EmptyState(module.T("panel.connecting"), module.T("panel.waiting_zone"));
+            }
+            else if (!string.IsNullOrWhiteSpace(module.LastError))
+            {
+                BocchiUi.EmptyState(
+                    module.T("panel.server_error"),
+                    $"{module.T("panel.last_error")}: {module.LastError}");
+            }
+            else
+            {
+                BocchiUi.EmptyState(module.T("panel.connecting"), module.T("panel.uploader_pending"));
+            }
+
             return;
         }
 
@@ -94,17 +104,16 @@ public class Panel
         }
 
         // 上传名额由服务端分配：每个岛只有少数人上传，其余只读取。
-        if (module.Config.UploadObservations && ZoneData.IsInOccultCrescent())
+        // 未连接时下方的空状态已经说明原因，这里不再重复显示同一句话。
+        if (module.Config.UploadObservations && ZoneData.IsInOccultCrescent() && module.Connected)
         {
             // 只有服务端明确答复“名额已满”时才显示只读；尚未拿到岛屿区服 ID
             // 或心跳还没回来时，显示等待状态，避免误报“名额已满”。
             ImGui.TextDisabled(module.IsUploader
                 ? string.Format(module.T("panel.uploader_active"), module.UploaderSlots)
-                : module.WaitingForZoneServerId
-                    ? module.T("panel.waiting_zone")
-                    : module.UploaderLeaseKnown
-                        ? module.T("panel.uploader_standby")
-                        : module.T("panel.uploader_pending"));
+                : module.UploaderLeaseKnown
+                    ? module.T("panel.uploader_standby")
+                    : module.T("panel.uploader_pending"));
         }
 
         ImGui.Spacing();
