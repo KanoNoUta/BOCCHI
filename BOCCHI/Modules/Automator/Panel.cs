@@ -10,6 +10,7 @@ public class Panel
     public void Draw(AutomatorModule module)
     {
         BocchiUi.SectionHeading(module.T("panel.title"));
+        DrawPotsAndTreasureButton(module);
         var name = module.T("panel.activity.none");
         var stateLabel = module.T("panel.activity_state.none");
         try
@@ -30,6 +31,7 @@ public class Panel
             DrawRow(module.T("panel.activity.label"), name);
             DrawRow(module.T("panel.activity_state.label"), stateLabel);
             DrawPotRows(module);
+            DrawHuntRows(module);
             if (module.Config.ShouldAutoRotateInstance)
             {
                 DrawRow(module.T("panel.rotation.state"), module.instanceRotation.GetStateLabel(module));
@@ -75,6 +77,42 @@ public class Panel
             PotName(module, cycle.PredictedNextPotFateId),
             countdown,
             source));
+    }
+
+    private static void DrawPotsAndTreasureButton(AutomatorModule module)
+    {
+        var active = module.RunMode == AutomatorRunMode.PotsAndTreasure && module.RequestedEnabled;
+        if (ImGui.Button(active
+                ? $"{module.T("panel.pots_and_treasure.stop")}##PotsAndTreasure"
+                : $"{module.T("panel.pots_and_treasure.start")}##PotsAndTreasure"))
+        {
+            module.RequestPotsAndTreasure(!active);
+        }
+
+        if (ImGui.IsItemHovered())
+        {
+            ImGui.SetTooltip(module.T("panel.pots_and_treasure.tooltip"));
+        }
+    }
+
+    private static void DrawHuntRows(AutomatorModule module)
+    {
+        if (module.RunMode == AutomatorRunMode.PotsAndTreasure)
+        {
+            DrawRow(module.T("panel.pots_and_treasure.mode"), module.T("panel.pots_and_treasure.label"));
+        }
+
+        var hunt = module.automator.ManagedHunt;
+        if (hunt.IsHunting(module))
+        {
+            DrawRow(module.T("panel.managed_hunt.label"), module.T("panel.managed_hunt.running"));
+        }
+        else if (hunt.IsPaused(module))
+        {
+            DrawRow(module.T("panel.managed_hunt.label"), string.Format(
+                module.T("panel.managed_hunt.paused"),
+                hunt.PauseReason ?? "-"));
+        }
     }
 
     private static string PotName(AutomatorModule module, uint fateId)

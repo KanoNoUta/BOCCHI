@@ -49,6 +49,14 @@
         "play_sound_on_hunt_complete": {
           "label": "Sound when the hunt finishes",
           "tooltip": "Play a sound when the route is done or no coffers are left."
+        },
+        "hunt_min_bronze_percent": {
+          "label": "Auto hunt: minimum bronze (%)",
+          "tooltip": "The hunt between activities starts once bronze coffers (out of 30) reach this share; bronze or silver is enough."
+        },
+        "hunt_min_silver_percent": {
+          "label": "Auto hunt: minimum silver (%)",
+          "tooltip": "The hunt between activities starts once silver coffers (out of 8) reach this share; with silver only, silver alone decides."
         }
       },
       "panel": {

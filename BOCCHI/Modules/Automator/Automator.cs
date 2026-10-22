@@ -68,6 +68,10 @@ public class Automator
 
     public PotChestFarm? PotFarm { get; private set; }
 
+    public ManagedTreasureHunt ManagedHunt { get; } = new();
+
+    private long nextHuntYieldCheckAt;
+
     /// <summary>A pot wait or coffer farm owns the player; rotation must wait.</summary>
     public bool IsPotWorkActive => PotFarm != null || Activity is PotWaitActivity;
 
@@ -127,6 +131,30 @@ public class Automator
         if (UpdatePotChestFarm(module, vnav))
         {
             return;
+        }
+
+        ManagedHunt.Observe(module);
+        if (ManagedHunt.IsHunting(module))
+        {
+            var tick = Environment.TickCount64;
+            if (tick < nextHuntYieldCheckAt)
+            {
+                return;
+            }
+
+            nextHuntYieldCheckAt = tick + 1000;
+            if (!ShouldYieldHunt(module, lifestream, vnav, out var huntYieldReason))
+            {
+                return;
+            }
+
+            // A CE or pot never pulls the player out of a fight mid-hunt.
+            if (Svc.Condition[ConditionFlag.InCombat])
+            {
+                return;
+            }
+
+            ManagedHunt.Pause(module, huntYieldReason);
         }
 
         if (Activity == null && postActivityReturnPending)
@@ -319,7 +347,8 @@ public class Automator
             return;
         }
 
-        if (!module.Config.ShouldDoFates && !module.Config.ShouldDoCriticalEncounters)
+        var potsAndTreasure = module.RunMode == AutomatorRunMode.PotsAndTreasure;
+        if (!potsAndTreasure && !module.Config.ShouldDoFates && !module.Config.ShouldDoCriticalEncounters)
         {
             return;
         }
@@ -333,7 +362,7 @@ public class Automator
             {
                 EventType.CriticalEncounter when module.Config.ShouldDoCriticalEncounters
                     => FindCriticalEncounter(module, lifestream, vnav),
-                EventType.Fate when module.Config.ShouldDoFates
+                EventType.Fate when module.Config.ShouldDoFates || potsAndTreasure
                     => FindFate(module, lifestream, vnav),
                 _ => null,
             };
@@ -352,6 +381,15 @@ public class Automator
         if (Activity != null)
         {
             Svc.Log.Info($"Selected activity: {Activity.GetName()}");
+            return;
+        }
+
+        if (WantsManagedHunt(module)
+            && !NeedsPotWork(module)
+            && states.GetState() == State.Idle
+            && ManagedHunt.Ensure(module, module.RunMode))
+        {
+            idleTime = 0;
             return;
         }
 
@@ -385,7 +423,7 @@ public class Automator
             return null;
         }
 
-        if (!FindCriticalEncounterGate(module))
+        if (module.RunMode == AutomatorRunMode.PotsAndTreasure || !FindCriticalEncounterGate(module))
         {
             return null;
         }
@@ -495,6 +533,11 @@ public class Automator
             && liveFateIds.Contains(livePot))
         {
             return new FateActivity(potFate.Data, lifestream, vnav, module, potFate);
+        }
+
+        if (module.RunMode == AutomatorRunMode.PotsAndTreasure)
+        {
+            return null;
         }
 
         var fatesAllowed = PotTimingPolicy.AllowsStart(
@@ -636,6 +679,65 @@ public class Automator
         Svc.Log.Info($"Queued forced base-camp return after {reason}.");
     }
 
+    private static bool WantsManagedHunt(AutomatorModule module)
+    {
+        return module.RunMode == AutomatorRunMode.PotsAndTreasure || module.Config.ShouldEnableAutomaticTreasureHunt;
+    }
+
+    /// <summary>A pot is live, about to spawn, or its coffer is being farmed.</summary>
+    private bool NeedsPotWork(AutomatorModule module)
+    {
+        if (PotFarm != null || PotChestFarm.HasCacheMe())
+        {
+            return true;
+        }
+
+        var pots = PotContext.Capture(module);
+        return pots.HasStartableLivePot
+               || PotTimingPolicy.ShouldPreposition(
+                   pots.Cycle,
+                   pots.Now,
+                   module.Config.PotSpawnLeadMinutes,
+                   pots.PotWorkEnabled);
+    }
+
+    private bool ShouldYieldHunt(AutomatorModule module, Lifestream lifestream, VNavmesh vnav, out string reason)
+    {
+        reason = string.Empty;
+        var potsAndTreasure = module.RunMode == AutomatorRunMode.PotsAndTreasure;
+        if ((potsAndTreasure || module.Config.PauseAutoTreasureHuntForPots) && NeedsPotWork(module))
+        {
+            reason = "magic pot";
+            return true;
+        }
+
+        if (potsAndTreasure)
+        {
+            return false;
+        }
+
+        if (module.Config.PauseAutoTreasureHuntForCriticalEncounters
+            && module.Config.ShouldDoCriticalEncounters
+            && module.TryGetModule<CriticalEncountersModule>(out var critical)
+            && critical != null
+            && FindCriticalEncounterGate(module)
+            && TryFindStartableCriticalEncounter(module, critical, out _, out _))
+        {
+            reason = "critical encounter";
+            return true;
+        }
+
+        if (module.Config.PauseAutoTreasureHuntForFates
+            && module.Config.ShouldDoFates
+            && FindFate(module, lifestream, vnav) != null)
+        {
+            reason = "FATE";
+            return true;
+        }
+
+        return false;
+    }
+
     private void StopPotChestFarm(string reason)
     {
         if (PotFarm == null)
@@ -752,7 +854,7 @@ public class Automator
     private static PotWaitActivity? FindPotWait(AutomatorModule module, Lifestream lifestream, VNavmesh vnav)
     {
         var pots = PotContext.Capture(module);
-        if (!module.Config.ShouldPrepositionToPots
+        if ((!module.Config.ShouldPrepositionToPots && module.RunMode != AutomatorRunMode.PotsAndTreasure)
             || !pots.PotWorkEnabled
             || pots.LivePot != 0
             || !PotTimingPolicy.ShouldPreposition(pots.Cycle, pots.Now, module.Config.PotSpawnLeadMinutes, true)
@@ -869,6 +971,11 @@ public class Automator
 
     private void ClearActivity()
     {
+        if (Activity is { HasParticipated: true } and not PotWaitActivity)
+        {
+            ManagedHunt.OnActivityCompleted();
+        }
+
         Activity?.Dispose();
         Activity = null;
     }

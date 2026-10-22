@@ -24,8 +24,9 @@ public readonly record struct PotContext(
         var liveFate = Svc.Fates.FirstOrDefault(fate => PotZoneData.IsPotFate(fate.FateId));
         var livePot = liveFate == null ? 0u : liveFate.FateId;
 
+        var potsOnly = module.RunMode == AutomatorRunMode.PotsAndTreasure;
         uint? startable = null;
-        if (liveFate != null && config.ShouldDoFates && IsPotWanted(config, livePot))
+        if (liveFate != null && (potsOnly || (config.ShouldDoFates && IsPotWanted(config, livePot))))
         {
             // Some North Horn FATEs report ~1s for their whole life, so a value
             // that low means "unknown", not "about to end".
@@ -36,10 +37,12 @@ public readonly record struct PotContext(
             }
         }
 
-        var workEnabled = config.ShouldDoFates
-                          && (config.ShouldFarmPotChests || config.ShouldPrepositionToPots)
-                          && cycle.HasPredictedNextPot
-                          && IsPotWanted(config, cycle.PredictedNextPotFateId);
+        // Pots & Treasure always waits for the next pot.
+        var workEnabled = cycle.HasPredictedNextPot
+                          && (potsOnly
+                              || (config.ShouldDoFates
+                                  && (config.ShouldFarmPotChests || config.ShouldPrepositionToPots)
+                                  && IsPotWanted(config, cycle.PredictedNextPotFateId)));
 
         return new PotContext(cycle, now, livePot, startable, workEnabled);
     }

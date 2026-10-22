@@ -40,7 +40,8 @@
           "instance_rotation": "インスタンス切替",
           "island_help": "このページには各エリアのイベントだけを表示します。戦闘、移動、切替は共通設定にあります。",
           "magic_pots": "Magic pots",
-          "magic_pots_help": "Pot spawn timer, waiting at the next pot and the pot coffer (ported from upstream BOCCHI 4.2). FATEs must be on."
+          "magic_pots_help": "Pot spawn timer, waiting at the next pot and the pot coffer (ported from upstream BOCCHI 4.2). FATEs must be on.",
+          "treasure_between_activities": "Treasure between activities"
         },
         "farming": {
           "title": "モブ狩り設定",

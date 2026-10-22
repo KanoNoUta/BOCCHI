@@ -2933,4 +2933,66 @@ Assert(!potConfig.PreferPotFates
        && potConfig.MinPotFateMinutesRemaining == 0,
     "Magic pot settings must default to upstream BOCCHI 4.2's values, with the coffer farm off.");
 
+// Upstream 4.2 ports: FATE choice, CE hand-off, hunt pause/resume and options.
+Assert(FateSelectionPolicy.Score(Vector3.Zero, new Vector3(10, 0, 0), 0) > FateSelectionPolicy.Score(Vector3.Zero, new Vector3(200, 0, 0), 0)
+       && FateSelectionPolicy.Score(Vector3.Zero, new Vector3(50, 0, 0), 10) > FateSelectionPolicy.Score(Vector3.Zero, new Vector3(50, 0, 0), 80),
+    "FATE scoring must prefer nearer FATEs and FATEs with less progress.");
+Assert(!FateSelectionPolicy.ShouldSkipByProgress(0, 99)
+       && FateSelectionPolicy.ShouldSkipByProgress(50, 50)
+       && !FateSelectionPolicy.ShouldSkipByProgress(50, 49),
+    "The FATE progress skip must be off at 0 and inclusive of its threshold.");
+Assert(FateSelectionPolicy.ShouldLeaveFateForCriticalEncounter(0, TimeSpan.FromMinutes(5))
+       && FateSelectionPolicy.ShouldLeaveFateForCriticalEncounter(90, TimeSpan.FromSeconds(90))
+       && !FateSelectionPolicy.ShouldLeaveFateForCriticalEncounter(90, TimeSpan.FromSeconds(91)),
+    "Leaving a FATE for a CE must follow the registration-time threshold.");
+{
+    var steps = new List<PathfinderStep>
+    {
+        PathfinderStep.WalkToDestination(1),
+        PathfinderStep.WalkToDestination(2),
+        PathfinderStep.WalkToDestination(3),
+    };
+    var remaining = HuntResumePolicy.RemainingNodes(steps, 1);
+    Assert(remaining.SequenceEqual(new uint[] { 2, 3 }),
+        "A paused hunt must remember only the nodes still ahead.");
+    Assert(HuntResumePolicy.Filter([5, 3, 2, 9], remaining).SequenceEqual(new uint[] { 3, 2 })
+           && HuntResumePolicy.Filter([5, 3], null).SequenceEqual(new uint[] { 5, 3 }),
+        "Resuming must keep the planner's order and only the remembered nodes.");
+}
+Assert(CarrotScoutPolicy.ShouldSkipSpot(true, 0)
+       && !CarrotScoutPolicy.ShouldSkipSpot(true, 2)
+       && !CarrotScoutPolicy.ShouldSkipSpot(false, 0)
+       && CarrotScoutPolicy.ShouldStopForNoCarrots(false, 0)
+       && !CarrotScoutPolicy.ShouldStopForNoCarrots(true, 0),
+    "Carrot scouting must keep walking without carrots and skip spots that need one.");
+Assert(TreasureHuntOptionsPolicy.ShouldRecastSight(10, 10)
+       && !TreasureHuntOptionsPolicy.ShouldRecastSight(10, 9)
+       && !TreasureHuntOptionsPolicy.ShouldRecastSight(0, 100),
+    "Treasure Sight during a hunt must recast every N spots, and never at 0.");
+Assert(TreasureHuntOptionsPolicy.IsAshkinPeriod(1350)
+       && TreasureHuntOptionsPolicy.IsAshkinPeriod(100)
+       && !TreasureHuntOptionsPolicy.IsAshkinPeriod(240)
+       && !TreasureHuntOptionsPolicy.IsAshkinPeriod(720),
+    "South Horn's unsafe night must run from ET 22:30 to 4:00.");
+Assert(TreasureHuntOptionsPolicy.GetEorzeaMinuteOfDay(DateTimeOffset.FromUnixTimeSeconds(0)) == 0
+       && TreasureHuntOptionsPolicy.GetEorzeaMinuteOfDay(DateTimeOffset.FromUnixTimeSeconds(175)) == 60,
+    "Eorzea time must run 3600/175 times faster than real time.");
+Assert(TreasureHuntFillGate.MeetsMinimumFill(15, 0, 50, 50, false)
+       && !TreasureHuntFillGate.MeetsMinimumFill(14, 3, 50, 50, false)
+       && TreasureHuntFillGate.MeetsMinimumFill(0, 4, 50, 50, false)
+       && !TreasureHuntFillGate.MeetsMinimumFill(30, 3, 50, 50, true),
+    "The automatic hunt must start only once bronze or silver reaches its minimum share.");
+var portedAutomatorConfig = new AutomatorConfig();
+var portedTreasureConfig = new TreasureConfig();
+Assert(portedAutomatorConfig.MaxFateProgressPercent == 0
+       && portedAutomatorConfig.LeaveFateTravelForCeSeconds == 90
+       && !portedAutomatorConfig.LeaveEngagedFateForCriticalEncounter
+       && !portedAutomatorConfig.EnableAutomaticTreasureHunt
+       && portedAutomatorConfig.PauseAutoTreasureHuntForPots
+       && portedTreasureConfig.TreasureSightEveryNLocations == 10
+       && !portedTreasureConfig.HuntSilverChestsOnly
+       && portedTreasureConfig.HuntMinBronzePercent == 50
+       && portedTreasureConfig.HuntMinSilverPercent == 50,
+    "Ported options must keep their documented defaults.");
+
 Console.WriteLine("BOCCHI 7.55 North Horn data, lifecycle, config, translation, routing, precompute, and vnavmesh availability smoke tests passed.");

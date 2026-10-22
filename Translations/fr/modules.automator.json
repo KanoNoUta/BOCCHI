@@ -364,6 +364,22 @@
         "leave_engaged_fate_for_critical_encounter": {
           "label": "Leave mid-FATE for a CE",
           "tooltip": "Also leave an ordinary FATE you are fighting, with the same timing. Magic pots are never left. You may still be in combat when leaving."
+        },
+        "enable_automatic_treasure_hunt": {
+          "label": "Treasure hunt between activities",
+          "tooltip": "When the automator is idle and enough coffers are up (see the treasure settings' minimum percentages), start a treasure hunt. After a hunt ends, it waits for another activity before hunting again."
+        },
+        "pause_auto_treasure_hunt_for_fates": {
+          "label": "Pause the hunt for FATEs",
+          "tooltip": "Pause the hunt when a FATE can be started, and resume after it."
+        },
+        "pause_auto_treasure_hunt_for_pots": {
+          "label": "Pause the hunt for magic pots",
+          "tooltip": "Pause the hunt while a pot is live, about to spawn, or its coffer is being farmed."
+        },
+        "pause_auto_treasure_hunt_for_critical_encounters": {
+          "label": "Pause the hunt for CEs",
+          "tooltip": "Pause the hunt when a CE can be registered for (only once out of combat)."
         }
       },
       "panel": {
@@ -419,6 +435,18 @@
             "2072": "North Horn pot 2072",
             "2073": "North Horn pot 2073"
           }
+        },
+        "pots_and_treasure": {
+          "start": "Start Pots & Treasure",
+          "stop": "Stop Pots & Treasure",
+          "tooltip": "Only magic pots (no CEs or other FATEs); hunt treasure between pots and pause the hunt to wait for the next pot.",
+          "mode": "Mode",
+          "label": "Pots & Treasure"
+        },
+        "managed_hunt": {
+          "label": "Treasure hunt",
+          "running": "Hunting",
+          "paused": "Paused ({0})"
         }
       },
       "run_state": {

@@ -73,6 +73,29 @@ public class AutomatorModule : Module
 
     public readonly PotHintTracker potHints = new();
 
+    public AutomatorRunMode RunMode { get; private set; } = AutomatorRunMode.Full;
+
+    /// <summary>Starts Pots &amp; Treasure, or switches a running automator to it.</summary>
+    public void RequestPotsAndTreasure(bool enabled)
+    {
+        if (!enabled)
+        {
+            if (RunMode == AutomatorRunMode.PotsAndTreasure)
+            {
+                RequestEnabled(false);
+            }
+
+            return;
+        }
+
+        RunMode = AutomatorRunMode.PotsAndTreasure;
+        automator.Refresh();
+        if (!RequestedEnabled)
+        {
+            RequestEnabled(true);
+        }
+    }
+
     private long nextPotCycleUpdateAt;
 
     public readonly Random random = new();
@@ -87,8 +110,10 @@ public class AutomatorModule : Module
     {
         get
         {
+            // A hunt the automator itself runs is not independent navigation.
             var treasureRunning = TryGetModule<TreasureModule>(out var treasure)
-                                  && treasure?.IsHuntRunning == true;
+                                  && treasure?.IsHuntRunning == true
+                                  && !automator.ManagedHunt.IsManaging;
             var carrotsRunning = TryGetModule<CarrotsModule>(out var carrots)
                                  && carrots?.IsHuntRunning == true;
             var mobFarmerRunning = TryGetModule<MobFarmerModule>(out var mobFarmer)
@@ -378,7 +403,9 @@ public class AutomatorModule : Module
     {
         AggroAvoidanceNavigation.Stop();
         TryStopStep(instanceRotation.Reset, "reset instance rotation");
+        TryStopStep(() => automator.ManagedHunt.Stop(this), "stop the managed treasure hunt");
         TryStopStep(automator.Refresh, "refresh the automator");
+        RunMode = AutomatorRunMode.Full;
 
         if (TryGetModule<TreasureModule>(out var treasure) && treasure != null)
         {

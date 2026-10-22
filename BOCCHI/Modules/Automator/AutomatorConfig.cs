@@ -550,6 +550,30 @@ public class AutomatorConfig : ModuleConfig
         get => IsPropertyEnabled(nameof(LeaveEngagedFateForCriticalEncounter));
     }
 
+    // Treasure hunt between activities
+    [Checkbox]
+    public bool EnableAutomaticTreasureHunt { get; set; } = false;
+
+    public bool ShouldEnableAutomaticTreasureHunt
+    {
+        get => IsPropertyEnabled(nameof(EnableAutomaticTreasureHunt));
+    }
+
+    [Checkbox]
+    [DependsOn(nameof(EnableAutomaticTreasureHunt))]
+    [Indent]
+    public bool PauseAutoTreasureHuntForFates { get; set; } = false;
+
+    [Checkbox]
+    [DependsOn(nameof(EnableAutomaticTreasureHunt))]
+    [Indent]
+    public bool PauseAutoTreasureHuntForPots { get; set; } = true;
+
+    [Checkbox]
+    [DependsOn(nameof(EnableAutomaticTreasureHunt))]
+    [Indent]
+    public bool PauseAutoTreasureHuntForCriticalEncounters { get; set; } = false;
+
     // Magic pots
     [Checkbox]
     [DependsOn(nameof(DoFates))]

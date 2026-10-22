@@ -384,6 +384,22 @@
         "leave_engaged_fate_for_critical_encounter": {
           "label": "打 FATE 打到一半也去 CE",
           "tooltip": "已经在打的普通 FATE 也会按上面的时间改去 CE，魔法罐除外。离开时可能还在战斗中。"
+        },
+        "enable_automatic_treasure_hunt": {
+          "label": "活动间隙自动寻宝",
+          "tooltip": "自动模式空闲时，宝箱数量达到寻宝设置里的最低比例就自动开始寻宝；寻宝结束后要再打完一个活动才会重新开始。"
+        },
+        "pause_auto_treasure_hunt_for_fates": {
+          "label": "有 FATE 时暂停寻宝",
+          "tooltip": "寻宝途中出现可以去的 FATE 时暂停寻宝去打 FATE，打完再继续。"
+        },
+        "pause_auto_treasure_hunt_for_pots": {
+          "label": "魔法罐时暂停寻宝",
+          "tooltip": "魔法罐在场、快要出现或正在开罐后宝箱时暂停寻宝。"
+        },
+        "pause_auto_treasure_hunt_for_critical_encounters": {
+          "label": "有 CE 时暂停寻宝",
+          "tooltip": "寻宝途中出现可以报名的 CE 时暂停寻宝去打 CE（脱战后才会暂停）。"
         }
       },
       "panel": {
@@ -439,6 +455,18 @@
             "2072": "被欺负的魔法罐",
             "2073": "被吹飞的魔法罐"
           }
+        },
+        "pots_and_treasure": {
+          "start": "开始罐子与寻宝",
+          "stop": "停止罐子与寻宝",
+          "tooltip": "只打魔法罐（不打 CE 和其他 FATE），罐子之间的空档自动寻宝；罐子快出现时暂停寻宝去蹲点。",
+          "mode": "模式",
+          "label": "罐子与寻宝"
+        },
+        "managed_hunt": {
+          "label": "自动寻宝",
+          "running": "寻宝中",
+          "paused": "已暂停（{0}）"
         }
       },
       "run_state": {

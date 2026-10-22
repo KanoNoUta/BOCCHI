@@ -58,6 +58,14 @@ public class TreasureConfig : ModuleConfig
         get => IsPropertyEnabled(nameof(HuntSilverChestsOnly));
     }
 
+    [IntRange(0, 100)]
+    [DependsOn(nameof(Enabled), nameof(EnableTreasureHunt))]
+    public int HuntMinBronzePercent { get; set; } = 50;
+
+    [IntRange(0, 100)]
+    [DependsOn(nameof(Enabled), nameof(EnableTreasureHunt))]
+    public int HuntMinSilverPercent { get; set; } = 50;
+
     [Checkbox]
     [DependsOn(nameof(Enabled), nameof(EnableTreasureHunt))]
     public bool SkipUnsafeTreasureWindows { get; set; } = true;

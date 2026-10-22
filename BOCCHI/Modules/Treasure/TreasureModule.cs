@@ -252,6 +252,32 @@ public class TreasureModule(Plugin _plugin, Config config) : Module(_plugin, con
         return true;
     }
 
+    /// <summary>A hunt the automator runs between activities; it keeps the automator running.</summary>
+    public bool TryStartManagedHunt(out string error)
+    {
+        error = string.Empty;
+        if (!ZoneData.IsInOccultCrescent())
+        {
+            error = "not in Occult Crescent";
+            return false;
+        }
+
+        if (!TryGetIPCSubscriber<VNavmesh>(out var navigation) || navigation == null || !navigation.IsReady())
+        {
+            error = "vnavmesh not ready";
+            return false;
+        }
+
+        if (!TryGetIPCSubscriber<Lifestream>(out var lifestream) || lifestream == null || !lifestream.IsReady())
+        {
+            error = "Lifestream not ready";
+            return false;
+        }
+
+        hunter.Start();
+        return true;
+    }
+
     public override void Dispose()
     {
         StopHunt();

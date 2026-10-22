@@ -1,4 +1,4 @@
-using BOCCHI.Data;
+﻿using BOCCHI.Data;
 using BOCCHI.Pathfinding;
 using BOCCHI.Chains;
 using Dalamud.Bindings.ImGui;
@@ -406,12 +406,7 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
 
     protected override bool ShouldHoldBeforeNextStep()
     {
-        if (!module.Config.ShouldSkipUnsafeTreasureWindows || !ZoneData.IsInSouthHorn())
-        {
-            return false;
-        }
-
-        if (!TreasureHuntOptionsPolicy.IsSouthHornUnsafe(DateTimeOffset.UtcNow, GetCurrentWeatherId()))
+        if (!module.Config.ShouldSkipUnsafeTreasureWindows || !TreasureHuntOptionsPolicy.IsUnsafeNow())
         {
             return false;
         }
@@ -427,12 +422,6 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
     }
 
     private long lastUnsafeLogAt;
-
-    private static unsafe byte GetCurrentWeatherId()
-    {
-        var env = FFXIVClientStructs.FFXIV.Client.Graphics.Environment.EnvManager.Instance();
-        return env == null ? (byte)0 : env->ActiveWeather;
-    }
 
     protected override void OnStarted()
     {
@@ -884,39 +873,5 @@ public static class TreasureHuntDataPolicy
     public static bool ShouldReload(uint? loadedTerritory, uint currentTerritory, int cachedNodeCount)
     {
         return loadedTerritory != currentTerritory || cachedNodeCount <= 0;
-    }
-}
-
-public static class TreasureHuntOptionsPolicy
-{
-    public const uint SilverType = 1597;
-
-    // South Horn only, from upstream BOCCHI 4.2's zone data.
-    private static readonly byte[] SouthHornUnsafeWeather = [7, 62, 64, 192];
-
-    private const int AshkinStartEorzeaMinute = 1350;
-
-    private const int AshkinEndEorzeaMinute = 240;
-
-    public static bool ShouldRecastSight(int everyNLocations, int visitedSinceSight)
-    {
-        return everyNLocations > 0 && visitedSinceSight >= everyNLocations;
-    }
-
-    public static int GetEorzeaMinuteOfDay(DateTimeOffset utc)
-    {
-        var eorzeaSeconds = utc.ToUnixTimeSeconds() * 3600L / 175L;
-        return (int)(eorzeaSeconds % 86400L / 60L);
-    }
-
-    public static bool IsAshkinPeriod(int eorzeaMinuteOfDay)
-    {
-        return eorzeaMinuteOfDay >= AshkinStartEorzeaMinute || eorzeaMinuteOfDay < AshkinEndEorzeaMinute;
-    }
-
-    public static bool IsSouthHornUnsafe(DateTimeOffset utc, byte weatherId)
-    {
-        return IsAshkinPeriod(GetEorzeaMinuteOfDay(utc))
-               || (weatherId != 0 && Array.IndexOf(SouthHornUnsafeWeather, weatherId) >= 0);
     }
 }

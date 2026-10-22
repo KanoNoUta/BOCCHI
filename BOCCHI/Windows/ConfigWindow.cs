@@ -353,6 +353,12 @@ public class ConfigWindow(Plugin primaryPlugin, Config config) : OcelotConfigWin
         DrawInt(module, cfg, nameof(cfg.LeaveFateTravelForCeSeconds), 0, 180, !cfg.DoFates || !cfg.DoCriticalEncounters);
         DrawBoolean(module, cfg, nameof(cfg.LeaveEngagedFateForCriticalEncounter), !cfg.DoFates || !cfg.DoCriticalEncounters);
 
+        DrawSectionTitle(T("editors.automation.treasure_between_activities"));
+        DrawBoolean(module, cfg, nameof(cfg.EnableAutomaticTreasureHunt));
+        DrawBoolean(module, cfg, nameof(cfg.PauseAutoTreasureHuntForFates), !cfg.EnableAutomaticTreasureHunt);
+        DrawBoolean(module, cfg, nameof(cfg.PauseAutoTreasureHuntForPots), !cfg.EnableAutomaticTreasureHunt);
+        DrawBoolean(module, cfg, nameof(cfg.PauseAutoTreasureHuntForCriticalEncounters), !cfg.EnableAutomaticTreasureHunt);
+
         DrawSectionTitle(T("editors.automation.magic_pots"));
         ImGui.TextDisabled(T("editors.automation.magic_pots_help"));
         var potsDisabled = !cfg.DoFates;

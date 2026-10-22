@@ -40,7 +40,8 @@
           "instance_rotation": "副本轮换",
           "island_help": "这里只显示该岛的事件；通用战斗、寻路和副本轮换选项位于「通用设置」。",
           "magic_pots": "魔法罐",
-          "magic_pots_help": "罐子刷新计时、提前蹲点和罐后宝箱（移植自上游 BOCCHI 4.2），需要先开启 FATE。"
+          "magic_pots_help": "罐子刷新计时、提前蹲点和罐后宝箱（移植自上游 BOCCHI 4.2），需要先开启 FATE。",
+          "treasure_between_activities": "活动间隙寻宝"
         },
         "farming": {
           "title": "刷怪设置",

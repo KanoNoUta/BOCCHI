@@ -49,6 +49,14 @@
         "play_sound_on_hunt_complete": {
           "label": "寻宝结束时提示音",
           "tooltip": "路线走完或宝箱已经开完时播放提示音。"
+        },
+        "hunt_min_bronze_percent": {
+          "label": "自动寻宝的铜箱最低比例（%）",
+          "tooltip": "活动间隙自动寻宝时，铜箱数量（满 30 个）至少达到这个比例才开始；铜箱和银箱有一个达到即可。"
+        },
+        "hunt_min_silver_percent": {
+          "label": "自动寻宝的银箱最低比例（%）",
+          "tooltip": "活动间隙自动寻宝时，银箱数量（满 8 个）至少达到这个比例才开始；开启只找银箱时只看银箱。"
         }
       },
       "panel": {
