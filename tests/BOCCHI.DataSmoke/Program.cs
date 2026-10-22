@@ -3152,4 +3152,73 @@ Assert(BOCCHI.Services.ManualCastPathCancelPolicy.ShouldConsider(true, true, tru
        && !new AutomatorConfig().StopAfterReturn,
     "Only combat actions in Occult Crescent cancel pathing, and stop-after-return stays off by default.");
 
+// Mob farmer yields, ported from upstream BOCCHI 4.2.
+{
+    var farmerDefaults = new BOCCHI.Modules.MobFarmer.MobFarmerConfig();
+    Assert(!farmerDefaults.YieldToPots
+           && farmerDefaults.CastTreasureSightAtFarm
+           && farmerDefaults.TreasureSightIntervalMinutes == 0
+           && !farmerDefaults.YieldToTreasureHunt
+           && farmerDefaults.TreasureHuntIntervalMinutes == 15
+           && farmerDefaults.YieldToCrystalBuffs,
+        "Farmer yields must default to the old behaviour: Treasuresight after each fight and buff trips on, new yields off.");
+
+    var now = DateTimeOffset.FromUnixTimeSeconds(1_800_000_000);
+    Assert(BOCCHI.Modules.MobFarmer.MobFarmerYieldPolicy.IsTreasureSightDue(true, 0, now, now)
+           && !BOCCHI.Modules.MobFarmer.MobFarmerYieldPolicy.IsTreasureSightDue(false, 0, null, now)
+           && !BOCCHI.Modules.MobFarmer.MobFarmerYieldPolicy.IsTreasureSightDue(true, 15, now - TimeSpan.FromMinutes(14), now)
+           && BOCCHI.Modules.MobFarmer.MobFarmerYieldPolicy.IsTreasureSightDue(true, 15, now - TimeSpan.FromMinutes(15), now)
+           && BOCCHI.Modules.MobFarmer.MobFarmerYieldPolicy.IsTreasureSightDue(true, 15, null, now),
+        "Treasuresight at the farm must cast after every fight at interval 0 and otherwise on its interval.");
+    Assert(!BOCCHI.Modules.MobFarmer.MobFarmerYieldPolicy.ShouldCastTreasureSightWhileWaiting(true, 0, null, now)
+           && BOCCHI.Modules.MobFarmer.MobFarmerYieldPolicy.ShouldCastTreasureSightWhileWaiting(true, 15, null, now),
+        "Treasuresight while waiting must only run when an interval is set.");
+
+    Assert(BOCCHI.Modules.MobFarmer.MobFarmerYieldPolicy.IsLivePotStartable(1, 10)
+           && !BOCCHI.Modules.MobFarmer.MobFarmerYieldPolicy.IsLivePotStartable(300, 10)
+           && BOCCHI.Modules.MobFarmer.MobFarmerYieldPolicy.IsLivePotStartable(900, 10)
+           && BOCCHI.Modules.MobFarmer.MobFarmerYieldPolicy.IsLivePotStartable(300, 0),
+        "A live pot must be taken unless it has fewer than the automator's minimum minutes left.");
+    PotCycleSnapshot PotCycleSpawningIn(TimeSpan delay) => new()
+    {
+        TerritoryId = ZoneData.SOUTHHORN,
+        HasKnownAnchor = true,
+        AnchorPotFateId = 1,
+        AnchorSpawnAt = now + delay - PotCycleTracker.PotCycleInterval,
+        PredictedNextPotFateId = 2,
+        PredictedNextSpawnAt = now + delay,
+    };
+    Assert(BOCCHI.Modules.MobFarmer.MobFarmerYieldPolicy.ShouldYieldToPots(true, false, PotCycleSpawningIn(TimeSpan.FromMinutes(2)), now, 3)
+           && !BOCCHI.Modules.MobFarmer.MobFarmerYieldPolicy.ShouldYieldToPots(true, false, PotCycleSpawningIn(TimeSpan.FromMinutes(10)), now, 3)
+           && BOCCHI.Modules.MobFarmer.MobFarmerYieldPolicy.ShouldYieldToPots(true, true, PotCycleSnapshot.Empty, now, 3)
+           && !BOCCHI.Modules.MobFarmer.MobFarmerYieldPolicy.ShouldYieldToPots(false, true, PotCycleSpawningIn(TimeSpan.Zero), now, 3),
+        "The farmer must yield to a startable live pot or one inside the automator's lead time, and only when enabled.");
+    Assert(!BOCCHI.Modules.MobFarmer.MobFarmerYieldPolicy.ShouldReleasePotYield(false, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10), false)
+           && !BOCCHI.Modules.MobFarmer.MobFarmerYieldPolicy.ShouldReleasePotYield(true, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(4), false)
+           && BOCCHI.Modules.MobFarmer.MobFarmerYieldPolicy.ShouldReleasePotYield(true, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(5), false)
+           && BOCCHI.Modules.MobFarmer.MobFarmerYieldPolicy.ShouldReleasePotYield(false, TimeSpan.FromSeconds(61), TimeSpan.FromSeconds(5), false)
+           && BOCCHI.Modules.MobFarmer.MobFarmerYieldPolicy.ShouldReleasePotYield(false, TimeSpan.Zero, TimeSpan.Zero, true),
+        "The pot yield must end once the automator has settled after the pot, or when it starts a treasure hunt.");
+    Assert(BOCCHI.Modules.MobFarmer.MobFarmerYieldPolicy.IsTreasureHuntDue(true, now, now, true, true, 3)
+           && !BOCCHI.Modules.MobFarmer.MobFarmerYieldPolicy.IsTreasureHuntDue(true, now, now + TimeSpan.FromSeconds(1), true, true, 3)
+           && !BOCCHI.Modules.MobFarmer.MobFarmerYieldPolicy.IsTreasureHuntDue(true, now, now, false, true, 3)
+           && !BOCCHI.Modules.MobFarmer.MobFarmerYieldPolicy.IsTreasureHuntDue(true, now, now, true, false, 3)
+           && !BOCCHI.Modules.MobFarmer.MobFarmerYieldPolicy.IsTreasureHuntDue(true, now, now, true, true, 0)
+           && !BOCCHI.Modules.MobFarmer.MobFarmerYieldPolicy.IsTreasureHuntDue(false, now, now, true, true, 3),
+        "A timed hunt must wait for its interval, a coffer count, the fill gate and coffers left.");
+    Assert(BOCCHI.Modules.MobFarmer.MobFarmerYieldPolicy.ShouldYieldToCrystalBuffs(true, true, true, now, now)
+           && !BOCCHI.Modules.MobFarmer.MobFarmerYieldPolicy.ShouldYieldToCrystalBuffs(true, false, true, now, now)
+           && !BOCCHI.Modules.MobFarmer.MobFarmerYieldPolicy.ShouldYieldToCrystalBuffs(true, true, true, now, now + TimeSpan.FromMinutes(1))
+           && !BOCCHI.Modules.MobFarmer.MobFarmerYieldPolicy.ShouldYieldToCrystalBuffs(false, true, true, now, now),
+        "A crystal buff trip needs the option, the buff module, a low buff and its cooldown over.");
+
+    var approach = new BOCCHI.Modules.MobFarmer.FarmerApproachTracker();
+    Assert(!approach.RecordAttempt(100f)
+           && !approach.RecordAttempt(50f)
+           && !approach.RecordAttempt(49f)
+           && !approach.RecordAttempt(49f)
+           && approach.RecordAttempt(48.5f),
+        "Walking back to the farm spot must give up after three attempts without progress.");
+}
+
 Console.WriteLine("BOCCHI 7.55 North Horn data, lifecycle, config, translation, routing, precompute, and vnavmesh availability smoke tests passed.");

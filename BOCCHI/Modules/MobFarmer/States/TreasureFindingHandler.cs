@@ -2,6 +2,7 @@
 using Dalamud.Game.ClientState.Conditions;
 using ECommons.DalamudServices;
 using Ocelot.States;
+using System;
 
 namespace BOCCHI.Modules.MobFarmer.States;
 
@@ -15,7 +16,17 @@ public class TreasureFindingHandler(MobFarmerModule module) : FarmerPhaseHandler
             return FarmerPhase.Fighting;
         }
 
-        Plugin.Chain.Submit(new TreasureFindingChain(Module));
+        var config = Module.Config;
+        var now = DateTimeOffset.UtcNow;
+        if (MobFarmerYieldPolicy.IsTreasureSightDue(
+                config.CastTreasureSightAtFarm,
+                config.TreasureSightIntervalMinutes,
+                Module.Farmer.LastTreasureSightAt,
+                now))
+        {
+            Module.Farmer.LastTreasureSightAt = now;
+            Plugin.Chain.Submit(new TreasureFindingChain(Module));
+        }
 
         return FarmerPhase.Waiting;
     }

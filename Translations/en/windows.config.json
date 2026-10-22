@@ -57,7 +57,8 @@
           "basic": "Basic",
           "loop_return": "Loop and return",
           "battle_bell": "Battle bell",
-          "debug_display": "Debug display"
+          "debug_display": "Debug display",
+          "yields": "Yields and treasure"
         }
       },
       "actions": {

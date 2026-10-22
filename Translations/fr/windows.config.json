@@ -57,7 +57,8 @@
           "basic": "Base",
           "loop_return": "Boucle et retour",
           "battle_bell": "Cloche de combat",
-          "debug_display": "Affichage de débogage"
+          "debug_display": "Affichage de débogage",
+          "yields": "Yields and treasure"
         }
       },
       "actions": {

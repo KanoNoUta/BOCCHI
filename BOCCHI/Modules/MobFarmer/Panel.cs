@@ -47,7 +47,24 @@ public class Panel
 
     private static string GetStateLabel(MobFarmerModule module)
     {
-        return module.Farmer.StateMachine.State switch
+        var farmer = module.Farmer;
+        if (farmer.Suspended)
+        {
+            return farmer.YieldReason switch
+            {
+                FarmerYieldReason.Pots => module.T("panel.states.yield_pots"),
+                FarmerYieldReason.TreasureHunt => module.T("panel.states.yield_treasure_hunt"),
+                FarmerYieldReason.CrystalBuffs => module.T("panel.states.yield_crystal_buffs"),
+                _ => module.T("panel.states.waiting"),
+            };
+        }
+
+        if (farmer.NeedsApproach)
+        {
+            return module.T("panel.states.approaching");
+        }
+
+        return farmer.StateMachine.State switch
         {
             FarmerPhase.Waiting => module.T("panel.states.waiting"),
             FarmerPhase.Buffing => module.T("panel.states.buffing"),

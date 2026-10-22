@@ -742,6 +742,14 @@ public class ConfigWindow(Plugin primaryPlugin, Config config) : OcelotConfigWin
         DrawBoolean(module, cfg, nameof(cfg.ApplyBattleBell));
         DrawFloat(module, cfg, nameof(cfg.MaximumBattleBellWaitTime), 0f, 30f, T("units.seconds_1"), !cfg.ApplyBattleBell);
 
+        DrawSectionTitle(T("editors.farming.yields"));
+        DrawBoolean(module, cfg, nameof(cfg.YieldToPots));
+        DrawBoolean(module, cfg, nameof(cfg.YieldToTreasureHunt));
+        DrawInt(module, cfg, nameof(cfg.TreasureHuntIntervalMinutes), 5, 60, !cfg.YieldToTreasureHunt);
+        DrawBoolean(module, cfg, nameof(cfg.YieldToCrystalBuffs));
+        DrawBoolean(module, cfg, nameof(cfg.CastTreasureSightAtFarm));
+        DrawInt(module, cfg, nameof(cfg.TreasureSightIntervalMinutes), 0, 60, !cfg.CastTreasureSightAtFarm);
+
         DrawSectionTitle(T("editors.farming.debug_display"));
         DrawBoolean(module, cfg, nameof(cfg.RenderDebugLines));
         DrawBoolean(module, cfg, nameof(cfg.RenderDebugLinesWhileNotRunning), !cfg.RenderDebugLines);

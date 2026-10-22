@@ -54,6 +54,30 @@
         "extra_time_to_wait": {
           "label": "开始拉怪前额外等待秒数",
           "tooltip": "每次循环开始拉怪前，额外等待的秒数\n用于等待怪物的刷新"
+        },
+        "yield_to_pots": {
+          "label": "让位给魔法罐",
+          "tooltip": "魔法罐已出现或即将出现时暂停刷怪，交给自动模式的「魔法罐与宝箱」处理（提前时间沿用自动模式的魔法罐设置）\n魔法罐结束后自动停止自动模式并走回刷怪点继续\n自动模式已在运行时不会接管"
+        },
+        "yield_to_treasure_hunt": {
+          "label": "定时寻宝",
+          "tooltip": "按下方间隔暂停刷怪并运行一次宝箱猎人，结束后走回刷怪点继续\n仅在剩余铜/银宝箱达到宝箱猎人设置的最低比例时启动，需要先有寻宝术的计数"
+        },
+        "treasure_hunt_interval_minutes": {
+          "label": "寻宝间隔（分钟）",
+          "tooltip": "两次定时寻宝之间的分钟数，第一次在开始刷怪后经过此时间"
+        },
+        "yield_to_crystal_buffs": {
+          "label": "水晶增益不足时回去补充",
+          "tooltip": "增益模块启用且水晶增益低于重新施放阈值时，战斗结束后返回营地补充增益，再传送并走回刷怪点\n每次补充后 5 分钟内不再重复"
+        },
+        "cast_treasure_sight_at_farm": {
+          "label": "在刷怪点施放寻宝术",
+          "tooltip": "切换为自由人施放寻宝术以刷新宝箱计数，然后切回原职业\n需要自由人等级 10 以上"
+        },
+        "treasure_sight_interval_minutes": {
+          "label": "寻宝术间隔（分钟）",
+          "tooltip": "0 = 每次战斗结束后都施放（原有行为）\n大于 0 时按此间隔施放，等待怪物时也会施放"
         }
       },
       "panel": {
@@ -68,7 +92,11 @@
           "gathering": "正在拉怪",
           "stacking": "正在聚怪",
           "fighting": "战斗中",
-          "treasure_finding": "正在寻找宝箱"
+          "treasure_finding": "正在寻找宝箱",
+          "yield_pots": "让位给魔法罐",
+          "yield_treasure_hunt": "定时寻宝中",
+          "yield_crystal_buffs": "返回补充水晶增益",
+          "approaching": "正在返回刷怪点"
         }
       }
     }

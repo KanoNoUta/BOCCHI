@@ -2,6 +2,7 @@
 using ECommons.DalamudServices;
 using ECommons.GameHelpers;
 using Ocelot.States;
+using System;
 using System.Linq;
 
 namespace BOCCHI.Modules.MobFarmer.States;
@@ -11,6 +12,20 @@ public class WaitingHandler(MobFarmerModule module) : FarmerPhaseHandler(module)
 {
     public override FarmerPhase? Handle()
     {
+        if (Module.Farmer.NeedsApproach)
+        {
+            if (Svc.Condition[ConditionFlag.InCombat] && Module.Scanner.InCombat.Any())
+            {
+                Module.Farmer.PauseApproach();
+                return FarmerPhase.Fighting;
+            }
+
+            if (Module.Farmer.TickApproach())
+            {
+                return null;
+            }
+        }
+
         var startingPoint = Module.Farmer.StartingPoint;
         if (Player.DistanceTo(startingPoint) > 2f)
         {
@@ -20,6 +35,23 @@ public class WaitingHandler(MobFarmerModule module) : FarmerPhaseHandler(module)
         if (Svc.Condition[ConditionFlag.InCombat])
         {
             return FarmerPhase.Fighting;
+        }
+
+        // Let Treasuresight or a buff trip finish, and give the yields a
+        // chance to run before the next pull.
+        if (Plugin.Chain.IsRunning || Plugin.Chain.QueueCount > 0)
+        {
+            return null;
+        }
+
+        var config = Module.Config;
+        if (MobFarmerYieldPolicy.ShouldCastTreasureSightWhileWaiting(
+                config.CastTreasureSightAtFarm,
+                config.TreasureSightIntervalMinutes,
+                Module.Farmer.LastTreasureSightAt,
+                DateTimeOffset.UtcNow))
+        {
+            return FarmerPhase.TreasureFinding;
         }
 
         var mobs = Module.Scanner.Mobs;

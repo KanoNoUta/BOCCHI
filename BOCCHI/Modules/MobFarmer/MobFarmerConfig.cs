@@ -62,6 +62,28 @@ public class MobFarmerConfig : ModuleConfig
 
     [IntRange(0, 20)] public int ExtraTimeToWait { get; set; } = 0;
 
+    // Yields: the farmer pauses itself and hands the player to another mode,
+    // then walks back to its spot. Ported from upstream BOCCHI 4.2.
+    [Checkbox] public bool YieldToPots { get; set; } = false;
+
+    // On by default: the farmer has always cast Treasuresight after each fight.
+    [Checkbox] public bool CastTreasureSightAtFarm { get; set; } = true;
+
+    // 0 keeps the old behaviour of casting after every fight.
+    [IntRange(0, 60)]
+    [DependsOn(nameof(CastTreasureSightAtFarm))]
+    public int TreasureSightIntervalMinutes { get; set; } = 0;
+
+    [Checkbox] public bool YieldToTreasureHunt { get; set; } = false;
+
+    [IntRange(5, 60)]
+    [DependsOn(nameof(YieldToTreasureHunt))]
+    public int TreasureHuntIntervalMinutes { get; set; } = 15;
+
+    // On by default: the farmer has always gone back for crystal buffs when
+    // the buff module is enabled and a buff runs low.
+    [Checkbox] public bool YieldToCrystalBuffs { get; set; } = true;
+
     public IReadOnlyList<Mob> GetMobsForTerritory(uint territoryId)
     {
         return territoryId switch

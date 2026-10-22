@@ -144,8 +144,9 @@ public class AutomatorModule : Module
                                   && !automator.ManagedHunt.IsManaging;
             var carrotsRunning = TryGetModule<CarrotsModule>(out var carrots)
                                  && carrots?.IsHuntRunning == true;
+            // While the farmer yields to a magic pot it has handed navigation to us.
             var mobFarmerRunning = TryGetModule<MobFarmerModule>(out var mobFarmer)
-                                   && mobFarmer?.Farmer.Running == true;
+                                   && mobFarmer?.Farmer.OwnsNavigation == true;
             return treasureRunning || carrotsRunning || mobFarmerRunning;
         }
     }
@@ -464,7 +465,11 @@ public class AutomatorModule : Module
         {
             TryStopStep(carrots.StopHunt, "stop carrot hunting");
         }
-        if (TryGetModule<MobFarmerModule>(out var mobFarmer) && mobFarmer != null)
+        // The farmer stops a Pots & Treasure run it started once the pot is
+        // done; that stop must leave the farmer running.
+        if (TryGetModule<MobFarmerModule>(out var mobFarmer)
+            && mobFarmer != null
+            && !mobFarmer.Farmer.KeepRunningWhenAutomatorStops)
         {
             TryStopStep(mobFarmer.Farmer.DisableFarmerMode, "stop mob farming");
         }

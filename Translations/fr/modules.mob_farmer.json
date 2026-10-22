@@ -50,6 +50,30 @@
         "mobs": {
           "label": null,
           "tooltip": null
+        },
+        "yield_to_pots": {
+          "label": "Stop for Magic Pots",
+          "tooltip": "Pause farming while a Magic Pot is live or about to spawn and hand over to the automator's Pots & Treasure mode (lead time follows the automator's pot settings).\nWhen the pot is done the automator is stopped and the farmer walks back to its spot.\nDoes nothing while the automator is already running."
+        },
+        "yield_to_treasure_hunt": {
+          "label": "Treasure Hunt on a timer",
+          "tooltip": "On the interval below, pause farming and run one Treasure Hunt, then walk back to the spot.\nOnly starts when remaining bronze/silver meets the minimum % on Treasure Hunter; needs a Treasure Sight reading."
+        },
+        "treasure_hunt_interval_minutes": {
+          "label": "Treasure Hunt interval (minutes)",
+          "tooltip": "Minutes between timed hunts. The first one is due this long after you press Start."
+        },
+        "yield_to_crystal_buffs": {
+          "label": "Refresh crystal buffs when low",
+          "tooltip": "With the Buffs module enabled, return to base camp after a fight when a crystal buff is below its reapply time, then teleport and walk back to the spot.\nWaits 5 minutes before another buff trip."
+        },
+        "cast_treasure_sight_at_farm": {
+          "label": "Cast Treasure Sight at the farm spot",
+          "tooltip": "Switch to Freelancer, cast Treasure Sight to refresh the coffer counts, then switch back.\nNeeds Freelancer 10+."
+        },
+        "treasure_sight_interval_minutes": {
+          "label": "Treasure Sight interval (minutes)",
+          "tooltip": "0 = after every fight (the previous behaviour).\nAbove 0: cast on this interval, also while waiting for enemies."
         }
       },
       "panel": {
@@ -64,7 +88,11 @@
           "gathering": "Regroupement des monstres",
           "stacking": "Accumulation des monstres",
           "fighting": "Combat",
-          "treasure_finding": "Recherche de coffres"
+          "treasure_finding": "Recherche de coffres",
+          "yield_pots": "Paused for a Magic Pot",
+          "yield_treasure_hunt": "Timed Treasure Hunt",
+          "yield_crystal_buffs": "Refreshing crystal buffs",
+          "approaching": "Returning to the farm spot"
         }
       }
     }

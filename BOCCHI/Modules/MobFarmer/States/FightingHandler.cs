@@ -1,8 +1,5 @@
 ﻿using BOCCHI.Chains;
-using BOCCHI.Enums;
 using BOCCHI.Modules.Automator;
-using BOCCHI.Modules.Buff;
-using BOCCHI.Modules.MobFarmer.Chains;
 using Dalamud.Game.ClientState.Conditions;
 using ECommons.Automation;
 using ECommons.DalamudServices;
@@ -68,22 +65,10 @@ public class FightingHandler(MobFarmerModule module) : FarmerPhaseHandler(module
             Svc.Targets.Target = Module.Scanner.InCombat.Centroid();
         }
 
-        var buffs = Module.GetModule<BuffModule>();
-        var shouldRefreshBuffs = buffs?.IsEnabled == true && buffs.ShouldRefreshBuffs();
-
+        // Low crystal buffs are handled by the crystal buff yield once the
+        // fight is over (see FarmerYields).
         var startingPoint = Module.Farmer.StartingPoint;
         var shouldReturnHome = Module.Config.ReturnToStartInWaitingPhase && Player.DistanceTo(startingPoint) >= Module.Config.MinEuclideanDistanceToReturnHome;
-
-        if (shouldRefreshBuffs && !anyInCombat && !Plugin.Chain.IsRunning && EzThrottler.Throttle("Fighting.BuffChain", 1000))
-        {
-            StopPromeRotationForTravel();
-            var vnav = Module.GetIPCSubscriber<VNavmesh>();
-            var lifestream = Module.GetIPCSubscriber<Lifestream>();
-            var activityShard = AethernetData.AllByDistance(startingPoint).First();
-
-            Plugin.Chain.Submit(new ReturnTeleportWalkChain(vnav, lifestream, startingPoint, activityShard));
-            return Player.DistanceTo(startingPoint) <= 2f ? FarmerPhase.Waiting : null;
-        }
 
         if (shouldReturnHome && !anyInCombat && !Plugin.Chain.IsRunning && EzThrottler.Throttle("Fighting.ReturnHome", 500))
         {
