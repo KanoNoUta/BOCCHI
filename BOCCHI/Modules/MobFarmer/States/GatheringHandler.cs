@@ -9,6 +9,7 @@ using Ocelot.Chain;
 using Ocelot.Chain.ChainEx;
 using Ocelot.IPC;
 using Ocelot.States;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -24,9 +25,12 @@ public class GatheringHandler(MobFarmerModule module) : FarmerPhaseHandler(modul
         get => ChainManager.Get("MobFarmer+Farmer");
     }
 
+    private DateTimeOffset enteredAt;
+
     public override void Enter()
     {
         base.Enter();
+        enteredAt = DateTimeOffset.UtcNow;
         var auto = Module.GetModule<AutomatorModule>();
         auto.Config.AiProvider.Off();
         PromeRotationController.Stop();
@@ -50,7 +54,13 @@ public class GatheringHandler(MobFarmerModule module) : FarmerPhaseHandler(modul
             ChainQueue.Submit(() => Chain.Create().Then(_ => Actions.TryUnmount()));
         }
 
-        if (InCombat.Count() >= Module.Farmer.Spots.EffectiveMinimumMobsToStartFight(Module.Config) || !NotInCombat.Any())
+        var config = Module.Config;
+        var pulled = MobFarmerPullPolicy.CountTowardMinimum(
+            InCombat.Select(o => o.NameId),
+            config.CountSpecialMobsTowardMinimum);
+        var timedOut = InCombat.Any()
+                       && MobFarmerPullPolicy.IsStackingTimedOut(config.StackingTimeoutSeconds, DateTimeOffset.UtcNow - enteredAt);
+        if (pulled >= Module.Farmer.Spots.EffectiveMinimumMobsToStartFight(config) || timedOut || !NotInCombat.Any())
         {
             vnav.Stop();
             ChainQueue.Abort();
@@ -63,7 +73,13 @@ public class GatheringHandler(MobFarmerModule module) : FarmerPhaseHandler(modul
             ChainQueue.Abort();
         }
 
-        Svc.Targets.Target = NotInCombat.First();
+        var next = NotInCombat.First();
+        Svc.Targets.Target = next;
+        if (FarmerPullAssist.IsEnabled(config)
+            && FarmSpotPolicy.Distance2D(Player.Position, next.Position) <= MobFarmerPullPolicy.PullRange)
+        {
+            FarmerPullAssist.TryPull(next, config);
+        }
 
         if (ChainQueue.IsRunning || Svc.Targets.Target == null)
         {

@@ -52,13 +52,43 @@ public class MobFarmerConfig : ModuleConfig
 
     [Checkbox] public bool ApplyBattleBell { get; set; } = false;
 
+    // Unset follows Battle Bell: the old Battle Bell option cast Ringing
+    // Respite with it, and existing configs keep doing so.
+    public bool? ApplyRingingRespite { get; set; }
+
+    public bool ShouldApplyRingingRespite
+    {
+        get => ApplyRingingRespite ?? ApplyBattleBell;
+    }
+
+    [Checkbox] public bool ApplyQuickstep { get; set; } = false;
+
+    [IntRange(0, 30)]
+    [DependsOn(nameof(ApplyQuickstep))]
+    public int QuickstepSkipIfRemainingMinutes { get; set; } = 0;
+
+    [Checkbox] public bool ApplyCounterstance { get; set; } = false;
+
+    // Also bounds the wait for Ringing Respite, Quickstep and Counterstance.
     [FloatRange(0f, 30f)]
-    [DependsOn(nameof(ApplyBattleBell))]
     public float MaximumBattleBellWaitTime { get; set; } = 10f;
 
     [IntRange(0, 20)] public int MinimumMobsToStartLoop { get; set; } = 0;
 
     [IntRange(1, 20)] public int MinimumMobsToStartFight { get; set; } = 5;
+
+    // On by default: special enemies have always counted toward the minimums.
+    [Checkbox] public bool CountSpecialMobsTowardMinimum { get; set; } = true;
+
+    // 0 keeps the old behaviour of gathering and stacking without a time limit.
+    [FloatRange(0f, 60f)] public float StackingTimeoutSeconds { get; set; } = 0f;
+
+    // Tank pulls. Off by default: the farmer has always walked into the pack.
+    [Checkbox] public bool UseRangedPull { get; set; } = false;
+
+    [Checkbox] public bool UseProvoke { get; set; } = false;
+
+    [Checkbox] public bool UseGapCloser { get; set; } = false;
 
     [IntRange(0, 20)] public int ExtraTimeToWait { get; set; } = 0;
 

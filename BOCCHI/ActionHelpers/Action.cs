@@ -41,6 +41,12 @@ public unsafe class Action(ActionType type, uint id)
         ActionManager.Instance()->UseAction(type, id, arg);
     }
 
+    public bool TryCastOn(ulong targetId)
+    {
+        var manager = ActionManager.Instance();
+        return manager != null && manager->UseAction(type, id, targetId);
+    }
+
     // Callers abandon a cast chain after at most 15 seconds; a recast that
     // never clears must end the chain instead of leaving it polling forever.
     private const int CanCastTimeoutMs = 15_000;

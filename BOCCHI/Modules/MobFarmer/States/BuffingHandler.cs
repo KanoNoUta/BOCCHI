@@ -49,7 +49,7 @@ public class BuffingHandler(MobFarmerModule module) : FarmerPhaseHandler(module)
             return null;
         }
 
-        if (Plugin.Chain.IsRunning)
+        if (Plugin.Chain.IsRunning || Plugin.Chain.QueueCount > 0)
         {
             return null;
         }
@@ -61,7 +61,7 @@ public class BuffingHandler(MobFarmerModule module) : FarmerPhaseHandler(module)
             return null;
         }
 
-        if (!Module.Config.ApplyBattleBell)
+        if (!PullBuffChain.AnyEnabled(Module.Config))
         {
             HasWait = false;
             return FarmerPhase.Gathering;
@@ -79,7 +79,7 @@ public class BuffingHandler(MobFarmerModule module) : FarmerPhaseHandler(module)
             return FarmerPhase.Gathering;
         }
 
-        Plugin.Chain.Submit(new BattleBellChain(Module));
+        Plugin.Chain.Submit(new PullBuffChain(Module));
         HasRunBuff = true;
 
         return null;

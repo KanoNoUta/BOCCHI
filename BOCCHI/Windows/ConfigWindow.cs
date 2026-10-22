@@ -3,6 +3,7 @@ using BOCCHI.Data;
 using BOCCHI.Modules;
 using BOCCHI.Modules.Automator;
 using BOCCHI.Modules.MobFarmer;
+using BOCCHI.Modules.MobFarmer.Chains;
 using BOCCHI.Ui;
 using BOCCHI.Ui.Lumin;
 using Dalamud.Bindings.ImGui;
@@ -753,13 +754,24 @@ public class ConfigWindow(Plugin primaryPlugin, Config config) : OcelotConfigWin
         DrawSectionTitle(T("editors.farming.loop_return"));
         DrawInt(module, cfg, nameof(cfg.MinimumMobsToStartLoop), 0, 20);
         DrawInt(module, cfg, nameof(cfg.MinimumMobsToStartFight), 1, 20);
+        DrawBoolean(module, cfg, nameof(cfg.CountSpecialMobsTowardMinimum));
         DrawInt(module, cfg, nameof(cfg.ExtraTimeToWait), 0, 20);
+        DrawFloat(module, cfg, nameof(cfg.StackingTimeoutSeconds), 0f, 60f, T("units.seconds_1"));
         DrawBoolean(module, cfg, nameof(cfg.ReturnToStartInWaitingPhase));
         DrawFloat(module, cfg, nameof(cfg.MinEuclideanDistanceToReturnHome), 10f, 1000f, "%.0f", !cfg.ReturnToStartInWaitingPhase);
 
-        DrawSectionTitle(T("editors.farming.battle_bell"));
+        DrawSectionTitle(T("editors.farming.pulls"));
+        DrawBoolean(module, cfg, nameof(cfg.UseRangedPull));
+        DrawBoolean(module, cfg, nameof(cfg.UseProvoke));
+        DrawBoolean(module, cfg, nameof(cfg.UseGapCloser));
+
+        DrawSectionTitle(T("editors.farming.pull_buffs"));
         DrawBoolean(module, cfg, nameof(cfg.ApplyBattleBell));
-        DrawFloat(module, cfg, nameof(cfg.MaximumBattleBellWaitTime), 0f, 30f, T("units.seconds_1"), !cfg.ApplyBattleBell);
+        DrawRingingRespite(module);
+        DrawBoolean(module, cfg, nameof(cfg.ApplyQuickstep));
+        DrawInt(module, cfg, nameof(cfg.QuickstepSkipIfRemainingMinutes), 0, 30, !cfg.ApplyQuickstep);
+        DrawBoolean(module, cfg, nameof(cfg.ApplyCounterstance));
+        DrawFloat(module, cfg, nameof(cfg.MaximumBattleBellWaitTime), 0f, 30f, T("units.seconds_1"), !PullBuffChain.AnyEnabled(cfg));
 
         DrawSectionTitle(T("editors.farming.yields"));
         DrawBoolean(module, cfg, nameof(cfg.YieldToPots));
@@ -772,6 +784,23 @@ public class ConfigWindow(Plugin primaryPlugin, Config config) : OcelotConfigWin
         DrawSectionTitle(T("editors.farming.debug_display"));
         DrawBoolean(module, cfg, nameof(cfg.RenderDebugLines));
         DrawBoolean(module, cfg, nameof(cfg.RenderDebugLinesWhileNotRunning), !cfg.RenderDebugLines);
+    }
+
+    /// <summary>Unset follows Battle Bell, so it is not a plain boolean property.</summary>
+    private void DrawRingingRespite(MobFarmerModule module)
+    {
+        var cfg = module.Config;
+        var value = cfg.ShouldApplyRingingRespite;
+        ImGui.PushID($"{cfg.GetType().Name}-{nameof(cfg.ApplyRingingRespite)}");
+        if (LuminWidgets.Checkbox(
+                ConfigLabel(module, nameof(cfg.ApplyRingingRespite)),
+                module.T($"config.{ToSnakeCase(nameof(cfg.ApplyRingingRespite))}.tooltip"),
+                ref value))
+        {
+            cfg.ApplyRingingRespite = value;
+            primaryPlugin.Config.Save();
+        }
+        ImGui.PopID();
     }
 
     private void DrawBoolean(BocchiModule module, object target, string propertyName, bool disabled = false)

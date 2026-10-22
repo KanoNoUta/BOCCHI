@@ -54,8 +54,10 @@ public class WaitingHandler(MobFarmerModule module) : FarmerPhaseHandler(module)
             return FarmerPhase.TreasureFinding;
         }
 
-        var mobs = Module.Scanner.Mobs;
+        var mobs = MobFarmerPullPolicy.CountTowardMinimum(
+            Module.Scanner.Mobs.Select(o => o.NameId),
+            config.CountSpecialMobsTowardMinimum);
 
-        return mobs.Count() >= Module.Config.MinimumMobsToStartLoop ? FarmerPhase.Buffing : null;
+        return mobs >= config.MinimumMobsToStartLoop ? FarmerPhase.Buffing : null;
     }
 }

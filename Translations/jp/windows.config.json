@@ -56,11 +56,12 @@
           "selection_summary": "選択 {0} / {1}、表示 {2}",
           "basic": "基本",
           "loop_return": "周回と帰還",
-          "battle_bell": "戦いの鐘",
           "debug_display": "デバッグ表示",
           "yields": "Yields and treasure",
           "spots_tab": "Farm spots ({0})",
-          "claimed_spots": "Claimed spots"
+          "claimed_spots": "Claimed spots",
+          "pull_buffs": "Pull buffs",
+          "pulls": "Pulling"
         }
       },
       "actions": {

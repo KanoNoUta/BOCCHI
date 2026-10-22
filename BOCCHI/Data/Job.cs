@@ -64,6 +64,16 @@ public class Job
         this.status = status;
     }
 
+    /// <summary>The support job's level, or 0 outside the Occult Crescent.</summary>
+    public unsafe byte Level
+    {
+        get
+        {
+            var state = PublicContentOccultCrescent.GetState();
+            return state == null ? (byte)0 : state->SupportJobLevels[ByteId];
+        }
+    }
+
     public void ChangeTo()
     {
         PublicContentOccultCrescent.ChangeSupportJob(ByteId);

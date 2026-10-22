@@ -56,11 +56,12 @@
           "selection_summary": "Sélectionnés {0} / {1}, affichés {2}",
           "basic": "Base",
           "loop_return": "Boucle et retour",
-          "battle_bell": "Cloche de combat",
           "debug_display": "Affichage de débogage",
           "yields": "Yields and treasure",
           "spots_tab": "Farm spots ({0})",
-          "claimed_spots": "Claimed spots"
+          "claimed_spots": "Claimed spots",
+          "pull_buffs": "Pull buffs",
+          "pulls": "Pulling"
         }
       },
       "actions": {

@@ -82,6 +82,42 @@
         "claimed_player_radius": {
           "label": "Claimed player radius",
           "tooltip": "Treat the spot as claimed while another player is this close (yalms) to the farm or stack point."
+        },
+        "count_special_mobs_toward_minimum": {
+          "label": "Count special enemies toward minimums",
+          "tooltip": "On: special enemies count toward the start and fight minimums (the previous behaviour).\nOff: special enemies are still pulled but do not count."
+        },
+        "stacking_timeout_seconds": {
+          "label": "Gather / stack timeout",
+          "tooltip": "After gathering this long with enemies on you, start stacking; after walking to the stack point this long, start fighting.\n0 = no limit (the previous behaviour)."
+        },
+        "use_ranged_pull": {
+          "label": "Ranged pull (tanks)",
+          "tooltip": "While gathering, tanks hit the enemy they are walking to with Shield Lob / Tomahawk / Unmend / Lightning Shot instead of walking into melee."
+        },
+        "use_provoke": {
+          "label": "Use Provoke while pulling",
+          "tooltip": "While gathering, tanks Provoke the enemy they are walking to."
+        },
+        "use_gap_closer": {
+          "label": "Use a gap closer while pulling",
+          "tooltip": "While gathering, tanks use Intervene / Onslaught / Shadowstride / Trajectory on the enemy they are walking to (Paladin, Warrior, Dark Knight, Gunbreaker only)."
+        },
+        "apply_ringing_respite": {
+          "label": "Use Ringing Respite",
+          "tooltip": "Before each pull, switch to Geomancer and cast Ringing Respite (needs Geomancer 3).\nUntil set, follows Use Battle Bell, as before."
+        },
+        "apply_quickstep": {
+          "label": "Use Quickstep",
+          "tooltip": "Before each pull, switch to Dancer and cast Quickstep (needs Dancer 2)."
+        },
+        "quickstep_skip_if_remaining_minutes": {
+          "label": "Skip Quickstep if remaining (minutes)",
+          "tooltip": "Skip Quickstep while the crystal Quicker Step still has at least this many minutes left.\n0 = cast every pull."
+        },
+        "apply_counterstance": {
+          "label": "Use Counterstance",
+          "tooltip": "Last before each pull, switch to Monk and cast Counterstance for Fleetfooted (needs Monk 3); skipped while Fleetfooted is up."
         }
       },
       "panel": {

@@ -41,7 +41,7 @@
         },
         "maximum_battle_bell_wait_time": {
           "label": "战斗之铃最大等待时间",
-          "tooltip": "等待战斗之铃冷却结束的最长时间"
+          "tooltip": "等待战斗之铃、回复之铃、快速舞步或后发制人冷却的最长时间，冷却更长时本次拉怪跳过该技能"
         },
         "minimum_mobs_to_start_loop": {
           "label": "启动循环所需怪物数",
@@ -86,6 +86,42 @@
         "claimed_player_radius": {
           "label": "判定占用的玩家距离",
           "tooltip": "其他玩家在刷怪点或聚怪点此距离（米）内时视为被占用"
+        },
+        "count_special_mobs_toward_minimum": {
+          "label": "特殊怪物计入数量",
+          "tooltip": "开启：特殊怪物计入「启动循环」和「开始战斗」所需的怪物数（原有行为）\n关闭：仍会拉特殊怪物，但不计入这些数量"
+        },
+        "stacking_timeout_seconds": {
+          "label": "拉怪/聚怪超时",
+          "tooltip": "拉怪超过此时间且已有怪在打你时转入聚怪；走向聚怪点超过此时间直接开始战斗\n0 = 不限时（原有行为）"
+        },
+        "use_ranged_pull": {
+          "label": "远程拉怪（坦克）",
+          "tooltip": "拉怪时坦克对正在走向的怪使用盾牌猛击/飞斧/伤残/闪雷弹，而不必走进近战距离"
+        },
+        "use_provoke": {
+          "label": "拉怪时使用挑衅",
+          "tooltip": "拉怪时坦克对正在走向的怪使用挑衅"
+        },
+        "use_gap_closer": {
+          "label": "拉怪时使用突进",
+          "tooltip": "拉怪时坦克对正在走向的怪使用调停/猛攻/暗影步/弹道（仅骑士、战士、暗黑骑士、绝枪战士）"
+        },
+        "apply_ringing_respite": {
+          "label": "使用回复之铃",
+          "tooltip": "拉怪前切换为风水师施放回复之铃（需要风水师 3 级）\n未单独设置时跟随「使用战斗之铃」，与以前一致"
+        },
+        "apply_quickstep": {
+          "label": "使用快速舞步",
+          "tooltip": "拉怪前切换为舞者施放快速舞步（需要舞者 2 级）"
+        },
+        "quickstep_skip_if_remaining_minutes": {
+          "label": "快速舞步剩余时间跳过（分钟）",
+          "tooltip": "水晶增益的快速舞步效果至少还剩这么多分钟时不再施放\n0 = 每次拉怪都施放"
+        },
+        "apply_counterstance": {
+          "label": "使用后发制人",
+          "tooltip": "拉怪前最后切换为武僧施放后发制人以获得疾风（需要武僧 3 级），已有疾风时跳过"
         }
       },
       "panel": {

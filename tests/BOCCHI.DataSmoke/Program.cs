@@ -3303,4 +3303,55 @@ Assert(BOCCHI.Services.ManualCastPathCancelPolicy.ShouldConsider(true, true, tru
         "Moving a spot up must reorder it by priority, and a new spot must go to the top.");
 }
 
+// Mob farmer pull options, ported from upstream BOCCHI 4.2.
+{
+    var farmerDefaults = new BOCCHI.Modules.MobFarmer.MobFarmerConfig();
+    Assert(farmerDefaults.CountSpecialMobsTowardMinimum
+           && farmerDefaults.StackingTimeoutSeconds == 0f
+           && !farmerDefaults.UseRangedPull
+           && !farmerDefaults.UseProvoke
+           && !farmerDefaults.UseGapCloser
+           && farmerDefaults.ApplyRingingRespite == null
+           && !farmerDefaults.ApplyQuickstep
+           && farmerDefaults.QuickstepSkipIfRemainingMinutes == 0
+           && !farmerDefaults.ApplyCounterstance,
+        "Pull options must default to the old behaviour: specials counted, no timeout, no tank pulls, no extra buffs.");
+    Assert(!farmerDefaults.ShouldApplyRingingRespite,
+        "Ringing Respite must stay off while Battle Bell is off and it was never set.");
+    farmerDefaults.ApplyBattleBell = true;
+    Assert(farmerDefaults.ShouldApplyRingingRespite,
+        "An unset Ringing Respite must follow Battle Bell, which used to cast both.");
+    farmerDefaults.ApplyRingingRespite = false;
+    Assert(!farmerDefaults.ShouldApplyRingingRespite,
+        "An explicit Ringing Respite choice must win over Battle Bell.");
+    farmerDefaults.ApplyBattleBell = false;
+    farmerDefaults.ApplyRingingRespite = true;
+    Assert(farmerDefaults.ShouldApplyRingingRespite,
+        "Ringing Respite must also work without Battle Bell.");
+
+    var pack = new[] { (uint)Mob.Goobbue, (uint)Mob.Bomb, (uint)Mob.CrescentCliffkite };
+    Assert(BOCCHI.Modules.MobFarmer.MobFarmerPullPolicy.CountTowardMinimum(pack, true) == 3
+           && BOCCHI.Modules.MobFarmer.MobFarmerPullPolicy.CountTowardMinimum(pack, false) == 2,
+        "Special enemies must count toward the minimums only when asked to.");
+    Assert(BOCCHI.Modules.MobFarmer.MobFarmerPullPolicy.IsTank(19)
+           && BOCCHI.Modules.MobFarmer.MobFarmerPullPolicy.IsTank(37)
+           && !BOCCHI.Modules.MobFarmer.MobFarmerPullPolicy.IsTank(24)
+           && BOCCHI.Modules.MobFarmer.MobFarmerPullPolicy.GetRangedPullActionId(1) == 24
+           && BOCCHI.Modules.MobFarmer.MobFarmerPullPolicy.GetRangedPullActionId(21) == 46
+           && BOCCHI.Modules.MobFarmer.MobFarmerPullPolicy.GetRangedPullActionId(32) == 3624
+           && BOCCHI.Modules.MobFarmer.MobFarmerPullPolicy.GetRangedPullActionId(37) == 16143
+           && BOCCHI.Modules.MobFarmer.MobFarmerPullPolicy.GetRangedPullActionId(24) == null
+           && BOCCHI.Modules.MobFarmer.MobFarmerPullPolicy.GetGapCloserActionId(19) == 16461
+           && BOCCHI.Modules.MobFarmer.MobFarmerPullPolicy.GetGapCloserActionId(3) == null,
+        "Tank pulls must map each tank job to its ranged attack and gap closer.");
+    Assert(!BOCCHI.Modules.MobFarmer.MobFarmerPullPolicy.ShouldSkipQuickstep(0, 9999f)
+           && BOCCHI.Modules.MobFarmer.MobFarmerPullPolicy.ShouldSkipQuickstep(10, 600f)
+           && !BOCCHI.Modules.MobFarmer.MobFarmerPullPolicy.ShouldSkipQuickstep(10, 599f),
+        "Quickstep must be skipped only while Quicker Step has at least the set minutes left.");
+    Assert(!BOCCHI.Modules.MobFarmer.MobFarmerPullPolicy.IsStackingTimedOut(0f, TimeSpan.FromHours(1))
+           && !BOCCHI.Modules.MobFarmer.MobFarmerPullPolicy.IsStackingTimedOut(15f, TimeSpan.FromSeconds(14))
+           && BOCCHI.Modules.MobFarmer.MobFarmerPullPolicy.IsStackingTimedOut(15f, TimeSpan.FromSeconds(15)),
+        "The gather and stack timeout must be off at 0 and inclusive of its limit.");
+}
+
 Console.WriteLine("BOCCHI 7.55 North Horn data, lifecycle, config, translation, routing, precompute, and vnavmesh availability smoke tests passed.");
