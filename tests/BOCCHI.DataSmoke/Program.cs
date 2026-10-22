@@ -3041,5 +3041,14 @@ Assert(ReturnDelayPolicy.RollExtraDelayMs(0, 0.9) == 0
        && ReturnDelayPolicy.RollExtraDelayMs(10, 0.5) == 5_000
        && new AutomatorConfig().MaxReturnDelaySeconds == 0,
     "The random wait before Return must stay within 0..max seconds and default off.");
+Assert(TriagePolicy.ShouldArm(true, true, false)
+       && !TriagePolicy.ShouldArm(false, true, false)
+       && !TriagePolicy.ShouldArm(true, false, false)
+       && !TriagePolicy.ShouldArm(true, true, true)
+       && TriagePolicy.IsInSearchRange(43f)
+       && !TriagePolicy.IsInSearchRange(43.5f)
+       && !new AutomatorConfig().EnableTriageMode
+       && new AutomatorConfig().PreferredTriageRaiseJob == TriageRaiseJob.Chemist,
+    "Triage arms only after a FATE or CE the player took part in, and searches 43 yalms.");
 
 Console.WriteLine("BOCCHI 7.55 North Horn data, lifecycle, config, translation, routing, precompute, and vnavmesh availability smoke tests passed.");

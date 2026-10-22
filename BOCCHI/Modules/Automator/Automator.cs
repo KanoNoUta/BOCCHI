@@ -108,6 +108,8 @@ public class Automator
 
     private int maxReturnDelaySeconds;
 
+    public readonly TriageSession Triage = new();
+
     private int postActivityReturnExtraDelayMs;
 
     private static readonly TimeSpan RepairRetryDelay = TimeSpan.FromMinutes(5);
@@ -168,6 +170,13 @@ public class Automator
             }
 
             ManagedHunt.Pause(module, huntYieldReason);
+        }
+
+        // Raise nearby players before the post-activity Return or the next pick.
+        if (Activity == null && PotFarm == null && Triage.Update(module, vnav))
+        {
+            idleTime = 0;
+            return;
         }
 
         if (Activity == null && postActivityReturnPending)
@@ -257,6 +266,10 @@ public class Automator
                 module.PluginConfig.TeleporterConfig.ReturnAfterCriticalEncounter,
                 module.IsIndependentNavigationRunning);
             var returnReason = $"{endedActivityType} {Activity.data.Id} ended";
+            var armTriage = TriagePolicy.ShouldArm(
+                module.Config.EnableTriageMode,
+                Activity.HasParticipated,
+                Activity is PotWaitActivity or ForkedTowerWaitActivity);
             Plugin.Chain.Abort();
             vnav.Stop();
             // A teleport may already have been accepted by Lifestream before
@@ -276,6 +289,11 @@ public class Automator
             module.SetAiProviderEnabled(false);
             PromeRotationController.Stop();
             ClearActivity();
+            if (armTriage)
+            {
+                Triage.Arm();
+            }
+
             preferFateAfterCriticalEncounter = ActivitySelectionPolicy.AfterActivityEnded(
                 preferFateAfterCriticalEncounter,
                 endedActivityType);
@@ -343,9 +361,18 @@ public class Automator
                     module.PluginConfig.TeleporterConfig.ReturnAfterCriticalEncounter,
                     module.IsIndependentNavigationRunning);
                 var returnReason = $"{endedActivityType} {Activity.data.Id} completed";
+                var armTriage = TriagePolicy.ShouldArm(
+                    module.Config.EnableTriageMode,
+                    Activity.HasParticipated,
+                    Activity is PotWaitActivity or ForkedTowerWaitActivity);
                 module.SetAiProviderEnabled(false);
                 PromeRotationController.Stop();
                 ClearActivity();
+                if (armTriage)
+                {
+                    Triage.Arm();
+                }
+
                 preferFateAfterCriticalEncounter = ActivitySelectionPolicy.AfterActivityEnded(
                     preferFateAfterCriticalEncounter,
                     endedActivityType);
@@ -671,6 +698,7 @@ public class Automator
 
     public void Refresh()
     {
+        Triage.Reset();
         StopPotChestFarm("automator refreshed");
         potFarmBlockedUntilBuffEnds = false;
         ClearActivity();

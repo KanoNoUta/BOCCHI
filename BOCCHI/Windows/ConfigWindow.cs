@@ -365,6 +365,10 @@ public class ConfigWindow(Plugin primaryPlugin, Config config) : OcelotConfigWin
         DrawBoolean(module, cfg, nameof(cfg.StayMountedWhileWaiting));
         DrawInt(module, cfg, nameof(cfg.MaxReturnDelaySeconds), 0, 30);
 
+        DrawSectionTitle(T("editors.automation.triage"));
+        DrawBoolean(module, cfg, nameof(cfg.EnableTriageMode));
+        DrawTriageRaiseJob(module, !cfg.EnableTriageMode);
+
         DrawSectionTitle(T("editors.automation.repair"));
         DrawInt(module, cfg, nameof(cfg.AutoRepairThreshold), 0, 99);
         DrawAutoRepairMethod(module, cfg.AutoRepairThreshold <= 0);
@@ -452,6 +456,29 @@ public class ConfigWindow(Plugin primaryPlugin, Config config) : OcelotConfigWin
             ImGui.EndCombo();
         }
         ConfigTooltip(module, nameof(module.Config.InstanceLeaveProvider));
+    }
+
+    private void DrawTriageRaiseJob(AutomatorModule module, bool disabled)
+    {
+        var current = module.Config.PreferredTriageRaiseJob;
+        ImGui.BeginDisabled(disabled);
+        foreach (var job in Enum.GetValues<TriageRaiseJob>())
+        {
+            var label = module.T(job == TriageRaiseJob.WhiteMage
+                ? "config.preferred_triage_raise_job.white_mage"
+                : "config.preferred_triage_raise_job.chemist");
+            if (ImGui.RadioButton($"{label}##TriageRaiseJob{job}", job == current))
+            {
+                module.Config.PreferredTriageRaiseJob = job;
+                primaryPlugin.Config.Save();
+            }
+
+            ConfigTooltip(module, nameof(module.Config.PreferredTriageRaiseJob));
+            ImGui.SameLine();
+        }
+
+        ImGui.TextUnformatted(ConfigLabel(module, nameof(module.Config.PreferredTriageRaiseJob)));
+        ImGui.EndDisabled();
     }
 
     private void DrawAutoRepairMethod(AutomatorModule module, bool disabled)

@@ -403,6 +403,16 @@
         "max_return_delay_seconds": {
           "label": "Random wait before Return (seconds)",
           "tooltip": "After a FATE or CE, wait a random 0 to this many extra seconds before returning to base camp. 0 turns it off."
+        },
+        "enable_triage_mode": {
+          "label": "Triage Mode",
+          "tooltip": "After a FATE or CE, switch to Phantom Chemist or Phantom White Mage and raise nearby dead players (skipping anyone already raised), then switch back and continue. Gives up after 90 seconds or when combat starts."
+        },
+        "preferred_triage_raise_job": {
+          "label": "Preferred raise job",
+          "tooltip": "Falls back to the other one when this job is not unlocked.",
+          "chemist": "Chemist",
+          "white_mage": "White Mage"
         }
       },
       "panel": {

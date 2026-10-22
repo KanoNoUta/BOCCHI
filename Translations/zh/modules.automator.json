@@ -423,6 +423,16 @@
         "max_return_delay_seconds": {
           "label": "回城前随机等待（秒）",
           "tooltip": "FATE/CE 结束后回营地前，额外随机等待 0 到这么多秒。0 为不等待。"
+        },
+        "enable_triage_mode": {
+          "label": "救人模式",
+          "tooltip": "FATE/CE 结束后，换成辅助药剂师或辅助白魔法师复活附近倒地的玩家（已有复活的跳过），完成后换回原来的辅助职业再继续。最多 90 秒，进入战斗会中止。"
+        },
+        "preferred_triage_raise_job": {
+          "label": "优先使用的复活辅助职业",
+          "tooltip": "选中的职业没解锁时用另一个。",
+          "chemist": "药剂师",
+          "white_mage": "白魔法师"
         }
       },
       "panel": {

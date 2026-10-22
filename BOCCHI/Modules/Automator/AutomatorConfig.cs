@@ -588,6 +588,11 @@ public class AutomatorConfig : ModuleConfig
     public int MaxReturnDelaySeconds { get; set; } = 0;
 
     [Checkbox]
+    public bool EnableTriageMode { get; set; } = false;
+
+    public TriageRaiseJob PreferredTriageRaiseJob { get; set; } = TriageRaiseJob.Chemist;
+
+    [Checkbox]
     public bool AutoRegisterForForkedTower { get; set; } = false;
 
     // Magic pots
