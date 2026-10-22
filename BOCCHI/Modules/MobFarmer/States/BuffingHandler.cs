@@ -1,8 +1,11 @@
 ﻿using BOCCHI.ActionHelpers;
 using BOCCHI.Modules.MobFarmer.Chains;
+using Dalamud.Game.ClientState.Conditions;
+using ECommons.DalamudServices;
 using Ocelot.Chain;
 using Ocelot.IPC;
 using Ocelot.States;
+using System.Linq;
 
 namespace BOCCHI.Modules.MobFarmer.States;
 
@@ -15,10 +18,31 @@ public class BuffingHandler(MobFarmerModule module) : FarmerPhaseHandler(module)
     {
         base.Enter();
         HasRunBuff = false;
+        HasWait = false;
     }
 
     public override FarmerPhase? Handle()
     {
+        // Attacked before the pull: fight instead of buffing on. A job-change
+        // buff chain is left to finish; only the extra wait is cut short.
+        if (Svc.Condition[ConditionFlag.InCombat] || Module.Scanner.InCombat.Any())
+        {
+            if (HasWait && !HasRunBuff && Plugin.Chain.IsRunning)
+            {
+                Plugin.Chain.Abort();
+            }
+
+            if (Plugin.Chain.IsRunning || Plugin.Chain.QueueCount > 0)
+            {
+                return null;
+            }
+
+            HasRunBuff = false;
+            HasWait = false;
+            Module.Farmer.RotationPlugin.PhantomJobOn();
+            return FarmerPhase.Fighting;
+        }
+
         var vnav = Module.GetIPCSubscriber<VNavmesh>();
         if (vnav.IsRunning())
         {

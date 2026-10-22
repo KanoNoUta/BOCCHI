@@ -57,6 +57,9 @@ public class Farmer : IDisposable
 
     private bool approachSubmitted;
 
+    /// <summary>The rotation is on because enemies attacked us before the fight phase.</summary>
+    private bool selfDefenceActive;
+
     private readonly MobFarmerModule module;
 
     public readonly IRotationPlugin RotationPlugin;
@@ -106,6 +109,49 @@ public class Farmer : IDisposable
         }
 
         StateMachine.Update();
+        UpdateSelfDefence();
+    }
+
+    /// <summary>
+    /// Enemies attacking while the farmer gathers or stacks are fought back
+    /// instead of ignored; Buffing hands over to Fighting itself. Ported
+    /// from upstream BOCCHI 4.2. Movement stays with the farmer, so only the
+    /// rotation is started, without auto-pull.
+    /// </summary>
+    private void UpdateSelfDefence()
+    {
+        var phase = StateMachine.State;
+        var attacked = phase is FarmerPhase.Gathering or FarmerPhase.Stacking
+                       && (module.Scanner.InCombat.Any() || Svc.Condition[ConditionFlag.InCombat]);
+        if (attacked == selfDefenceActive)
+        {
+            return;
+        }
+
+        selfDefenceActive = attacked;
+        if (attacked)
+        {
+            Svc.Log.Debug($"[MobFarmer] Under attack while {phase}; fighting back.");
+            PromeRotationController.StartWithoutAutoPull();
+            return;
+        }
+
+        // Fighting owns the rotation from here on.
+        if (phase != FarmerPhase.Fighting)
+        {
+            PromeRotationController.Stop();
+        }
+    }
+
+    private void StopSelfDefence()
+    {
+        if (!selfDefenceActive)
+        {
+            return;
+        }
+
+        selfDefenceActive = false;
+        PromeRotationController.Stop();
     }
 
     public void Draw(RenderContext context)
@@ -153,6 +199,7 @@ public class Farmer : IDisposable
             return;
 
         Running = true;
+        selfDefenceActive = false;
         Suspended = false;
         YieldReason = FarmerYieldReason.None;
         NeedsApproach = false;
@@ -188,6 +235,7 @@ public class Farmer : IDisposable
             Yields.Stop(module);
         }
 
+        selfDefenceActive = false;
         PromeRotationController.Stop();
         BOCCHI.Pathfinding.AggroAvoidanceNavigation.Stop();
         Suspended = false;
@@ -206,6 +254,7 @@ public class Farmer : IDisposable
         }
 
         StateMachine.Handlers[StateMachine.State].Exit();
+        StopSelfDefence();
         ChainManager.Get("MobFarmer+Farmer").Abort();
         BOCCHI.Pathfinding.AggroAvoidanceNavigation.Stop();
         approachSubmitted = false;
