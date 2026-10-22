@@ -57,6 +57,10 @@
         "hunt_min_silver_percent": {
           "label": "自动寻宝的银箱最低比例（%）",
           "tooltip": "活动间隙自动寻宝时，银箱数量（满 8 个）至少达到这个比例才开始；开启只找银箱时只看银箱。"
+        },
+        "use_south_horn_authored_route": {
+          "label": "南岛使用预设寻宝路线",
+          "tooltip": "在南部新月岛按上游作者整理的分区顺序巡箱（营地、流浪者庇护所、晶石洞窟、长老林、石沼），而不是每次重新计算。可在寻宝面板选择起始区域。"
         }
       },
       "panel": {
@@ -80,7 +84,17 @@
           "elapsed": "运行时间",
           "map_missing": "路线图资源未加载",
           "spirit_pot_candidates": "撒娇罐候选点：{0}",
-          "spirit_pot_conflict": "新提示与已有范围冲突，已保留上一组候选点"
+          "spirit_pot_conflict": "新提示与已有范围冲突，已保留上一组候选点",
+          "start_segment": "起始区域",
+          "segments": {
+            "base-camp": "营地周边",
+            "wanderers-haven": "流浪者庇护所",
+            "crystallized-caverns-1": "晶石洞窟（一）",
+            "crystallized-caverns-2": "晶石洞窟（二）",
+            "eldergrowth-1": "长老林（一）",
+            "eldergrowth-2": "长老林（二）",
+            "stonemarsh": "石沼"
+          }
         },
         "active_bronze": {
           "label": "青铜宝箱"

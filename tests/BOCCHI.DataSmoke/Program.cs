@@ -768,7 +768,8 @@ static void RunTreasureRoutePolicyTests()
     var treasureHuntSource = File.ReadAllText(Path.Combine(
         "BOCCHI", "Modules", "Treasure", "TreasureHunt.cs"));
     Assert(treasureHuntSource.Contains("ZoneData.IsInNorthHorn()", StringComparison.Ordinal)
-           && !treasureHuntSource.Contains("ZoneData.IsInSouthHorn()", StringComparison.Ordinal)
+           && Regex.Matches(treasureHuntSource, @"ZoneData\.IsInSouthHorn\(\)").Count
+              == Regex.Matches(treasureHuntSource, @"ZoneData\.IsInSouthHorn\(\) && module\.Config\.UseSouthHornAuthoredRoute").Count
            && treasureHuntSource.Contains("treasure-route-north-horn.png", StringComparison.Ordinal),
         "The route UI and runtime must be wired to North Horn and its correctly named asset.");
     Assert(treasureHuntSource.Contains(
@@ -3056,5 +3057,34 @@ Assert(CompletionistPolicy.ShouldPursue(MonsterNote.CloisterDemon, _ => false)
        && EventData.GetCriticalEncountersForTerritory(ZoneData.SOUTHHORN).Any(data => data.Note != null)
        && EventData.GetCriticalEncountersForTerritory(ZoneData.NORTHHORN).Any(data => data.Note != null),
     "Completionist only pursues events whose note is still missing, and both horns have note sources.");
+
+{
+    var southHornRouteNodes = SouthHornTreasureRoute.Segments.SelectMany(segment => segment.Nodes).ToArray();
+    var southHornPositions = southHornRouteNodes
+        .Select((id, index) => (id, position: new Vector3(index * 10f, 0f, 0f)))
+        .ToDictionary(pair => pair.id, pair => pair.position);
+    southHornPositions[9999] = new Vector3(-500f, 0f, 0f);
+    var fullOrder = SouthHornTreasureRoute.OrderNodes(Vector3.Zero, southHornRouteNodes, southHornPositions, null);
+    var nearMiddle = SouthHornTreasureRoute.OrderNodes(new Vector3(201f, 0f, 0f), southHornRouteNodes, southHornPositions, null);
+    var fromStonemarsh = SouthHornTreasureRoute.OrderNodes(Vector3.Zero, southHornRouteNodes, southHornPositions, "stonemarsh");
+    var clearedSegment = SouthHornTreasureRoute.OrderNodes(
+        Vector3.Zero,
+        southHornRouteNodes.Where(id => id is not (1818 or 1814 or 1813)),
+        southHornPositions,
+        "crystallized-caverns-1");
+    var withUnknown = SouthHornTreasureRoute.OrderNodes(Vector3.Zero, new uint[] { 1804, 9999 }, southHornPositions, "base-camp");
+    Assert(southHornRouteNodes.Length == 68
+           && southHornRouteNodes.Distinct().Count() == 68
+           && southHornRouteNodes.All(TreasureData.Levels.ContainsKey)
+           && fullOrder.SequenceEqual(southHornRouteNodes)
+           && nearMiddle[0] == southHornRouteNodes[20] && nearMiddle.Count == 68
+           && fromStonemarsh[0] == 1834 && fromStonemarsh[8] == 1804
+           && clearedSegment[0] == 1856
+           && withUnknown.SequenceEqual(new uint[] { 1804, 9999 })
+           && SouthHornTreasureRoute.OrderNodes(Vector3.Zero, Array.Empty<uint>(), southHornPositions, null).Count == 0
+           && new TreasureConfig().UseSouthHornAuthoredRoute
+           && new TreasureConfig().SouthHornStartSegment == null,
+        "South Horn follows the 68-coffer authored route from the nearest coffer or a chosen area, skipping cleared areas.");
+}
 
 Console.WriteLine("BOCCHI 7.55 North Horn data, lifecycle, config, translation, routing, precompute, and vnavmesh availability smoke tests passed.");

@@ -57,6 +57,10 @@
         "hunt_min_silver_percent": {
           "label": "Auto hunt: minimum silver (%)",
           "tooltip": "The hunt between activities starts once silver coffers (out of 8) reach this share; with silver only, silver alone decides."
+        },
+        "use_south_horn_authored_route": {
+          "label": "Use the authored South Horn route",
+          "tooltip": "In South Horn, visit coffers in the hand-authored area order (base camp, Wanderer's Haven, Crystallized Caverns, Eldergrowth, Stonemarsh) instead of a freshly computed route. Pick the starting area in the hunt panel."
         }
       },
       "panel": {
@@ -80,7 +84,17 @@
           "elapsed": "経過時間",
           "map_missing": "ルートマップを読み込めません",
           "spirit_pot_candidates": "壺の候補地点：{0}",
-          "spirit_pot_conflict": "新しい手掛かりが既存範囲と一致しないため、前の候補を維持しました"
+          "spirit_pot_conflict": "新しい手掛かりが既存範囲と一致しないため、前の候補を維持しました",
+          "start_segment": "Start area",
+          "segments": {
+            "base-camp": "Base camp",
+            "wanderers-haven": "Wanderer's Haven",
+            "crystallized-caverns-1": "Crystallized Caverns (1)",
+            "crystallized-caverns-2": "Crystallized Caverns (2)",
+            "eldergrowth-1": "Eldergrowth (1)",
+            "eldergrowth-2": "Eldergrowth (2)",
+            "stonemarsh": "Stonemarsh"
+          }
         },
         "active_bronze": {
           "label": "銅の宝箱"

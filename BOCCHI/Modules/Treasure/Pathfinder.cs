@@ -16,17 +16,25 @@ public class Pathfinder : BasePathfinder
 
     private readonly int manualRouteStart;
 
+    private readonly bool southHornAuthoredRoute;
+
+    private readonly string? southHornStartSegment;
+
     public Pathfinder(
         List<Data_TreasureData.TreasureDatum> treasure,
         float returnCost = 300f,
         float teleportCost = 50f,
         TreasureRouteStartMode? routeStartMode = null,
-        int manualRouteStart = 1)
+        int manualRouteStart = 1,
+        bool southHornAuthoredRoute = false,
+        string? southHornStartSegment = null)
         : base(CreateNodePositions(treasure, routeStartMode != null), returnCost, teleportCost)
     {
         this.treasure = treasure;
         this.routeStartMode = routeStartMode;
         this.manualRouteStart = manualRouteStart;
+        this.southHornAuthoredRoute = southHornAuthoredRoute;
+        this.southHornStartSegment = southHornStartSegment;
         explicitRoutePositions = routeStartMode == null
             ? new Dictionary<uint, Vector3>()
             : NorthHornTreasureRoute.BuildWaypointPositions(
@@ -37,6 +45,15 @@ public class Pathfinder : BasePathfinder
 
     protected override IReadOnlyList<uint>? GetExplicitNodeOrder(Vector3 start, List<uint> nodes)
     {
+        if (southHornAuthoredRoute)
+        {
+            return SouthHornTreasureRoute.OrderNodes(
+                start,
+                nodes,
+                treasure.ToDictionary(node => node.Id, node => node.Position),
+                southHornStartSegment);
+        }
+
         if (routeStartMode == null)
         {
             return null;

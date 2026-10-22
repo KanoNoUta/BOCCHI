@@ -101,6 +101,15 @@ public class TreasureConfig : ModuleConfig
 
     public int NorthHornManualRouteStart { get; set; } = 1;
 
+    [Checkbox]
+    [DependsOn(nameof(Enabled), nameof(EnableTreasureHunt))]
+    [Label("modules.treasure.config.use_south_horn_authored_route.label")]
+    [Tooltip("modules.treasure.config.use_south_horn_authored_route.tooltip")]
+    public bool UseSouthHornAuthoredRoute { get; set; } = true;
+
+    /// <summary>A <see cref="SouthHornTreasureRoute"/> segment id; null starts at the nearest coffer.</summary>
+    public string? SouthHornStartSegment { get; set; }
+
     public bool ShowNorthHornRouteMap { get; set; } = true;
 
     [Checkbox]

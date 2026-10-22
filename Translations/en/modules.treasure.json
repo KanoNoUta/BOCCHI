@@ -57,6 +57,10 @@
         "hunt_min_silver_percent": {
           "label": "Auto hunt: minimum silver (%)",
           "tooltip": "The hunt between activities starts once silver coffers (out of 8) reach this share; with silver only, silver alone decides."
+        },
+        "use_south_horn_authored_route": {
+          "label": "Use the authored South Horn route",
+          "tooltip": "In South Horn, visit coffers in the hand-authored area order (base camp, Wanderer's Haven, Crystallized Caverns, Eldergrowth, Stonemarsh) instead of a freshly computed route. Pick the starting area in the hunt panel."
         }
       },
       "panel": {
@@ -80,7 +84,17 @@
           "elapsed": "Elapsed",
           "map_missing": "Route map asset is unavailable",
           "spirit_pot_candidates": "Spirit-pot candidates: {0}",
-          "spirit_pot_conflict": "The new hint conflicts with the existing area; the previous candidates were kept"
+          "spirit_pot_conflict": "The new hint conflicts with the existing area; the previous candidates were kept",
+          "start_segment": "Start area",
+          "segments": {
+            "base-camp": "Base camp",
+            "wanderers-haven": "Wanderer's Haven",
+            "crystallized-caverns-1": "Crystallized Caverns (1)",
+            "crystallized-caverns-2": "Crystallized Caverns (2)",
+            "eldergrowth-1": "Eldergrowth (1)",
+            "eldergrowth-2": "Eldergrowth (2)",
+            "stonemarsh": "Stonemarsh"
+          }
         },
         "active_bronze": {
           "label": "Active Bronze"

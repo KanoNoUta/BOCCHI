@@ -87,6 +87,12 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
                 DrawStartModeButtons();
                 ImGui.EndDisabled();
             }
+            else if (ZoneData.IsInSouthHorn() && module.Config.UseSouthHornAuthoredRoute)
+            {
+                ImGui.BeginDisabled(running);
+                DrawSouthHornSegmentCombo();
+                ImGui.EndDisabled();
+            }
 
             if (!string.IsNullOrEmpty(startError))
             {
@@ -173,6 +179,37 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
                 NorthHornTreasureRoute.RouteCount);
             module.PluginConfig.Save();
         }
+    }
+
+    private void DrawSouthHornSegmentCombo()
+    {
+        ImGui.Spacing();
+        var current = module.Config.SouthHornStartSegment;
+        var preview = current == null
+            ? module.T("panel.hunt.nearest_start")
+            : module.T($"panel.hunt.segments.{current}");
+        ImGui.SetNextItemWidth(220);
+        if (!ImGui.BeginCombo($"{module.T("panel.hunt.start_segment")}##treasure-start-segment", preview))
+        {
+            return;
+        }
+
+        if (ImGui.Selectable(module.T("panel.hunt.nearest_start"), current == null))
+        {
+            module.Config.SouthHornStartSegment = null;
+            module.PluginConfig.Save();
+        }
+
+        foreach (var segment in SouthHornTreasureRoute.Segments)
+        {
+            if (ImGui.Selectable($"{module.T($"panel.hunt.segments.{segment.Id}")}##{segment.Id}", current == segment.Id))
+            {
+                module.Config.SouthHornStartSegment = segment.Id;
+                module.PluginConfig.Save();
+            }
+        }
+
+        ImGui.EndCombo();
     }
 
     private static bool DrawModeButton(string label, bool selected, string id, float width)
@@ -578,12 +615,15 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
         var routeStartMode = ZoneData.IsInNorthHorn()
             ? module.Config.NorthHornRouteStartMode
             : (TreasureRouteStartMode?)null;
+        var southHornAuthored = ZoneData.IsInSouthHorn() && module.Config.UseSouthHornAuthoredRoute;
         return new Pathfinder(
             Treasure,
             module.PluginConfig.PathfinderConfig.ReturnCost,
             module.PluginConfig.PathfinderConfig.TeleportCost,
             routeStartMode,
-            module.Config.NorthHornManualRouteStart);
+            module.Config.NorthHornManualRouteStart,
+            southHornAuthored,
+            module.Config.SouthHornStartSegment);
     }
 
     protected override uint? GetPriorityNode(
