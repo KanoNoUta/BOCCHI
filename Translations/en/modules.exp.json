@@ -2,7 +2,11 @@
   "modules": {
     "exp": {
       "config": {
-        "title": "Exp Config"
+        "title": "Exp Config",
+        "show_graph": {
+          "label": "Show 5-minute trend graph",
+          "tooltip": "Plot the per-hour rate for each 15 seconds of the last 5 minutes in the panel."
+        }
       },
       "panel": {
         "title": "Exp",

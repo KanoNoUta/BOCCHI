@@ -10,6 +10,8 @@ internal sealed class CurrencyRateAccumulator
 
     private DateTime startTime;
 
+    public BOCCHI.Ui.RateHistory History { get; } = new();
+
     public void Observe(int currentBalance, DateTime utcNow)
     {
         if (!lastBalance.HasValue)
@@ -23,6 +25,7 @@ internal sealed class CurrencyRateAccumulator
         if (delta > 0)
         {
             gained += delta;
+            History.Record(delta, utcNow);
         }
 
         lastBalance = currentBalance;
@@ -32,6 +35,7 @@ internal sealed class CurrencyRateAccumulator
     {
         lastBalance = null;
         gained = 0;
+        History.Clear();
         startTime = utcNow;
     }
 

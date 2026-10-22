@@ -2,7 +2,11 @@
   "modules": {
     "exp": {
       "config": {
-        "title": "経験値設定"
+        "title": "経験値設定",
+        "show_graph": {
+          "label": "Show 5-minute trend graph",
+          "tooltip": "Plot the per-hour rate for each 15 seconds of the last 5 minutes in the panel."
+        }
       },
       "panel": {
         "title": "経験値",

@@ -2,7 +2,11 @@
   "modules": {
     "exp": {
       "config": {
-        "title": "经验值设置"
+        "title": "经验值设置",
+        "show_graph": {
+          "label": "显示近 5 分钟趋势图",
+          "tooltip": "在面板里画出最近 5 分钟每 15 秒的每小时收益。"
+        }
       },
       "panel": {
         "title": "经验值",

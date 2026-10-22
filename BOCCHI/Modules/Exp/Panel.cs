@@ -20,6 +20,10 @@ public class Panel
         ImGui.TextDisabled(module.T("panel.exp.label"));
         ImGui.SameLine();
         ImGui.TextUnformatted(module.tracker.GetExpPerHour().ToString("F2"));
+        if (module.Config.ShowGraph)
+        {
+            BOCCHI.Ui.RateHistory.Plot("##ExpHistory", module.tracker.GetHistory());
+        }
 
         if (!ImGui.BeginPopup("##ConfirmResetExp"))
         {

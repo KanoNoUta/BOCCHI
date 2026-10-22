@@ -16,6 +16,13 @@ public class ExpTracker
 
     private DateTime startTime = DateTime.UtcNow;
 
+    private readonly BOCCHI.Ui.RateHistory history = new();
+
+    public float[] GetHistory()
+    {
+        return history.GetPerHour(DateTime.UtcNow);
+    }
+
     public ExpTracker()
     {
         Reset();
@@ -34,6 +41,7 @@ public class ExpTracker
             && int.TryParse(match.Groups[1].Value, NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var amount))
         {
             exp += amount;
+            history.Record(amount, DateTime.UtcNow);
         }
     }
 
@@ -41,6 +49,7 @@ public class ExpTracker
     {
         exp = 0f;
         startTime = DateTime.UtcNow;
+        history.Clear();
     }
 
     public float GetExpPerHour()

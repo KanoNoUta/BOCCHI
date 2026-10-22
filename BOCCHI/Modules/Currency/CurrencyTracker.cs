@@ -77,6 +77,16 @@ public class CurrencyTracker
         return silverRate.GetPerHour(utcNow());
     }
 
+    public float[] GetGoldHistory()
+    {
+        return goldRate.History.GetPerHour(utcNow());
+    }
+
+    public float[] GetSilverHistory()
+    {
+        return silverRate.History.GetPerHour(utcNow());
+    }
+
     private static int? ReadGold()
     {
         return Items.Gold.TryCount(out var count) ? count : null;

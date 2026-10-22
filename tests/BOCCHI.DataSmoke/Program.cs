@@ -3128,4 +3128,19 @@ Assert(CompletionistPolicy.ShouldPursue(MonsterNote.CloisterDemon, _ => false)
         "The changelog window finds the current version's notes, and log lines render their values.");
 }
 
+{
+    var now = new DateTime(2026, 10, 22, 12, 0, 0, DateTimeKind.Utc);
+    var rates = new RateHistory();
+    rates.Record(10, now.AddMinutes(-10));
+    rates.Record(10, now.AddSeconds(-5));
+    rates.Record(-3, now.AddSeconds(-4));
+    var buckets = rates.GetPerHour(now);
+    Assert(buckets.Length == 20
+           && buckets[^1] == 10f / 15f * 3600f
+           && buckets.Take(19).All(value => value == 0f)
+           && !new BOCCHI.Modules.Currency.CurrencyConfig().ShowGraph
+           && !new BOCCHI.Modules.Exp.ExpConfig().ShowGraph,
+        "Tracker graphs bucket the last 5 minutes into 15-second per-hour rates and stay off by default.");
+}
+
 Console.WriteLine("BOCCHI 7.55 North Horn data, lifecycle, config, translation, routing, precompute, and vnavmesh availability smoke tests passed.");

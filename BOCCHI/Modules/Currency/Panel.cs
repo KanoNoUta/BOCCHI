@@ -26,6 +26,14 @@ public class Panel
                 module.Tracker.ResetGold);
             ImGui.EndTable();
         }
+
+        if (module.Config.ShowGraph)
+        {
+            ImGui.TextDisabled(module.T("panel.silver.label"));
+            BOCCHI.Ui.RateHistory.Plot("##SilverHistory", module.Tracker.GetSilverHistory());
+            ImGui.TextDisabled(module.T("panel.gold.label"));
+            BOCCHI.Ui.RateHistory.Plot("##GoldHistory", module.Tracker.GetGoldHistory());
+        }
     }
 
     private static void DrawMetricRow(
