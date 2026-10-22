@@ -405,7 +405,8 @@ public class Automator
         }
 
         var potsAndTreasure = module.RunMode == AutomatorRunMode.PotsAndTreasure;
-        if (!potsAndTreasure && !module.Config.ShouldDoFates && !module.Config.ShouldDoCriticalEncounters)
+        var completionist = module.RunMode == AutomatorRunMode.Completionist;
+        if (!potsAndTreasure && !completionist && !module.Config.ShouldDoFates && !module.Config.ShouldDoCriticalEncounters)
         {
             return;
         }
@@ -417,9 +418,9 @@ public class Automator
         {
             Activity = activityType switch
             {
-                EventType.CriticalEncounter when module.Config.ShouldDoCriticalEncounters
+                EventType.CriticalEncounter when module.Config.ShouldDoCriticalEncounters || completionist
                     => FindCriticalEncounter(module, lifestream, vnav),
-                EventType.Fate when module.Config.ShouldDoFates || potsAndTreasure
+                EventType.Fate when module.Config.ShouldDoFates || potsAndTreasure || completionist
                     => FindFate(module, lifestream, vnav),
                 _ => null,
             };
@@ -511,7 +512,11 @@ public class Automator
                 continue;
             }
 
-            if (!module.Config.CriticalEncountersMap.TryGetValue(encounter.DynamicEventId, out var enabled) || !enabled)
+            var wanted = module.RunMode == AutomatorRunMode.Completionist
+                ? EventData.CriticalEncounters.TryGetValue(encounter.DynamicEventId, out var noteData)
+                  && FieldNotes.ShouldPursue(noteData)
+                : module.Config.CriticalEncountersMap.TryGetValue(encounter.DynamicEventId, out var enabled) && enabled;
+            if (!wanted)
             {
                 continue;
             }
@@ -552,7 +557,7 @@ public class Automator
     {
         data = default;
         if (module.RunMode == AutomatorRunMode.PotsAndTreasure
-            || !module.Config.ShouldDoCriticalEncounters
+            || (!module.Config.ShouldDoCriticalEncounters && module.RunMode != AutomatorRunMode.Completionist)
             || !module.TryGetModule<CriticalEncountersModule>(out var source)
             || source == null
             || FindCriticalEncounterGate(module) is false
@@ -601,6 +606,11 @@ public class Automator
             return null;
         }
 
+        if (module.RunMode == AutomatorRunMode.Completionist)
+        {
+            return FieldNotes.ShouldPursue(fate.Data) ? new FateActivity(fate.Data, lifestream, vnav, module, fate) : null;
+        }
+
         var wanted = (PotZoneData.IsPotFate(currentFateId) && PotContext.Capture(module).PotWorkEnabled)
                      || (module.RunMode != AutomatorRunMode.PotsAndTreasure
                          && module.Config.ShouldDoFates
@@ -618,10 +628,12 @@ public class Automator
 
         var liveFateIds = Svc.Fates.Select(fate => (uint)fate.FateId).ToHashSet();
         var pots = PotContext.Capture(module);
+        var completionist = module.RunMode == AutomatorRunMode.Completionist;
         // A live pot beats every other FATE.
         if (pots.StartableLivePot is { } livePot
             && source.fates.TryGetValue(livePot, out var potFate)
-            && liveFateIds.Contains(livePot))
+            && liveFateIds.Contains(livePot)
+            && (!completionist || FieldNotes.ShouldPursue(potFate.Data)))
         {
             return new FateActivity(potFate.Data, lifestream, vnav, module, potFate);
         }
@@ -646,13 +658,18 @@ public class Automator
                 continue;
             }
 
-            if (!module.Config.FatesMap.TryGetValue(fate.Id, out var enabled) || !enabled)
+            // Completionist ignores the FATE checkboxes and goes for missing notes.
+            var wanted = completionist
+                ? FieldNotes.ShouldPursue(fate.Data)
+                : module.Config.FatesMap.TryGetValue(fate.Id, out var enabled) && enabled;
+            if (!wanted)
             {
                 continue;
             }
 
-            // Pots were handled above; a pot that is not startable stays skipped.
-            if (PotZoneData.IsPotFate(fate.Id) || !fatesAllowed)
+            // Pots were handled above; a pot that is not startable stays skipped,
+            // unless Completionist still needs its note.
+            if ((PotZoneData.IsPotFate(fate.Id) && !completionist) || !fatesAllowed)
             {
                 continue;
             }
@@ -1006,7 +1023,8 @@ public class Automator
     private static PotWaitActivity? FindPotWait(AutomatorModule module, Lifestream lifestream, VNavmesh vnav)
     {
         var pots = PotContext.Capture(module);
-        if ((!module.Config.ShouldPrepositionToPots && module.RunMode != AutomatorRunMode.PotsAndTreasure)
+        if (module.RunMode == AutomatorRunMode.Completionist
+            || (!module.Config.ShouldPrepositionToPots && module.RunMode != AutomatorRunMode.PotsAndTreasure)
             || !pots.PotWorkEnabled
             || pots.LivePot != 0
             || !PotTimingPolicy.ShouldPreposition(pots.Cycle, pots.Now, module.Config.PotSpawnLeadMinutes, true)

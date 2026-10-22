@@ -484,6 +484,15 @@
         },
         "forked_tower": {
           "waiting_for": "Waiting on the pad for {0}"
+        },
+        "completionist": {
+          "start": "Start Completionist",
+          "stop": "Stop Completionist",
+          "tooltip": "Only run FATEs and CEs that drop a field note you are still missing, ignoring the event checkboxes.",
+          "label": "Completionist",
+          "checklist": "Field notes and phantom jobs",
+          "outside_zone": "Not in the Occult Crescent.",
+          "jobs": "Phantom jobs"
         }
       },
       "run_state": {

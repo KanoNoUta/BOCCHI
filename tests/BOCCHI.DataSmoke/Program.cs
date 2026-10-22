@@ -3050,5 +3050,11 @@ Assert(TriagePolicy.ShouldArm(true, true, false)
        && !new AutomatorConfig().EnableTriageMode
        && new AutomatorConfig().PreferredTriageRaiseJob == TriageRaiseJob.Chemist,
     "Triage arms only after a FATE or CE the player took part in, and searches 43 yalms.");
+Assert(CompletionistPolicy.ShouldPursue(MonsterNote.CloisterDemon, _ => false)
+       && !CompletionistPolicy.ShouldPursue(MonsterNote.CloisterDemon, _ => true)
+       && !CompletionistPolicy.ShouldPursue(null, _ => false)
+       && EventData.GetCriticalEncountersForTerritory(ZoneData.SOUTHHORN).Any(data => data.Note != null)
+       && EventData.GetCriticalEncountersForTerritory(ZoneData.NORTHHORN).Any(data => data.Note != null),
+    "Completionist only pursues events whose note is still missing, and both horns have note sources.");
 
 Console.WriteLine("BOCCHI 7.55 North Horn data, lifecycle, config, translation, routing, precompute, and vnavmesh availability smoke tests passed.");

@@ -504,6 +504,15 @@
         },
         "forked_tower": {
           "waiting_for": "在报名点等待 {0}"
+        },
+        "completionist": {
+          "start": "开始收集模式",
+          "stop": "停止收集模式",
+          "tooltip": "只去打能掉你还没有的野外笔记（怪物笔记）的 FATE 和 CE，不看事件开关。",
+          "label": "收集模式",
+          "checklist": "野外笔记与辅助职业清单",
+          "outside_zone": "不在新月岛内。",
+          "jobs": "辅助职业"
         }
       },
       "run_state": {

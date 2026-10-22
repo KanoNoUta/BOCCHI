@@ -1,7 +1,9 @@
 using BOCCHI.Modules.Automator.Pots;
 using BOCCHI.Ui;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface;
 using System;
+using System.Linq;
 
 namespace BOCCHI.Modules.Automator;
 
@@ -11,6 +13,8 @@ public class Panel
     {
         BocchiUi.SectionHeading(module.T("panel.title"));
         DrawPotsAndTreasureButton(module);
+        ImGui.SameLine();
+        DrawCompletionistButton(module);
         var name = module.T("panel.activity.none");
         var stateLabel = module.T("panel.activity_state.none");
         try
@@ -40,6 +44,89 @@ public class Panel
             }
             ImGui.EndTable();
         }
+
+        DrawCompletionistChecklist(module);
+    }
+
+    private static void DrawCompletionistButton(AutomatorModule module)
+    {
+        var active = module.RunMode == AutomatorRunMode.Completionist && module.RequestedEnabled;
+        if (ImGui.Button(active
+                ? $"{module.T("panel.completionist.stop")}##Completionist"
+                : $"{module.T("panel.completionist.start")}##Completionist"))
+        {
+            module.RequestCompletionist(!active);
+        }
+
+        if (ImGui.IsItemHovered())
+        {
+            ImGui.SetTooltip(module.T("panel.completionist.tooltip"));
+        }
+    }
+
+    private static unsafe void DrawCompletionistChecklist(AutomatorModule module)
+    {
+        if (!ImGui.CollapsingHeader($"{module.T("panel.completionist.checklist")}##CompletionistChecklist"))
+        {
+            return;
+        }
+
+        var territory = ECommons.DalamudServices.Svc.ClientState.TerritoryType;
+        var notes = FieldNotes.ForTerritory(territory);
+        if (notes.Count == 0)
+        {
+            ImGui.TextDisabled(module.T("panel.completionist.outside_zone"));
+        }
+
+        foreach (var (note, sources) in notes)
+        {
+            var owned = FieldNotes.HasNote(note);
+            var kinds = sources.Any(source => source.Type == Enums.EventType.CriticalEncounter) ? "CE" : "FATE";
+            DrawChecklistRow(
+                owned ? FontAwesomeIcon.Check : FontAwesomeIcon.Times,
+                owned ? Owned : Missing,
+                $"{FieldNotes.GetNoteName(note)} ({kinds})");
+        }
+
+        var state = FFXIVClientStructs.FFXIV.Client.Game.InstanceContent.PublicContentOccultCrescent.GetState();
+        if (state == null)
+        {
+            return;
+        }
+
+        ImGui.Spacing();
+        ImGui.TextUnformatted(module.T("panel.completionist.jobs"));
+        foreach (var job in ECommons.DalamudServices.Svc.Data.GetExcelSheet<Lumina.Excel.Sheets.MKDSupportJob>())
+        {
+            var name = job.Name.ToString();
+            if (job.RowId == 0 || string.IsNullOrWhiteSpace(name) || job.RowId >= (uint)state->SupportJobLevels.Length)
+            {
+                continue;
+            }
+
+            var level = state->SupportJobLevels[(int)job.RowId];
+            if (level == 0)
+            {
+                DrawChecklistRow(FontAwesomeIcon.Times, Missing, name);
+                continue;
+            }
+
+            var maxed = job.LevelMax > 0 && level >= job.LevelMax;
+            DrawChecklistRow(maxed ? FontAwesomeIcon.Star : FontAwesomeIcon.Check, Owned, $"{name} {level}/{job.LevelMax}");
+        }
+    }
+
+    private static readonly System.Numerics.Vector4 Owned = new(0.45f, 0.85f, 0.45f, 1f);
+
+    private static readonly System.Numerics.Vector4 Missing = new(0.6f, 0.6f, 0.6f, 1f);
+
+    private static void DrawChecklistRow(FontAwesomeIcon icon, System.Numerics.Vector4 color, string label)
+    {
+        ImGui.PushFont(UiBuilder.IconFont);
+        ImGui.TextColored(color, icon.ToIconString());
+        ImGui.PopFont();
+        ImGui.SameLine();
+        ImGui.TextColored(color, label);
     }
 
     private static void DrawPotRows(AutomatorModule module)
@@ -100,6 +187,10 @@ public class Panel
         if (module.RunMode == AutomatorRunMode.PotsAndTreasure)
         {
             DrawRow(module.T("panel.pots_and_treasure.mode"), module.T("panel.pots_and_treasure.label"));
+        }
+        else if (module.RunMode == AutomatorRunMode.Completionist)
+        {
+            DrawRow(module.T("panel.pots_and_treasure.mode"), module.T("panel.completionist.label"));
         }
 
         var hunt = module.automator.ManagedHunt;

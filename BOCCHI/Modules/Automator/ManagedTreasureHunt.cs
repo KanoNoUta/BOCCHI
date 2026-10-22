@@ -11,6 +11,9 @@ public enum AutomatorRunMode
 
     /// <summary>Only magic pots; treasure hunting fills the time between them.</summary>
     PotsAndTreasure,
+
+    /// <summary>Only FATEs and CEs whose field note the player is still missing.</summary>
+    Completionist,
 }
 
 /// <summary>
@@ -117,7 +120,7 @@ public sealed class ManagedTreasureHunt
             return false;
         }
 
-        if (mode == AutomatorRunMode.Full
+        if (mode != AutomatorRunMode.PotsAndTreasure
             && (waitingForActivity || !TreasureHuntFillGate.MeetsMinimumFill(treasure.Tracker, treasure.Config)))
         {
             return false;

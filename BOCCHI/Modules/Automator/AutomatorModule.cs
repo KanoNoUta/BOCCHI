@@ -78,9 +78,20 @@ public class AutomatorModule : Module
     /// <summary>Starts Pots &amp; Treasure, or switches a running automator to it.</summary>
     public void RequestPotsAndTreasure(bool enabled)
     {
+        RequestRunMode(AutomatorRunMode.PotsAndTreasure, enabled);
+    }
+
+    /// <summary>Starts Completionist, or switches a running automator to it.</summary>
+    public void RequestCompletionist(bool enabled)
+    {
+        RequestRunMode(AutomatorRunMode.Completionist, enabled);
+    }
+
+    private void RequestRunMode(AutomatorRunMode mode, bool enabled)
+    {
         if (!enabled)
         {
-            if (RunMode == AutomatorRunMode.PotsAndTreasure)
+            if (RunMode == mode)
             {
                 RequestEnabled(false);
             }
@@ -88,9 +99,9 @@ public class AutomatorModule : Module
             return;
         }
 
-        if (RequestedEnabled && RunMode != AutomatorRunMode.PotsAndTreasure)
+        if (RequestedEnabled && RunMode != mode)
         {
-            // Switching while running: drop whatever the full mode was doing.
+            // Switching while running: drop whatever the previous mode was doing.
             Plugin.Chain.Abort();
             try
             {
@@ -98,14 +109,14 @@ public class AutomatorModule : Module
             }
             catch (Exception exception)
             {
-                Svc.Log.Warning(exception, "Could not stop vnavmesh while switching to Pots & Treasure.");
+                Svc.Log.Warning(exception, $"Could not stop vnavmesh while switching to {mode}.");
             }
 
             PromeRotationController.Stop();
             SetAiProviderEnabled(false);
         }
 
-        RunMode = AutomatorRunMode.PotsAndTreasure;
+        RunMode = mode;
         automator.Refresh();
         if (!RequestedEnabled)
         {
