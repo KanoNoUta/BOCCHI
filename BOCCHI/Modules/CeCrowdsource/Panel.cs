@@ -32,9 +32,11 @@ public class Panel
         {
             BocchiUi.EmptyState(
                 module.T("panel.server_error"),
-                string.IsNullOrWhiteSpace(module.LastError)
-                    ? module.T("panel.connecting")
-                    : $"{module.T("panel.last_error")}: {module.LastError}");
+                module.WaitingForZoneServerId
+                    ? module.T("panel.waiting_zone")
+                    : string.IsNullOrWhiteSpace(module.LastError)
+                        ? module.T("panel.connecting")
+                        : $"{module.T("panel.last_error")}: {module.LastError}");
             return;
         }
 
@@ -94,9 +96,15 @@ public class Panel
         // 上传名额由服务端分配：每个岛只有少数人上传，其余只读取。
         if (module.Config.UploadObservations && ZoneData.IsInOccultCrescent())
         {
+            // 只有服务端明确答复“名额已满”时才显示只读；尚未拿到岛屿区服 ID
+            // 或心跳还没回来时，显示等待状态，避免误报“名额已满”。
             ImGui.TextDisabled(module.IsUploader
                 ? string.Format(module.T("panel.uploader_active"), module.UploaderSlots)
-                : module.T("panel.uploader_standby"));
+                : module.WaitingForZoneServerId
+                    ? module.T("panel.waiting_zone")
+                    : module.UploaderLeaseKnown
+                        ? module.T("panel.uploader_standby")
+                        : module.T("panel.uploader_pending"));
         }
 
         ImGui.Spacing();

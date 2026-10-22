@@ -35,6 +35,8 @@
         "uploaded": "{0} observations envoyées",
         "uploader_active": "Envoi actif ({0} rapporteurs par île)",
         "uploader_standby": "Lecture seule : cette île a déjà assez de rapporteurs",
+        "uploader_pending": "En attente d'un créneau d'envoi du serveur...",
+        "waiting_zone": "Identification de l'île en cours (ID du serveur de zone indisponible)...",
         "connecting": "Connexion au serveur...",
         "server_error": "Échec de connexion au serveur",
         "last_error": "Erreur",

@@ -35,6 +35,8 @@
         "uploaded": "{0} observations uploaded",
         "uploader_active": "Uploading ({0} reporters per island)",
         "uploader_standby": "Read-only: this island already has enough reporters",
+        "uploader_pending": "Waiting for the server to assign an upload slot...",
+        "waiting_zone": "Identifying the current island (zone server ID not ready)...",
         "connecting": "Connecting to server...",
         "server_error": "Server connection failed",
         "last_error": "Error",

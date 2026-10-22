@@ -75,6 +75,10 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
     private bool hasPresenceScope;
     private string lastHeartbeatPlayerName = "unknown";
     private string lastHeartbeatWorld = string.Empty;
+    private DateTime? zoneServerIdWaitStartedAt;
+    private bool zoneServerIdWaitWarned;
+    private bool loggedScopeConnected;
+    private string? lastWarnedError;
 
     public override CeCrowdsourceConfig Config
     {
@@ -98,6 +102,19 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
     public bool IsUploader { get; private set; }
 
     public int UploaderSlots { get; private set; } = 3;
+
+    /// <summary>
+    /// True once an island-scoped heartbeat has been answered for the current
+    /// scope. Until then <see cref="IsUploader"/> is false only because nothing
+    /// has been asked yet, not because the island's slots are taken.
+    /// </summary>
+    public bool UploaderLeaseKnown { get; private set; }
+
+    /// <summary>
+    /// True while the player is on the island but the zone server ID has not
+    /// been read yet. No island-scoped request can be made in this state.
+    /// </summary>
+    public bool WaitingForZoneServerId { get; private set; }
 
     /// <summary>How long the server keeps records, in minutes (island lifetime).</summary>
     public int RetentionMinutes { get; private set; } = 180;
@@ -216,6 +233,8 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
                     IslandOnlineCount = 0;
                     InstanceCount = 0;
                     IsUploader = false;
+                    UploaderLeaseKnown = false;
+                    WaitingForZoneServerId = false;
                     Connected = false;
                     LastSyncAt = null;
                     LastError = null;
@@ -453,9 +472,10 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
                 }
                 // The heartbeat renews the upload lease, so this flag is what
                 // gates uploading until the next beat.
-                IsUploader = CeCrowdsourcePresencePolicy.CanPublishIslandPresence(
-                                 presence.IsIsland, presence.ZoneServerId)
-                             && stats.IsUploader;
+                var islandScoped = CeCrowdsourcePresencePolicy.CanPublishIslandPresence(
+                    presence.IsIsland, presence.ZoneServerId);
+                IsUploader = islandScoped && stats.IsUploader;
+                UploaderLeaseKnown = islandScoped;
                 if (stats.UploaderSlots > 0)
                 {
                     UploaderSlots = stats.UploaderSlots;
@@ -644,6 +664,14 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
                 Connected = true;
                 LastError = null;
             }
+
+            if (!loggedScopeConnected)
+            {
+                loggedScopeConnected = true;
+                Svc.Log.Info(
+                    $"[CeCrowdsource] synced island zone={zone} instance={instance} territory={territory}: "
+                    + $"{ceList.Events?.Length ?? 0} records from server, {Records.Count} shown");
+            }
         }
         catch (OperationCanceledException) when (
             requestToken.IsCancellationRequested || cts.IsCancellationRequested)
@@ -748,6 +776,7 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
     private void RefreshPresenceScope(DateTime now)
     {
         var current = CapturePresenceScope();
+        TrackZoneServerIdWait(current, now);
         if (!hasPresenceScope)
         {
             lastPresenceScope = current;
@@ -762,6 +791,32 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
 
         lastPresenceScope = current;
         RestartConnection(now);
+    }
+
+    /// <summary>
+    /// On the island every request is skipped until the zone server ID is
+    /// known. That used to be silent: the panel just said "connecting" forever
+    /// and the uploader line claimed the island was full. Surface the wait, and
+    /// leave a log line if it never resolves so it can be diagnosed.
+    /// </summary>
+    private void TrackZoneServerIdWait(CeCrowdsourcePresenceScope current, DateTime now)
+    {
+        var waiting = current.IsIsland && current.ZoneServerId == 0;
+        WaitingForZoneServerId = waiting;
+        if (!waiting)
+        {
+            zoneServerIdWaitStartedAt = null;
+            return;
+        }
+
+        zoneServerIdWaitStartedAt ??= now;
+        if (!zoneServerIdWaitWarned && now - zoneServerIdWaitStartedAt.Value > TimeSpan.FromSeconds(30))
+        {
+            zoneServerIdWaitWarned = true;
+            Svc.Log.Warning(
+                $"[CeCrowdsource] zone server ID still 0 after 30s on territory {current.TerritoryId}; "
+                + "crowdsource requests are paused until it resolves");
+        }
     }
 
     private void RestartConnection(DateTime now)
@@ -792,11 +847,17 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
             IslandOnlineCount = 0;
             InstanceCount = 0;
             IsUploader = false;
+            UploaderLeaseKnown = false;
             Records = [];
             Connected = false;
             LastSyncAt = null;
             LastError = null;
         }
+
+        zoneServerIdWaitStartedAt = null;
+        zoneServerIdWaitWarned = false;
+        loggedScopeConnected = false;
+        lastWarnedError = null;
     }
 
     private CancellationToken CaptureRequestToken()
@@ -1001,7 +1062,7 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
             message += "（请求频率受限，稍后自动重试）";
         }
 
-        if (!TrySetError(revision, message))
+        if (!TrySetError(revision, message, out var errorChanged))
         {
             return;
         }
@@ -1016,7 +1077,17 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
             nextPollAt = DateTime.UtcNow.AddSeconds(retrySeconds);
         }
 
-        Svc.Log.Debug($"[CeCrowdsource] {operation} failed; retrying: {message}");
+        // Repeated identical failures stay at debug level; the first one (and
+        // any change of cause) reaches the normal log so a stuck connection
+        // can be diagnosed from dalamud.log without debug logging enabled.
+        if (errorChanged)
+        {
+            Svc.Log.Warning($"[CeCrowdsource] {operation} failed; retrying: {message}");
+        }
+        else
+        {
+            Svc.Log.Debug($"[CeCrowdsource] {operation} failed; retrying: {message}");
+        }
     }
 
     private void HandleRequestFailure(
@@ -1032,7 +1103,7 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
         }
 
         var message = DescribeException(exception);
-        if (!TrySetError(revision, message))
+        if (!TrySetError(revision, message, out var errorChanged))
         {
             return;
         }
@@ -1046,7 +1117,17 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
             nextPollAt = DateTime.UtcNow.AddSeconds(5);
         }
 
-        Svc.Log.Debug($"[CeCrowdsource] {operation} failed; retrying: {message}");
+        // Repeated identical failures stay at debug level; the first one (and
+        // any change of cause) reaches the normal log so a stuck connection
+        // can be diagnosed from dalamud.log without debug logging enabled.
+        if (errorChanged)
+        {
+            Svc.Log.Warning($"[CeCrowdsource] {operation} failed; retrying: {message}");
+        }
+        else
+        {
+            Svc.Log.Debug($"[CeCrowdsource] {operation} failed; retrying: {message}");
+        }
     }
 
     private static string DescribeException(Exception exception)
@@ -1071,15 +1152,18 @@ public sealed class CeCrowdsourceModule(Plugin plugin, Config config) : Module(p
         return text.Length <= 240 ? text : text[..240] + "…";
     }
 
-    private bool TrySetError(long revision, string message)
+    private bool TrySetError(long revision, string message, out bool changed)
     {
         lock (sync)
         {
+            changed = false;
             if (revision != Volatile.Read(ref presenceRevision))
             {
                 return false;
             }
 
+            changed = !string.Equals(lastWarnedError, message, StringComparison.Ordinal);
+            lastWarnedError = message;
             Connected = false;
             LastError = message;
             return true;

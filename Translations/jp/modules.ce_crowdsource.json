@@ -35,6 +35,8 @@
         "uploaded": "{0} 件の観測をアップロード",
         "uploader_active": "アップロード中（島ごとに {0} 人まで）",
         "uploader_standby": "読み取り専用：この島の報告枠は満員です",
+        "uploader_pending": "サーバーの報告枠割り当てを待機中...",
+        "waiting_zone": "現在の島を識別中（ゾーンサーバーID未取得）...",
         "connecting": "サーバーに接続中...",
         "server_error": "サーバー接続に失敗しました",
         "last_error": "エラー",
