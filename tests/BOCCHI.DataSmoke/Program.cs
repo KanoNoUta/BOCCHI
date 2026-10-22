@@ -146,7 +146,7 @@ static void RunCeCrowdsourceTests()
            && crowdsourceSource.Contains("PooledConnectionIdleTimeout = TimeSpan.FromSeconds(20)", StringComparison.Ordinal)
            && File.ReadAllText(Path.Combine(
                    "BOCCHI", "Modules", "CeCrowdsource", "CeZoneServerId.cs"))
-               .Contains("signature resolve failed; retrying", StringComparison.Ordinal),
+               .Contains("nextResolveAt = now.Add(ResolveRetryDelay)", StringComparison.Ordinal),
         "Crowdsource must release stale request slots and retry zone-server signature resolution without a plugin reload.");
 
     var islandRecord = new CeRecord("island", 101, 3538944, ZoneData.NORTHHORN, "CE", 56,
