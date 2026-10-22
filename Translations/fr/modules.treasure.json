@@ -29,6 +29,26 @@
         "show_percentage_active_treasure_count": {
           "label": null,
           "tooltip": null
+        },
+        "treasure_sight_every_n_locations": {
+          "label": "Treasure Sight every N spots",
+          "tooltip": "Recast Treasure Sight after checking this many coffer spots. 0 disables."
+        },
+        "hunt_silver_chests_only": {
+          "label": "Silver coffers only",
+          "tooltip": "Only route through silver coffer spots."
+        },
+        "skip_unsafe_treasure_windows": {
+          "label": "Wait out unsafe South Horn windows",
+          "tooltip": "During South Horn's night (ET 22:30 to 4:00) or dangerous weather, finish the current spot and wait until it is safe."
+        },
+        "return_to_base_camp_after_hunt": {
+          "label": "Return to camp after the hunt",
+          "tooltip": "Return to base camp when the route is done or no coffers are left."
+        },
+        "play_sound_on_hunt_complete": {
+          "label": "Sound when the hunt finishes",
+          "tooltip": "Play a sound when the route is done or no coffers are left."
         }
       },
       "panel": {

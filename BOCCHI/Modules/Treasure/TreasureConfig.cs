@@ -45,6 +45,46 @@ public class TreasureConfig : ModuleConfig
     [DependsOn(nameof(Enabled), nameof(EnableTreasureHunt))]
     public bool CastTreasureSightBeforeHunt { get; set; } = true;
 
+    [IntRange(0, 50)]
+    [DependsOn(nameof(Enabled), nameof(EnableTreasureHunt))]
+    public int TreasureSightEveryNLocations { get; set; } = 10;
+
+    [Checkbox]
+    [DependsOn(nameof(Enabled), nameof(EnableTreasureHunt))]
+    public bool HuntSilverChestsOnly { get; set; } = false;
+
+    public bool ShouldHuntSilverChestsOnly
+    {
+        get => IsPropertyEnabled(nameof(HuntSilverChestsOnly));
+    }
+
+    [Checkbox]
+    [DependsOn(nameof(Enabled), nameof(EnableTreasureHunt))]
+    public bool SkipUnsafeTreasureWindows { get; set; } = true;
+
+    public bool ShouldSkipUnsafeTreasureWindows
+    {
+        get => IsPropertyEnabled(nameof(SkipUnsafeTreasureWindows));
+    }
+
+    [Checkbox]
+    [DependsOn(nameof(Enabled), nameof(EnableTreasureHunt))]
+    public bool ReturnToBaseCampAfterHunt { get; set; } = true;
+
+    public bool ShouldReturnToBaseCampAfterHunt
+    {
+        get => IsPropertyEnabled(nameof(ReturnToBaseCampAfterHunt));
+    }
+
+    [Checkbox]
+    [DependsOn(nameof(Enabled), nameof(EnableTreasureHunt))]
+    public bool PlaySoundOnHuntComplete { get; set; } = true;
+
+    public bool ShouldPlaySoundOnHuntComplete
+    {
+        get => IsPropertyEnabled(nameof(PlaySoundOnHuntComplete));
+    }
+
     [Checkbox] public bool CastTreasureSightUponReturn { get; set; } = false;
 
     [Checkbox] public bool ShowPercentageActiveTreasureCount { get; set; } = false;

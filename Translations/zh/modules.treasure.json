@@ -29,6 +29,26 @@
         "show_percentage_active_treasure_count": {
           "label": "以百分比显示宝箱",
           "tooltip": "在总数量旁显示当前宝箱的百分比"
+        },
+        "treasure_sight_every_n_locations": {
+          "label": "每 N 个点放一次寻宝术",
+          "tooltip": "寻宝途中每检查这么多个宝箱点就重新放一次寻宝术。0 为不放。"
+        },
+        "hunt_silver_chests_only": {
+          "label": "只找银箱",
+          "tooltip": "寻宝路线只包含银宝箱的点位。"
+        },
+        "skip_unsafe_treasure_windows": {
+          "label": "南岛危险时段暂停",
+          "tooltip": "南岛夜间（艾欧泽亚时间 22:30 到 4:00）或危险天气时，走完当前这个点后原地等待，安全后再继续。"
+        },
+        "return_to_base_camp_after_hunt": {
+          "label": "寻宝结束后回营地",
+          "tooltip": "路线走完或宝箱已经开完时自动返回营地。"
+        },
+        "play_sound_on_hunt_complete": {
+          "label": "寻宝结束时提示音",
+          "tooltip": "路线走完或宝箱已经开完时播放提示音。"
         }
       },
       "panel": {

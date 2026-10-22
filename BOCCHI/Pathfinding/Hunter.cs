@@ -278,6 +278,22 @@ public abstract class Hunter
         return true;
     }
 
+    /// <summary>Called once per node the hunt finished with (opened or found gone).</summary>
+    protected virtual void OnNodeVisited(uint nodeId)
+    {
+    }
+
+    /// <summary>Called when a hunt ends on its own (route done or nothing left), not on Stop/Pause.</summary>
+    protected virtual void OnHuntFinished()
+    {
+    }
+
+    /// <summary>While true the hunt finishes its current step but starts no new one.</summary>
+    protected virtual bool ShouldHoldBeforeNextStep()
+    {
+        return false;
+    }
+
     public void Update()
     {
         if (!running || Plugin.Chain.IsRunning)
@@ -289,6 +305,7 @@ public abstract class Hunter
         {
             Svc.Log.Info("Hunt completed because no requested targets remain.");
             Teardown();
+            OnHuntFinished();
             return;
         }
 
@@ -358,6 +375,11 @@ public abstract class Hunter
             return;
         }
 
+        if (ShouldHoldBeforeNextStep())
+        {
+            return;
+        }
+
         TryPromotePriorityNode();
 
         StepProcessor.Submit(() =>
@@ -382,10 +404,16 @@ public abstract class Hunter
         // callbacks, interaction state, and runtime recovery decisions cannot
         // leak into the next cycle.
         var repeat = running && ShouldRepeatAfterCompletion();
+        var finished = running && !repeat;
         resumeNodeIds = null;
         Teardown();
         if (!repeat)
         {
+            if (finished)
+            {
+                OnHuntFinished();
+            }
+
             return;
         }
 
@@ -776,6 +804,7 @@ public abstract class Hunter
         if (outcome is HuntInteractionOutcome.Succeeded or HuntInteractionOutcome.TargetGone)
         {
             Svc.Log.Info($"Hunt node {nodeId} interaction completed with outcome {outcome}.");
+            OnNodeVisited(nodeId);
             var wasPriorityDiversion = priorityDiversionNodeId == nodeId;
             if (wasPriorityDiversion)
             {

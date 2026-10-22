@@ -10,6 +10,7 @@ using ECommons.DalamudServices;
 using ECommons.GameHelpers;
 using FFXIVClientStructs.FFXIV.Client.Game.Control;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
+using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Client.LayoutEngine;
 using Ocelot.Chain;
 using Ocelot.Chain.ChainEx;
@@ -376,8 +377,66 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
             1.5f);
     }
 
+    private int visitedSinceSight;
+
+    protected override void OnNodeVisited(uint nodeId)
+    {
+        _ = nodeId;
+        visitedSinceSight++;
+        if (TreasureHuntOptionsPolicy.ShouldRecastSight(module.Config.TreasureSightEveryNLocations, visitedSinceSight))
+        {
+            visitedSinceSight = 0;
+            Plugin.Chain.Submit(new TreasureSightChain(module, force: true));
+        }
+    }
+
+    protected override unsafe void OnHuntFinished()
+    {
+        if (module.Config.ShouldPlaySoundOnHuntComplete)
+        {
+            UIGlobals.PlaySoundEffect(66);
+        }
+
+        if (module.Config.ShouldReturnToBaseCampAfterHunt && ZoneData.IsInOccultCrescent())
+        {
+            Svc.Log.Info("Treasure hunt finished; returning to base camp.");
+            Plugin.Chain.Submit(ChainHelper.ReturnChain());
+        }
+    }
+
+    protected override bool ShouldHoldBeforeNextStep()
+    {
+        if (!module.Config.ShouldSkipUnsafeTreasureWindows || !ZoneData.IsInSouthHorn())
+        {
+            return false;
+        }
+
+        if (!TreasureHuntOptionsPolicy.IsSouthHornUnsafe(DateTimeOffset.UtcNow, GetCurrentWeatherId()))
+        {
+            return false;
+        }
+
+        var now = Environment.TickCount64;
+        if (now - lastUnsafeLogAt > 10000)
+        {
+            lastUnsafeLogAt = now;
+            Svc.Log.Info("Treasure hunt waiting: South Horn weather or Ashkin hours are unsafe.");
+        }
+
+        return true;
+    }
+
+    private long lastUnsafeLogAt;
+
+    private static unsafe byte GetCurrentWeatherId()
+    {
+        var env = FFXIVClientStructs.FFXIV.Client.Graphics.Environment.EnvManager.Instance();
+        return env == null ? (byte)0 : env->ActiveWeather;
+    }
+
     protected override void OnStarted()
     {
+        visitedSinceSight = 0;
         if (TreasureSightRefreshPolicy.ShouldCast(
                 module.Config.CastTreasureSightBeforeHunt,
                 module.Tracker.CountInitialised))
@@ -790,14 +849,19 @@ public class TreasureHunt(TreasureModule module) : Hunter(module)
 
     protected override List<uint> GetValidNodes(int max)
     {
+        var silverOnly = module.Config.ShouldHuntSilverChestsOnly;
         if (ZoneData.IsInNorthHorn())
         {
-            return NorthHornTreasureRoute.NodeIds.ToList();
+            var types = Treasure.ToDictionary(treasure => treasure.Id, treasure => treasure.Type);
+            return NorthHornTreasureRoute.NodeIds
+                .Where(id => !silverOnly || (types.TryGetValue(id, out var type) && type == TreasureHuntOptionsPolicy.SilverType))
+                .ToList();
         }
 
         return Treasure
             .Where(treasure => TreasureData.Levels.TryGetValue(treasure.Id, out var level)
-                               && level <= max)
+                               && level <= max
+                               && (!silverOnly || treasure.Type == TreasureHuntOptionsPolicy.SilverType))
             .Select(treasure => treasure.Id)
             .ToList();
     }
@@ -820,5 +884,39 @@ public static class TreasureHuntDataPolicy
     public static bool ShouldReload(uint? loadedTerritory, uint currentTerritory, int cachedNodeCount)
     {
         return loadedTerritory != currentTerritory || cachedNodeCount <= 0;
+    }
+}
+
+public static class TreasureHuntOptionsPolicy
+{
+    public const uint SilverType = 1597;
+
+    // South Horn only, from upstream BOCCHI 4.2's zone data.
+    private static readonly byte[] SouthHornUnsafeWeather = [7, 62, 64, 192];
+
+    private const int AshkinStartEorzeaMinute = 1350;
+
+    private const int AshkinEndEorzeaMinute = 240;
+
+    public static bool ShouldRecastSight(int everyNLocations, int visitedSinceSight)
+    {
+        return everyNLocations > 0 && visitedSinceSight >= everyNLocations;
+    }
+
+    public static int GetEorzeaMinuteOfDay(DateTimeOffset utc)
+    {
+        var eorzeaSeconds = utc.ToUnixTimeSeconds() * 3600L / 175L;
+        return (int)(eorzeaSeconds % 86400L / 60L);
+    }
+
+    public static bool IsAshkinPeriod(int eorzeaMinuteOfDay)
+    {
+        return eorzeaMinuteOfDay >= AshkinStartEorzeaMinute || eorzeaMinuteOfDay < AshkinEndEorzeaMinute;
+    }
+
+    public static bool IsSouthHornUnsafe(DateTimeOffset utc, byte weatherId)
+    {
+        return IsAshkinPeriod(GetEorzeaMinuteOfDay(utc))
+               || (weatherId != 0 && Array.IndexOf(SouthHornUnsafeWeather, weatherId) >= 0);
     }
 }
