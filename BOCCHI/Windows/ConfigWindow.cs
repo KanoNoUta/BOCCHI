@@ -360,6 +360,10 @@ public class ConfigWindow(Plugin primaryPlugin, Config config) : OcelotConfigWin
         DrawBoolean(module, cfg, nameof(cfg.PauseAutoTreasureHuntForPots), !cfg.EnableAutomaticTreasureHunt);
         DrawBoolean(module, cfg, nameof(cfg.PauseAutoTreasureHuntForCriticalEncounters), !cfg.EnableAutomaticTreasureHunt);
 
+        DrawSectionTitle(T("editors.automation.forked_tower"));
+        DrawBoolean(module, cfg, nameof(cfg.AutoRegisterForForkedTower));
+        DrawBoolean(module, cfg, nameof(cfg.StayMountedWhileWaiting));
+
         DrawSectionTitle(T("editors.automation.repair"));
         DrawInt(module, cfg, nameof(cfg.AutoRepairThreshold), 0, 99);
         DrawAutoRepairMethod(module, cfg.AutoRepairThreshold <= 0);

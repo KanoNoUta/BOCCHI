@@ -161,6 +161,7 @@ public class AutomatorModule : Module
         {
             nextPotCycleUpdateAt = tick + 500;
             PotContext.UpdateCycles(this);
+            UpdateForkedTowerEntry();
         }
 
         if (HandleDeathReturn())
@@ -203,6 +204,25 @@ public class AutomatorModule : Module
         automator.PostUpdate(this, context.Framework);
     }
 
+
+    // Tracked while off too, so starting by hand inside the tower is not undone.
+    private bool wasInsideForkedTower;
+
+    /// <summary>BossMod takes over inside the tower; the automator would only fight it.</summary>
+    private void UpdateForkedTowerEntry()
+    {
+        var inside = ForkedTowerRegistration.IsInsideTowerNow();
+        var justEntered = inside && !wasInsideForkedTower;
+        wasInsideForkedTower = inside;
+        if (!justEntered || !Config.Enabled || !Config.AutoRegisterForForkedTower)
+        {
+            return;
+        }
+
+        Svc.Log.Info("[Automator] Entered the Forked Tower; turning the automator off.");
+        Svc.Chat.Print(T("messages.forked_tower_entered"));
+        DisableIllegalMode();
+    }
 
     public override bool RenderMainUi(RenderContext context)
     {

@@ -112,7 +112,15 @@ public sealed class PotWaitActivity : Activity
 
             if (PotTreasureFilter.Distance2D(Player.Position, pot.Center) <= PrepositionMaxRadius)
             {
-                StopAtArrivalAndTryDismount("Pots.WaitArrivalDismount");
+                if (module.Config.StayMountedWhileWaiting)
+                {
+                    vnav.Stop();
+                }
+                else
+                {
+                    StopAtArrivalAndTryDismount("Pots.WaitArrivalDismount");
+                }
+
                 return true;
             }
 
@@ -139,7 +147,7 @@ public sealed class PotWaitActivity : Activity
                     return true;
                 }
 
-                if (Svc.Condition[ConditionFlag.Mounted])
+                if (Svc.Condition[ConditionFlag.Mounted] && !module.Config.StayMountedWhileWaiting)
                 {
                     StopAtArrivalAndTryDismount("Pots.WaitDismount");
                 }

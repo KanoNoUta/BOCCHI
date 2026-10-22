@@ -247,7 +247,15 @@ public class CriticalEncounter : Activity
 
                 if (decision == FinalApproachDecision.Arrived)
                 {
-                    StopAtArrivalAndTryDismount("CriticalEncounter.ArrivalDismount");
+                    if (module.Config.StayMountedWhileWaiting)
+                    {
+                        vnav.Stop();
+                    }
+                    else
+                    {
+                        StopAtArrivalAndTryDismount("CriticalEncounter.ArrivalDismount");
+                    }
+
                     return true;
                 }
 
@@ -354,7 +362,7 @@ public class CriticalEncounter : Activity
                         // Arrival can coincide with mount/action animation
                         // lock. Keep retrying at a controlled rate throughout
                         // CE registration and the transition into battle.
-                        if (!IsNavigationActive())
+                        if (!IsNavigationActive() && !(registrationOpen && module.Config.StayMountedWhileWaiting))
                         {
                             RetryArrivalDismount("CriticalEncounter.ArrivalDismount");
                         }

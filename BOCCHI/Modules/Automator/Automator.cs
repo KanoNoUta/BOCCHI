@@ -232,7 +232,7 @@ public class Automator
             var endedPotFarmFate = GetPotFarmFate(module, Activity);
             // A pot wait ends when its pot spawns; the live pot is picked up
             // next, so there is nothing to return from.
-            var shouldReturn = Activity is not PotWaitActivity
+            var shouldReturn = Activity is not (PotWaitActivity or ForkedTowerWaitActivity)
                 && endedPotFarmFate == 0
                 && PostActivityReturnPolicy.ShouldQueue(
                 Activity.data.Type,
@@ -318,7 +318,7 @@ public class Automator
             {
                 var endedActivityType = Activity.data.Type;
                 var endedPotFarmFate = GetPotFarmFate(module, Activity);
-                var shouldReturn = Activity is not PotWaitActivity
+                var shouldReturn = Activity is not (PotWaitActivity or ForkedTowerWaitActivity)
                     && endedPotFarmFate == 0
                     && PostActivityReturnPolicy.ShouldQueue(
                     Activity.data.Type,
@@ -350,6 +350,13 @@ public class Automator
             }
 
             Plugin.Chain.Submit(chain);
+            return;
+        }
+
+        Activity = FindForkedTowerWait(module, lifestream, vnav);
+        if (Activity != null)
+        {
+            Svc.Log.Info($"Selected activity: {Activity.GetName()}");
             return;
         }
 
@@ -737,6 +744,12 @@ public class Automator
     private bool ShouldYieldHunt(AutomatorModule module, Lifestream lifestream, VNavmesh vnav, out string reason)
     {
         reason = string.Empty;
+        if (ForkedTowerRegistration.TryFindRegistrable(module, out _))
+        {
+            reason = "Forked Tower registration";
+            return true;
+        }
+
         var potsAndTreasure = module.RunMode == AutomatorRunMode.PotsAndTreasure;
         if ((potsAndTreasure || module.Config.PauseAutoTreasureHuntForPots) && NeedsPotWork(module))
         {
@@ -884,6 +897,20 @@ public class Automator
             .FirstOrDefault();
     }
 
+    private static ForkedTowerWaitActivity? FindForkedTowerWait(AutomatorModule module, Lifestream lifestream, VNavmesh vnav)
+    {
+        if (!ForkedTowerRegistration.TryFindRegistrable(module, out var pad))
+        {
+            return null;
+        }
+
+        var data = EventData.GetCriticalEncounter(pad.EventId, pad.TerritoryId);
+        return new ForkedTowerWaitActivity(data, pad, lifestream, vnav, module, () =>
+            module.IsEnabled
+            && ForkedTowerRegistration.TryFindRegistrable(module, out var current)
+            && current.EventId == pad.EventId);
+    }
+
     private static PotWaitActivity? FindPotWait(AutomatorModule module, Lifestream lifestream, VNavmesh vnav)
     {
         var pots = PotContext.Capture(module);
@@ -928,6 +955,17 @@ public class Automator
         reason = string.Empty;
         replacementCe = null;
         engaged = false;
+        // Anything still on its way gives way to an open tower registration.
+        if (activity is not ForkedTowerWaitActivity
+            && activity.state is ActivityState.Idle or ActivityState.Pathfinding
+            && !activity.HasParticipated
+            && states.GetState() == State.Idle
+            && ForkedTowerRegistration.TryFindRegistrable(module, out var towerPad))
+        {
+            reason = $"Forked Tower {towerPad.EventId} registration is open";
+            return true;
+        }
+
         if (activity is not FateActivity || activity.state == ActivityState.Done)
         {
             return false;
@@ -1004,7 +1042,7 @@ public class Automator
 
     private void ClearActivity()
     {
-        if (Activity is { HasParticipated: true } and not PotWaitActivity)
+        if (Activity is { HasParticipated: true } and not (PotWaitActivity or ForkedTowerWaitActivity))
         {
             ManagedHunt.OnActivityCompleted();
         }

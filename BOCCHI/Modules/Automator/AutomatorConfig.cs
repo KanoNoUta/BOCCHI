@@ -581,6 +581,12 @@ public class AutomatorConfig : ModuleConfig
 
     public AutoRepairMethod AutoRepairMethod { get; set; } = AutoRepairMethod.SelfRepair;
 
+    [Checkbox]
+    public bool StayMountedWhileWaiting { get; set; } = false;
+
+    [Checkbox]
+    public bool AutoRegisterForForkedTower { get; set; } = false;
+
     // Magic pots
     [Checkbox]
     [DependsOn(nameof(DoFates))]

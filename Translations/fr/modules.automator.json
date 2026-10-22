@@ -391,6 +391,14 @@
           "self": "Self-repair",
           "mender": "Mender NPC",
           "prefer_mender": "Prefer mender NPC"
+        },
+        "auto_register_for_forked_tower": {
+          "label": "Walk to the Forked Tower pad when registration opens",
+          "tooltip": "While Forked Tower registration is open, drop any FATE or CE not yet started and wait on the pad. North Horn needs Knowledge 40. Blood's ciphers are still offered by hand. The automator turns off once inside the tower."
+        },
+        "stay_mounted_while_waiting": {
+          "label": "Stay mounted while waiting",
+          "tooltip": "Keep the mount while waiting for a CE, a magic pot, or the Forked Tower; dismount when the fight starts."
         }
       },
       "panel": {
@@ -409,7 +417,8 @@
             "participating": "En cours de participation",
             "done": "Terminé",
             "unknown": "État inconnu",
-            "waiting_for_pot": "Waiting for the pot"
+            "waiting_for_pot": "Waiting for the pot",
+            "waiting_for_forked_tower": "Waiting on the Forked Tower pad"
           }
         },
         "rotation": {
@@ -458,6 +467,9 @@
           "label": "Treasure hunt",
           "running": "Hunting",
           "paused": "Paused ({0})"
+        },
+        "forked_tower": {
+          "waiting_for": "Waiting on the pad for {0}"
         }
       },
       "run_state": {
@@ -485,7 +497,10 @@
           "modules_enabling": "[BOCCHI] Activation des modules DailyRoutines requis pour entrer dans l'instance.",
           "failed": "[BOCCHI] Changement d'instance arrêté après un délai dépassé, ou parce que DailyRoutines ou le plugin de sortie choisi était indisponible.",
           "leave_unavailable": "[BOCCHI] Le changement d'instance a besoin de la sortie instantanée de {0} ({1}), mais {0} est introuvable. Installez {0} et activez la sortie instantanée, ou choisissez un autre plugin de sortie dans les paramètres, puis désactivez et réactivez le mode illégal."
-        }
+        },
+        "forked_tower_offer_ciphers": "[BOCCHI] On the Blood tower pad. Offer your ciphers at a reliquary; the automator will not do it for you.",
+        "forked_tower_on_pad": "[BOCCHI] On the Magic tower pad, waiting to be pulled in.",
+        "forked_tower_entered": "[BOCCHI] Entered the Forked Tower; the automator is now off."
       }
     }
   }

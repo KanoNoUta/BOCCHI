@@ -7,6 +7,7 @@ public enum ActivityState
     WaitingToStartCriticalEncounter,
     Participating,
     WaitingForPot,
+    WaitingForForkedTower,
     Done,
 }
 
@@ -21,6 +22,7 @@ public static class ActivityStateExtensions
             ActivityState.WaitingToStartCriticalEncounter => "waiting_to_start_ce",
             ActivityState.Participating => "participating",
             ActivityState.WaitingForPot => "waiting_for_pot",
+            ActivityState.WaitingForForkedTower => "waiting_for_forked_tower",
             ActivityState.Done => "done",
             _ => "unknown",
         };

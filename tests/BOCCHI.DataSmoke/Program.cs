@@ -2994,7 +2994,9 @@ Assert(portedAutomatorConfig.MaxFateProgressPercent == 0
        && portedTreasureConfig.HuntMinBronzePercent == 50
        && portedTreasureConfig.HuntMinSilverPercent == 50
        && portedAutomatorConfig.AutoRepairThreshold == 0
-       && portedAutomatorConfig.AutoRepairMethod == AutoRepairMethod.SelfRepair,
+       && portedAutomatorConfig.AutoRepairMethod == AutoRepairMethod.SelfRepair
+       && !portedAutomatorConfig.AutoRegisterForForkedTower
+       && !portedAutomatorConfig.StayMountedWhileWaiting,
     "Ported options must keep their documented defaults.");
 Assert(RepairPolicy.ConditionPercent(30000) == 100
        && RepairPolicy.ConditionPercent(9000) == 30
@@ -3004,5 +3006,28 @@ Assert(RepairPolicy.NeedsRepair(30, 30)
        && !RepairPolicy.NeedsRepair(31, 30)
        && !RepairPolicy.NeedsRepair(0, 0),
     "Auto repair must trigger at or below the threshold and stay off at 0.");
+Assert(ForkedTowerRegistration.TryGetPad(ZoneData.SOUTHHORN, out var bloodPad)
+       && bloodPad.EventId == 48
+       && bloodPad.NeedsCiphers
+       && bloodPad.RequiredKnowledgeLevel == 0
+       && ForkedTowerRegistration.TryGetPad(ZoneData.NORTHHORN, out var magicPad)
+       && magicPad.EventId == 64
+       && magicPad.RequiredKnowledgeLevel == 40
+       && EventData.CriticalEncounters.ContainsKey(bloodPad.EventId)
+       && EventData.CriticalEncounters.ContainsKey(magicPad.EventId),
+    "Each horn must map to its Forked Tower pad and event.");
+Assert(ForkedTowerRegistration.IsOnPad(bloodPad.Position + new Vector3(4f, 3f, 4f), bloodPad.Position)
+       && !ForkedTowerRegistration.IsOnPad(bloodPad.Position + new Vector3(5f, 0f, 5f), bloodPad.Position)
+       && !ForkedTowerRegistration.IsOnPad(bloodPad.Position + new Vector3(0f, 12f, 0f), bloodPad.Position),
+    "The pad arrival check must use a 6y radius and 10y height window.");
+Assert(!ForkedTowerRegistration.IsInsideTower(true, bloodPad.Position + new Vector3(20f, 0f, 0f), bloodPad.Position)
+       && ForkedTowerRegistration.IsInsideTower(true, bloodPad.Position + new Vector3(500f, 0f, 0f), bloodPad.Position)
+       && !ForkedTowerRegistration.IsInsideTower(false, bloodPad.Position + new Vector3(500f, 0f, 0f), bloodPad.Position),
+    "Standing on the pad with the tower event current must not count as inside the tower.");
+Assert(ForkedTowerRegistration.MeetsKnowledgeRequirement(40, 40)
+       && !ForkedTowerRegistration.MeetsKnowledgeRequirement(40, 39)
+       && ForkedTowerRegistration.MeetsKnowledgeRequirement(40, null)
+       && ForkedTowerRegistration.MeetsKnowledgeRequirement(0, 1),
+    "The Magic tower needs Knowledge 40; an unknown level never blocks.");
 
 Console.WriteLine("BOCCHI 7.55 North Horn data, lifecycle, config, translation, routing, precompute, and vnavmesh availability smoke tests passed.");
