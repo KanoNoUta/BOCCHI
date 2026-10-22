@@ -22,6 +22,10 @@
         "approach_aetheryte": {
           "label": "デミデジョン後、エーテライトに接近",
           "tooltip": "ベースキャンプに戻った後、エーテライトまで歩きます。\n* F.A.T.E.またはクリティカルエンカウント後にプラグイン経由で戻る場合にのみ機能します。"
+        },
+        "sprint_to_aetheryte": {
+          "label": "Sprint to aethernet shards",
+          "tooltip": "Use Sprint when walking (unmounted) to a remote aethernet shard before teleporting."
         }
       },
       "messages": {

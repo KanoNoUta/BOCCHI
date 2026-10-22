@@ -363,6 +363,7 @@ public class ConfigWindow(Plugin primaryPlugin, Config config) : OcelotConfigWin
         DrawSectionTitle(T("editors.automation.forked_tower"));
         DrawBoolean(module, cfg, nameof(cfg.AutoRegisterForForkedTower));
         DrawBoolean(module, cfg, nameof(cfg.StayMountedWhileWaiting));
+        DrawInt(module, cfg, nameof(cfg.MaxReturnDelaySeconds), 0, 30);
 
         DrawSectionTitle(T("editors.automation.repair"));
         DrawInt(module, cfg, nameof(cfg.AutoRepairThreshold), 0, 99);

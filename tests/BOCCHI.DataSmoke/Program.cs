@@ -3035,5 +3035,11 @@ Assert(ActivityParticipationState.IsAlreadyInside(EventType.Fate, 1964, 1964, 0)
        && ActivityParticipationState.IsAlreadyInside(EventType.CriticalEncounter, 33, 1962, 33)
        && !ActivityParticipationState.IsAlreadyInside(EventType.Fate, 0, 0, 0),
     "An activity only starts as joined when the game reports that same FATE or CE.");
+Assert(ReturnDelayPolicy.RollExtraDelayMs(0, 0.9) == 0
+       && ReturnDelayPolicy.RollExtraDelayMs(10, 0) == 0
+       && ReturnDelayPolicy.RollExtraDelayMs(10, 1) == 10_000
+       && ReturnDelayPolicy.RollExtraDelayMs(10, 0.5) == 5_000
+       && new AutomatorConfig().MaxReturnDelaySeconds == 0,
+    "The random wait before Return must stay within 0..max seconds and default off.");
 
 Console.WriteLine("BOCCHI 7.55 North Horn data, lifecycle, config, translation, routing, precompute, and vnavmesh availability smoke tests passed.");

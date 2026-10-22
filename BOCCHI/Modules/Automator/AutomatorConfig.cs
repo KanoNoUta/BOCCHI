@@ -584,6 +584,9 @@ public class AutomatorConfig : ModuleConfig
     [Checkbox]
     public bool StayMountedWhileWaiting { get; set; } = false;
 
+    [IntRange(0, 30)]
+    public int MaxReturnDelaySeconds { get; set; } = 0;
+
     [Checkbox]
     public bool AutoRegisterForForkedTower { get; set; } = false;
 

@@ -106,6 +106,10 @@ public class Automator
 
     private const float RepairCampRadius = 60f;
 
+    private int maxReturnDelaySeconds;
+
+    private int postActivityReturnExtraDelayMs;
+
     private static readonly TimeSpan RepairRetryDelay = TimeSpan.FromMinutes(5);
 
     private DateTime nextRepairAttemptAt = DateTime.MinValue;
@@ -134,6 +138,7 @@ public class Automator
             return;
         }
 
+        maxReturnDelaySeconds = module.Config.MaxReturnDelaySeconds;
         var states = module.GetModule<StateManagerModule>();
         if (UpdatePotChestFarm(module, vnav))
         {
@@ -735,7 +740,8 @@ public class Automator
         idleTime = 0;
         ResetPostActivityTracking();
         postActivityQueuedAtMs = Environment.TickCount64;
-        Svc.Log.Info($"Queued forced base-camp return after {reason}.");
+        postActivityReturnExtraDelayMs = ReturnDelayPolicy.RollExtraDelayMs(maxReturnDelaySeconds, Random.Shared.NextDouble());
+        Svc.Log.Info($"Queued forced base-camp return after {reason} (extra wait {postActivityReturnExtraDelayMs} ms).");
     }
 
     private bool TryStartRepair(AutomatorModule module, VNavmesh vnav)
@@ -1181,7 +1187,7 @@ public class Automator
         }
 
         postActivitySettledSinceMs ??= nowMs;
-        if (nowMs - postActivitySettledSinceMs.Value < PostActivityReturnSettleMs)
+        if (nowMs - postActivitySettledSinceMs.Value < PostActivityReturnSettleMs + postActivityReturnExtraDelayMs)
         {
             return true;
         }
@@ -1505,6 +1511,20 @@ public static class ActivitySelectionPolicy
 }
 
 /// <summary>FATE choice and hand-off rules ported from upstream BOCCHI 4.2.</summary>
+public static class ReturnDelayPolicy
+{
+    /// <summary>A random 0..max second wait before the post-activity Return; 0 turns it off.</summary>
+    public static int RollExtraDelayMs(int maxSeconds, double roll)
+    {
+        if (maxSeconds <= 0)
+        {
+            return 0;
+        }
+
+        return (int)Math.Round(Math.Clamp(roll, 0d, 1d) * maxSeconds * 1000d);
+    }
+}
+
 public static class FateSelectionPolicy
 {
     /// <summary>Nearer FATEs and FATEs with less progress score higher.</summary>

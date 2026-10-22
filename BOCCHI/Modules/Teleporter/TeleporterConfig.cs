@@ -25,4 +25,6 @@ public class TeleporterConfig : ModuleConfig
     [RequiredPlugin("vnavmesh")]
 
     public bool ApproachAetheryte { get; set; } = false;
+
+    [Checkbox] public bool SprintToAetheryte { get; set; } = false;
 }

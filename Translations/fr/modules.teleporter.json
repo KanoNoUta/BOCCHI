@@ -22,7 +22,11 @@
           "label": "Monter sur sa monture après la téléportation",
           "tooltip": "Monte sur votre monture automatiquement après une téléportation."
         },
-        "title": "Configuration des Téléportations"
+        "title": "Configuration des Téléportations",
+        "sprint_to_aetheryte": {
+          "label": "Sprint to aethernet shards",
+          "tooltip": "Use Sprint when walking (unmounted) to a remote aethernet shard before teleporting."
+        }
       },
       "messages": {
         "not_near_shard": "Vous n'êtes pas près d'un réseau éthéré.",

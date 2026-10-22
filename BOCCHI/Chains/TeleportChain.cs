@@ -133,6 +133,13 @@ public class TeleportChain(
         const float interactRange = 4.2f;
         var lastRepathAt = 0L;
         chain.ConditionalThen(
+            _ => !IsStopped()
+                 && module.Config.SprintToAetheryte
+                 && !Svc.Condition[ConditionFlag.Mounted]
+                 && ZoneData.GetDistanceToAethernetShard(source) > interactRange
+                 && ActionHelpers.Actions.Sprint.CanCast(),
+            _ => ActionHelpers.Actions.Sprint.TryCast());
+        chain.ConditionalThen(
             _ => !IsStopped() && ZoneData.GetDistanceToAethernetShard(source) > interactRange,
             new PathfindAndMoveToChain(vnav, ZoneData.GetAethernetShardApproachPosition(source), stopCheck: stopCheck));
         chain.Then(new TaskManagerTask(() =>

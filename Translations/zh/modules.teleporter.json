@@ -22,6 +22,10 @@
         "approach_aetheryte": {
           "label": "返回后接近以太水晶",
           "tooltip": "返回后自动行走至以太之光位置\n* 仅在通过插件完成FATE或CE后返回时生效"
+        },
+        "sprint_to_aetheryte": {
+          "label": "跑向以太之光时冲刺",
+          "tooltip": "传送前走向野外的以太之光时，没骑坐骑就先用冲刺。"
         }
       },
       "messages": {

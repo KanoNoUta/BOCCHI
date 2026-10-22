@@ -399,6 +399,10 @@
         "stay_mounted_while_waiting": {
           "label": "Stay mounted while waiting",
           "tooltip": "Keep the mount while waiting for a CE, a magic pot, or the Forked Tower; dismount when the fight starts."
+        },
+        "max_return_delay_seconds": {
+          "label": "Random wait before Return (seconds)",
+          "tooltip": "After a FATE or CE, wait a random 0 to this many extra seconds before returning to base camp. 0 turns it off."
         }
       },
       "panel": {
