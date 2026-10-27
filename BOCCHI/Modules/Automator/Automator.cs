@@ -179,17 +179,28 @@ public class Automator
             return;
         }
 
-        if (Activity == null && postActivityReturnPending)
+        // Fight back whenever nothing else owns combat: during a forced
+        // return, while waiting at a pot or the tower pad, and when idle.
+        // Without this an attacked player stood still forever, because the
+        // idle branch below returns while in combat.
+        if (SelfDefensePolicy.ShouldDefend(
+                Activity == null,
+                Activity is PotWaitActivity or ForkedTowerWaitActivity,
+                PotFarm != null))
         {
             UpdatePostActivityCombatDefense(module);
+        }
+        else
+        {
+            ReleasePostActivityCombatDefense("an activity owns combat");
+        }
+
+        if (Activity == null && postActivityReturnPending)
+        {
             if (IsChainActive || HandlePostActivityReturn(module, states, lifestream))
             {
                 return;
             }
-        }
-        else
-        {
-            ReleasePostActivityCombatDefense("no forced return is pending");
         }
 
         if (Activity == null)
@@ -1475,8 +1486,10 @@ public class Automator
             postActivityDefenseOwner = module;
             module.SetAiProviderEnabled(true);
             Svc.Log.Info(
-                $"Forced base-camp return after {postActivityReturnReason} is held by combat; "
-                + $"fighting back against {attacker.Name}.");
+                postActivityReturnPending
+                    ? $"Forced base-camp return after {postActivityReturnReason} is held by combat; "
+                      + $"fighting back against {attacker.Name}."
+                    : $"Attacked while {(Activity == null ? "idle" : "waiting")}; fighting back against {attacker.Name}.");
         }
 
         if (!PromeRotationController.IsRunning())
@@ -1496,6 +1509,19 @@ public class Automator
         PromeRotationController.Stop();
         module.SetAiProviderEnabled(false);
         Svc.Log.Info($"Released post-activity combat defense: {reason}.");
+    }
+}
+
+public static class SelfDefensePolicy
+{
+    /// <summary>
+    /// The automator fights back on its own only when no activity runs or the
+    /// activity just waits (pot spawn, tower pad); FATEs, CEs and the pot
+    /// coffer farm handle their own combat.
+    /// </summary>
+    public static bool ShouldDefend(bool noActivity, bool isWaitActivity, bool potFarmRunning)
+    {
+        return !potFarmRunning && (noActivity || isWaitActivity);
     }
 }
 

@@ -3358,4 +3358,10 @@ Assert(BOCCHI.Services.ManualCastPathCancelPolicy.ShouldConsider(true, true, tru
         "The gather and stack timeout must be off at 0 and inclusive of its limit.");
 }
 
+Assert(SelfDefensePolicy.ShouldDefend(noActivity: true, isWaitActivity: false, potFarmRunning: false)
+       && SelfDefensePolicy.ShouldDefend(noActivity: false, isWaitActivity: true, potFarmRunning: false)
+       && !SelfDefensePolicy.ShouldDefend(noActivity: false, isWaitActivity: false, potFarmRunning: false)
+       && !SelfDefensePolicy.ShouldDefend(noActivity: true, isWaitActivity: false, potFarmRunning: true),
+    "An attacked player fights back while idle or waiting at a pot or the tower pad, but not inside a FATE, CE or coffer farm.");
+
 Console.WriteLine("BOCCHI 7.55 North Horn data, lifecycle, config, translation, routing, precompute, and vnavmesh availability smoke tests passed.");
